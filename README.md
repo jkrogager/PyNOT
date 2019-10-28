@@ -49,3 +49,5 @@ Background subtraction, wavelength calibration and flux calibration is performed
 and lastly, a 1D spectrum is extracted using optimal extraction if there is enough signal to automatically
 detect the trace. Otherwise a predefined box extraction will be performed. The parameters for the extraction
 box can be controlled using option keywords (see the help description: 'python PyNOT.py --help').
+Instead of a single 'raw_science_frame', the user can specify a list of files. Similarly for the arc_frames,
+the user can specify a list of corresponding arc frames for each of the science frames.
