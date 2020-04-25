@@ -359,21 +359,12 @@ class GraphicInterface(QMainWindow):
             hdu.close()
             if 'DISPAXIS' in primhdr.keys():
                 self.dispaxis = primhdr['DISPAXIS']
-            self.arc1d = np.median(raw_data[:, 20:-20], axis=self.dispaxis-1)
-            disp_key1 = 'CDELT%i' % self.dispaxis
-            disp_key2 = 'CD%i_%i' % (self.dispaxis, self.dispaxis)
-            if disp_key1 in primhdr.keys():
-                CDELT = primhdr['CDELT%i' % self.dispaxis]
-                CRVAL = primhdr['CRVAL%i' % self.dispaxis]
-                CRPIX = primhdr['CRPIX%i' % self.dispaxis]
-                self.pix = (np.arange(primhdr['NAXIS%i' % self.dispaxis]) - (CRPIX-1.)) * CDELT + CRVAL
-            elif disp_key2 in primhdr.keys():
-                CDELT = primhdr['CD%i_%i' % (self.dispaxis, self.dispaxis)]
-                CRVAL = primhdr['CRVAL%i' % self.dispaxis]
-                CRPIX = primhdr['CRPIX%i' % self.dispaxis]
-                self.pix = (np.arange(primhdr['NAXIS%i' % self.dispaxis]) - (CRPIX-1.)) * CDELT + CRVAL
-            else:
-                self.pix = np.arange(primhdr['NAXIS%i' % self.dispaxis])
+            if self.dispaxis == 1:
+                raw_data = raw_data.T
+            ilow = raw_data.shape[1]//2 - 20
+            ihigh = raw_data.shape[1]//2 + 20
+            self.arc1d = np.median(raw_data[:, ilow:ihigh], axis=1)
+            self.pix = np.arange(raw_data.shape[0])
 
             self.ax.lines[0].set_data(self.pix, self.arc1d)
             self.ax.relim()
@@ -739,7 +730,7 @@ class GraphicInterface(QMainWindow):
 if __name__ == '__main__':
     from argparse import ArgumentParser
     parser = ArgumentParser(description='Spectral Line Identification')
-    parser.add_argument("filename", type=str,
+    parser.add_argument("filename", type=str, nargs='?', default='',
                         help="Raw arc-line spectrum")
     parser.add_argument("--lines", type=str, default='',
                         help="Linelist filename containing reference wavelengths")
