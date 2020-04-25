@@ -1,0 +1,23 @@
+# CLAMP1 = He
+# CLAMP2 = Ne
+# CLAMP3 = Halogen
+# CLAMP4 = ThAr
+
+BIAS : EXPTIME < 0.01 and SHSTAT == CLOSED
+DARK : EXPTIME > 0.1 and SHSTAT == CLOSED
+
+
+ARC_HeNe : SHSTAT == OPEN and CLAMP3 == 0 and CLAMP2 == 1 and CLAMP1 == 1 and CLAMP4 == 0 and ALGRNM != Open and ALAPRTNM != Open
+ARC_He : SHSTAT == OPEN and CLAMP3 == 0 and CLAMP2 == 0 and CLAMP1 == 1 and CLAMP4 == 0 and ALGRNM != Open and ALAPRTNM != Open
+ARC_Ne : SHSTAT == OPEN and CLAMP3 == 0 and CLAMP2 == 1 and CLAMP1 == 0 and CLAMP4 == 0 and ALGRNM != Open and ALAPRTNM != Open
+ARC_ThAr : SHSTAT == OPEN and CLAMP3 == 0 and CLAMP2 == 0 and CLAMP1 == 0 and CLAMP4 == 1 and ALGRNM != Open and ALAPRTNM != Open
+
+SPEC_FLAT : SHSTAT == OPEN and CLAMP3 == 1 and CLAMP2 == 0 and CLAMP1 == 0 and CLAMP4 == 0 and ALGRNM != Open and ALAPRTNM != Open
+SPEC_OBJECT : SHSTAT == OPEN and CLAMP3 == 0 and CLAMP2 == 0 and CLAMP1 == 0 and CLAMP4 == 0 and ALGRNM != Open and ALAPRTNM != Open
+
+FOCUS : ALGRNM == Focus_Pyr
+
+IMG_OBJECT : SHSTAT == OPEN and CLAMP3 == 0 and CLAMP2 == 0 and CLAMP1 == 0 and CLAMP4 == 0 and ALGRNM == Open and ALAPRTNM == Open and IMAGETYP != FLAT
+IMG_FLAT : IMAGETYP == FLAT and OBS_MODE == IMAGING
+# ACQ_IMG : SHSTAT == OPEN and ALGRNM == Open and ALAPRTNM == Open
+SLIT_IMG : SHSTAT == OPEN and ALGRNM == Open and ALAPRTNM != Open

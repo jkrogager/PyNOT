@@ -15,7 +15,7 @@
    - fit_background
    - science_reduction_2d
 """
-__version__ = '0.8.0'
+
 __author__ = 'Jens-Kristian Krogager'
 __email__ = "krogager@iap.fr"
 __credits__ = ["Jens-Kristian Krogager"]
@@ -28,6 +28,7 @@ except:
     import astropy.io.fits as pf
 from scipy.ndimage import median_filter
 from numpy.polynomial import Chebyshev
+import os
 from os.path import isfile
 from argparse import ArgumentParser
 import warnings
@@ -39,6 +40,11 @@ except:
     astroscrappy_installed = False
 
 from extraction import extract_and_calibrate
+
+code_dir = os.path.dirname(os.path.abspath(__file__))
+v_file = os.path.join(code_dir, 'VERSION')
+with open(v_file) as version_file:
+    __version__ = version_file.read().strip()
 
 
 def my_formatter(x, p, scale_pow):
@@ -276,7 +282,7 @@ def science_reduction_2d(sci_input, arc_frame, output='', bias='', flat='', trim
     if hasattr(arc_frame, '__iter__'):
         arc_list = arc_frame
     else:
-        arc_list = [arc_frame for dummy in sci_input]
+        arc_list = len(sci_input) * [arc_frame]
 
     if isfile(bias):
         mbias = pf.getdata(bias)
