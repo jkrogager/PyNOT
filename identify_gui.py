@@ -266,7 +266,7 @@ class GraphicInterface(QMainWindow):
         bottom_hbox.addStretch(1)
         bottom_hbox.addWidget(button_show_resid)
         bottom_hbox.addStretch(1)
-        bottom_hbox.addWidget(button_save_wave)
+        # bottom_hbox.addWidget(button_save_wave)
         bottom_hbox.addWidget(button_clear_fit)
 
         right_layout.addLayout(bottom_hbox)
@@ -361,9 +361,9 @@ class GraphicInterface(QMainWindow):
                 self.dispaxis = primhdr['DISPAXIS']
             if self.dispaxis == 1:
                 raw_data = raw_data.T
-            ilow = raw_data.shape[1]//2 - 20
-            ihigh = raw_data.shape[1]//2 + 20
-            self.arc1d = np.median(raw_data[:, ilow:ihigh], axis=1)
+            ilow = raw_data.shape[1]//2 - 1
+            ihigh = raw_data.shape[1]//2 + 1
+            self.arc1d = np.sum(raw_data[:, ilow:ihigh], axis=1)
             self.pix = np.arange(raw_data.shape[0])
 
             self.ax.lines[0].set_data(self.pix, self.arc1d)

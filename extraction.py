@@ -171,11 +171,11 @@ def extract_and_calibrate(input_fname, arc_frame, bin_size=30, xmin=100, xmax=-1
             FWHM0 = alpha*2*np.sqrt(2**(1./beta)-1.)
             do_opt_extract = True
         else:
-            print "\n [WARNING] - No trace detected!"
+            print("\n [WARNING] - No trace detected!")
             do_opt_extract = False
 
     else:
-        print "\n [WARNING] - No trace detected!"
+        print("\n [WARNING] - No trace detected!")
         do_opt_extract = False
 
     if do_opt_extract is False:
@@ -543,7 +543,7 @@ def extract_and_calibrate(input_fname, arc_frame, bin_size=30, xmin=100, xmax=-1
     ax1D.plot(wl, flux1D, lw=1.)
     ax1D.plot(wl, err1D, lw=1.)
     ax1D.set_xlabel(u"Wavelength (Å)")
-    ax1D.set_ylabel(u"Flux  (${\\rm erg\ cm^{-2}\ s^{-1}\ \\AA^{-1}}$)")
+    ax1D.set_ylabel(r"Flux  (${\rm erg\ cm^{-2}\ s^{-1}\ \AA^{-1}}$)")
     if np.nansum((flux1D/err1D) > 5.) > 0:
         flux_max = np.nanmax(flux1D[(flux1D/err1D) > 5.])
     else:
@@ -574,7 +574,7 @@ def extract_and_calibrate(input_fname, arc_frame, bin_size=30, xmin=100, xmax=-1
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         HDU1D.writeto(output_fname1D, clobber=True)
-    print "\n  Saved calibrated 1D spectrum to file:  %s" % output_fname1D
+    print("\n  Saved calibrated 1D spectrum to file:  %s" % output_fname1D)
 
     ext0_2d = pf.PrimaryHDU(flux2D.T, header=hdr)
     ext1_2d = pf.ImageHDU(err2D.T, header=hdr, name='err')
@@ -583,10 +583,10 @@ def extract_and_calibrate(input_fname, arc_frame, bin_size=30, xmin=100, xmax=-1
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         HDU2D.writeto(output_fname2D, clobber=True)
-    print "\n  Saved calibrated 2D spectrum to file:  %s" % output_fname2D
-    print ""
+    print("\n  Saved calibrated 2D spectrum to file:  %s" % output_fname2D)
+    print("")
 
-    print "  Details from extraction are saved to file:  %s" % pdf_filename
+    print("  Details from extraction are saved to file:  %s" % pdf_filename)
 
     if show:
         plt.show()
@@ -661,11 +661,11 @@ def extract(input_fname, arc_frame, output='', bin_size=30, xmin=100, xmax=-100,
             if do_opt_extract:
                 FWHM0 = alpha*2*np.sqrt(2**(1./beta)-1.)
         else:
-            print "\n [WARNING] - No trace detected!"
+            print("\n [WARNING] - No trace detected!")
             do_opt_extract = False
 
     else:
-        print "\n [WARNING] - No trace detected!"
+        print("\n [WARNING] - No trace detected!")
         do_opt_extract = False
 
     if do_opt_extract is False:
@@ -1006,9 +1006,9 @@ def extract(input_fname, arc_frame, output='', bin_size=30, xmin=100, xmax=-100,
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         HDU1D.writeto(output_fname1D, clobber=True)
-    print "\n  Saved 1D extracted spectrum to file:  %s" % output_fname1D
+    print("\n  Saved 1D extracted spectrum to file:  %s" % output_fname1D)
 
-    print "  Details from extraction are saved to file:  %s" % pdf_filename
+    print("  Details from extraction are saved to file:  %s" % pdf_filename)
 
     if show:
         plt.show()

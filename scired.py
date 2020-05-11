@@ -16,6 +16,22 @@
    - science_reduction_2d
 """
 
+# -- Notes for trace identification:
+# Use scipy.signal.find_peaks to identify number of objects in slit:
+# Construct SPSF and determine the background noise: sigma.
+#
+#  peaks = scipy.signal.find_peaks(SPSF, height=3*sigma, width=3.)
+#
+#  numbers like this seem to work fairly well, the number of sigmas should be a parameter
+#  this required an object to be more than 3 pixels wide and more than 3 sigma above background
+# The result is:
+#  loc = peaks[0]  # and array of pixel locations of the center of each peak
+#  height = peaks[1]['peak_heights']   # an array of peak height
+# Then the objects will be sorted according to their 'height' i.e., their flux:
+#  sorted_objects = sorted(list(zip(loc, height)), key=lambda x: x[1], reverse=True)
+#  trace_centers = np.array(sorted_objects)[:, 0]   # sorted array of central pixels
+
+
 __author__ = 'Jens-Kristian Krogager'
 __email__ = "krogager@iap.fr"
 __credits__ = ["Jens-Kristian Krogager"]
@@ -109,15 +125,15 @@ def fit_background(data, axis=1, x1=None, x2=None, interact=False, order=3, plot
         SPSF = np.median(data, 0)
         trace_center = np.argmax(SPSF)
         if interact:
-            print "INTERACTIVE MODE ON!"
+            print("INTERACTIVE MODE ON!")
             good = False
             plt.close('all')
             plt.figure()
             while good is False:
                 plt.plot(x, SPSF, color='RoyalBlue')
                 plt.title("Mark left and right bounds of fitting region")
-                print "\nMark left and right bounds of fitting region"
-                print ""
+                print("\nMark left and right bounds of fitting region")
+                print("")
                 # plt.draw()
                 sel = plt.ginput(-1, -1)
                 mask = np.zeros(len(x), dtype=bool)
@@ -138,7 +154,7 @@ def fit_background(data, axis=1, x1=None, x2=None, interact=False, order=3, plot
                         good = True
 
                 else:
-                    print "\n Something went wrong, the number of points must be even!\n"
+                    print("\n Something went wrong, the number of points must be even!\n")
                     continue
 
         else:
@@ -288,21 +304,21 @@ def science_reduction_2d(sci_input, arc_frame, output='', bias='', flat='', trim
         mbias = pf.getdata(bias)
     else:
         mbias = np.zeros_like(img0)
-        print " WARNING - No master bias file provided!"
+        print(" WARNING - No master bias file provided!")
 
     if isfile(flat):
         mflat = pf.getdata(flat)
     else:
         mflat = np.ones_like(img0)
-        print " WARNING - No master flat file provided!"
+        print(" WARNING - No master flat file provided!")
 
     for sci_fname, arc_frame in zip(sci_input, arc_list):
         HDU = pf.open(sci_fname)
         if len(HDU) > 1:
             if verbose:
-                print " Merging extensions:"
+                print(" Merging extensions:")
                 HDU.info()
-                print ""
+                print("")
             hdr = HDU[0].header
             for key in HDU[1].header.keys():
                 hdr[key] = HDU[1].header[key]
