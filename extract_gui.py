@@ -951,7 +951,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
         separatorLine.setMinimumSize(3, 20)
         right_panel.addWidget(separatorLine)
 
-        right_panel.addWidget(gui_label("List of Trace Models", color='dimgray'))
+        right_panel.addWidget(gui_label("List of Extraction Apertures", color='dimgray'))
         right_panel.addWidget(self.list_widget)
 
         main_layout.addLayout(right_panel)
@@ -1074,7 +1074,6 @@ class ExtractGUI(QtWidgets.QMainWindow):
             fname = str(fname)
 
         if not os.path.exists(fname):
-            print("\nFile doesn't exist : %r\n" % fname)
             return
 
         # Clear all models:
@@ -1801,6 +1800,8 @@ class ExtractGUI(QtWidgets.QMainWindow):
 
     def listItemRightClicked(self, QPos):
         index = self.list_widget.currentIndex().row()
+        if index < 0 or len(self.trace_models) == 0:
+            return
         current_model = self.trace_models[index]
         self.listMenu = QtWidgets.QMenu()
         remove_menu_item = self.listMenu.addAction("Delete Aperture")
