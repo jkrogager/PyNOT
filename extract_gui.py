@@ -1579,6 +1579,8 @@ class ExtractGUI(QtWidgets.QMainWindow):
     def create_model_trace(self, plot=False):
         center_order, width_order = self.get_trace_orders()
         for model in self.trace_models:
+            if len(model.x_binned) == 0:
+                continue
             domain = (0., np.max(model.x))
             x_binned = model.x_binned
             # Fit the centroid `mu`:
@@ -1736,8 +1738,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
             item.setCheckState(2)
 
     def update_settings(self):
-        print("Settings updated")
-
+        pass
 
     def create_menu(self):
         load_file_action = QtWidgets.QAction("Load Spectrum", self)
@@ -1798,18 +1799,18 @@ class ExtractGUI(QtWidgets.QMainWindow):
         edit_menu.addSeparator()
         edit_menu.addAction(settings_action)
 
-
     def listItemRightClicked(self, QPos):
         index = self.list_widget.currentIndex().row()
         current_model = self.trace_models[index]
         self.listMenu = QtWidgets.QMenu()
-        remove_menu_item = self.listMenu.addAction("Remove system")
+        remove_menu_item = self.listMenu.addAction("Delete Aperture")
         remove_menu_item.triggered.connect(lambda x: self.remove_trace(index))
-        edit_menu_item = self.listMenu.addAction("Edit properties")
-        edit_menu_item.triggered.connect(lambda x: ModelPropertiesWindow(self))
-        comp_menu_item = self.listMenu.addAction("Copy Trace")
+        edit_menu_item = self.listMenu.addAction("Edit Properties")
+        edit_menu_item.triggered.connect(lambda x: ModelPropertiesWindow(current_model, self))
+        comp_menu_item = self.listMenu.addAction("Copy Aperture")
         comp_menu_item.triggered.connect(lambda x: self.copy_trace(current_model))
         if current_model.plot_1d is not None:
+            self.listMenu.addSeparator()
             save_menu_item = self.listMenu.addAction("Save Spectrum")
             save_menu_item.triggered.connect(lambda x: self.save_spectrum_1d(index=index))
             save_item_model = self.listMenu.addAction("Save Aperture")
@@ -1893,14 +1894,18 @@ class SaveWindow(QtWidgets.QDialog):
         # -- Create Filename Selector:
         basename = './' + parent.image2d.header['OBJECT'] + '_1d.fits'
         self.fname_editor = QtWidgets.QLineEdit(basename)
+        self.fname_editor.setMinimumWidth(200)
         file_selector = QtWidgets.QPushButton("...")
         file_selector.clicked.connect(self.open_filedialog)
         fname_row = QtWidgets.QHBoxLayout()
-        fname_row.addWidget(self.fname_editor)
+        fname_row.addWidget(self.fname_editor, 1)
         fname_row.addWidget(file_selector)
-        fname_row.addStretch(1)
 
         # -- Create File Format Group:
+        top_row = QtWidgets.QHBoxLayout()
+        top_row.addWidget(QtWidgets.QLabel("File Format:"))
+        top_row.addStretch(2)
+
         self.format_group = QtWidgets.QButtonGroup(self)
         btn_fits = QtWidgets.QRadioButton("FITS")
         btn_fits.setChecked(True)
@@ -1919,12 +1924,16 @@ class SaveWindow(QtWidgets.QDialog):
         btn_ascii.toggled.connect(self.set_ascii)
 
         btn_row = QtWidgets.QHBoxLayout()
+        # btn_row.addStretch(1)
         btn_row.addWidget(btn_fits)
         btn_row.addWidget(btn_fits_table)
         btn_row.addWidget(btn_ascii)
 
         # -- Aperture Inclusion:
         self.aper_btn = QtWidgets.QCheckBox("Include 2D Aperture Model")
+        middle_row = QtWidgets.QHBoxLayout()
+        # middle_row.addStretch(1)
+        middle_row.addWidget(self.aper_btn)
 
         # -- Save and Cancel buttons:
         btn_save = QtWidgets.QPushButton("Save")
@@ -1940,7 +1949,6 @@ class SaveWindow(QtWidgets.QDialog):
         # -- Left List View of Objects:
         self.listview = QtWidgets.QListWidget()
         self.listview.setFixedWidth(200)
-
         for num in range(parent.list_widget.count()):
             parent_item = parent.list_widget.item(num)
             object_name = parent_item.text()
@@ -1948,23 +1956,33 @@ class SaveWindow(QtWidgets.QDialog):
             self.listview.addItem(item)
         self.listview.setCurrentRow(index)
 
+        # -- Manage Layout:
         main_layout = QtWidgets.QHBoxLayout()
         right_layout = QtWidgets.QVBoxLayout()
+        right_layout.setSpacing(3)
         left_layout = QtWidgets.QVBoxLayout()
+        bottom_layout = QtWidgets.QHBoxLayout()
+        lower_right_layout = QtWidgets.QVBoxLayout()
+
+        lower_right_layout.addLayout(top_row)
+        lower_right_layout.addLayout(btn_row)
+        lower_right_layout.addStretch(1)
+        lower_right_layout.addLayout(middle_row)
+        lower_right_layout.addStretch(2)
+        lower_right_layout.addLayout(bottom_row)
+        bottom_layout.addStretch(1)
+        bottom_layout.addLayout(lower_right_layout)
 
         left_layout.addWidget(QtWidgets.QLabel("Choose object to save:"))
         left_layout.addWidget(self.listview)
 
+        right_layout.addWidget(QtWidgets.QLabel("Filename:"))
         right_layout.addLayout(fname_row)
-        right_layout.addWidget(QtWidgets.QLabel("File Format:"))
-        right_layout.addLayout(btn_row)
-        right_layout.addStretch(1)
-        right_layout.addWidget(self.aper_btn)
-        right_layout.addStretch(2)
-        right_layout.addLayout(bottom_row)
+        # right_layout.addStretch(1)
+        right_layout.addLayout(bottom_layout)
 
         main_layout.addLayout(left_layout)
-        main_layout.addLayout(right_layout)
+        main_layout.addLayout(right_layout, 1)
         self.setLayout(main_layout)
         self.show()
 
@@ -2026,10 +2044,39 @@ class SaveWindow(QtWidgets.QDialog):
 
 
 class ModelPropertiesWindow(QtWidgets.QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, trace_model, parent=None):
         super(ModelPropertiesWindow, self).__init__(parent)
         self.setWindowTitle("Edit Model Properties")
+        self.trace_model = trace_model
+        self.color = self.trace_model.color
+
+        self.color_button = QtWidgets.QPushButton()
+        self.color_button.setFixedWidth(35)
+        self.color_button.setFixedHeight(25)
+        self.color_button.clicked.connect(self.color_selector)
+        self.color_button.setStyleSheet("background-color: %s;" % self.trace_model.color)
+
+        self.model_type_editor = QtWidgets.QLineEdit(self.trace_model.model_type)
+
+        main_layout = QtWidgets.QGridLayout()
+        main_layout.addWidget(QtWidgets.QLabel("Color:"), 0, 0)
+        main_layout.addWidget(self.color_button, 0, 1)
+
+        main_layout.addWidget(QtWidgets.QLabel("Model Type:"), 1, 0)
+        main_layout.addWidget(self.model_type_editor, 1, 1)
+
+        self.setLayout(main_layout)
         self.show()
+
+    def color_selector(self):
+        color_dlg = QtWidgets.QColorDialog(self)
+        color_dlg.setCurrentColor(QtGui.QColor(self.color))
+        color = color_dlg.getColor()
+
+        if color.isValid():
+            self.color = str(color.name())
+            self.color_button.setStyleSheet("background-color: %s;" % self.color)
+            self.trace_model.set_color(self.color)
 
 class WarningDialog(QtWidgets.QDialog):
     def __init__(self, parent, text, info=""):
@@ -2065,9 +2112,10 @@ if __name__ == '__main__':
 
     if args.filename == 'test':
         # Load Test Data:
-        # fname = '/Users/krogager/coding/PyNOT/test/SCI_2D_crr_ALAb170110.fits'
+        fname = '/Users/krogager/coding/PyNOT/test/SCI_2D_crr_ALAb170110.fits'
         dispaxis = 2
-        fname = '/Users/krogager/Projects/Johan/close_spectra/obj.fits'
+        # fname = '/Users/krogager/Projects/Johan/close_spectra/obj.fits'
+        # dispaxis = 1
 
     else:
         fname = args.filename
