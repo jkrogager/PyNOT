@@ -9,10 +9,11 @@ Graphical interface to extract 1D spectra
 __author__ = "Jens-Kristian Krogager"
 __email__ = "krogager.jk@gmail.com"
 __credits__ = ["Jens-Kristian Krogager"]
-__version__ = '0.0.9'
+__version__ = '0.12'
 
 import copy
 import os
+import re
 import sys
 import numpy as np
 import matplotlib
@@ -403,8 +404,9 @@ class BackgroundModel(object):
 
 
 class TraceModel(object):
-    def __init__(self, cen, amp, axis, shape, fwhm=5, model_type='Moffat', xmin=None, xmax=None, color='RoyalBlue'):
+    def __init__(self, cen, amp, axis, shape, fwhm=5, model_type='Moffat', object_name="", xmin=None, xmax=None, color='RoyalBlue'):
         self.model_type = model_type
+        self._original_type = model_type
         self.xmin = xmin
         self.xmax = xmax
         self.color = color
@@ -417,6 +419,8 @@ class TraceModel(object):
         self.x = np.arange(shape[1], dtype=np.float64)
         self.y = np.arange(shape[0], dtype=np.float64)
         self.axis = axis
+        self.fixed = False
+        self.object_name = object_name
 
         self.x_binned = np.array([])
         self.mask = {'mu': np.array([], dtype=bool), 'sigma': np.array([], dtype=bool),
@@ -433,8 +437,6 @@ class TraceModel(object):
         v_cen = self.axis.axvline(self.cen, color=color, lw=1., ls='-', picker=True, label='center')
         v_lower = self.axis.axvline(self.lower, color=color, lw=0.8, ls='--', picker=True, label='lower')
         v_upper = self.axis.axvline(self.upper, color=color, lw=0.8, ls='--', picker=True, label='upper')
-        v_lower.set_visible(False)
-        v_upper.set_visible(False)
         self.vlines = [v_lower, v_cen, v_upper]
 
         # Collector for points:
@@ -444,6 +446,9 @@ class TraceModel(object):
                           'alpha': None, 'beta': None}
         self.model_image = None
         self.plot_1d = None
+
+    def set_object_name(self, name):
+        self.object_name = name
 
     def set_color(self, color):
         self.color = color
@@ -586,6 +591,7 @@ class TraceModel(object):
         lower, upper = self.get_range()
         new_trace_model.set_range(lower+offset, upper+offset)
         new_trace_model.x_binned = self.x_binned.copy()
+        new_trace_model.fixed = True
         for param in self.points.keys():
             new_trace_model.points[param] = self.points[param].copy()
             new_trace_model.fit[param] = self.fit[param].copy()
@@ -758,6 +764,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.list_widget.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.list_widget.itemChanged.connect(self.toggle_trace_models)
         self.list_widget.customContextMenuRequested.connect(self.listItemRightClicked)
+        self.list_widget.itemDoubleClicked.connect(self.listItemDoubleClicked)
 
 
         # == Tab Widget =======================================================
@@ -820,7 +827,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
         row_median.addStretch(1)
         row_median.addWidget(QtWidgets.QLabel("Kappa: "))
         row_median.addWidget(self.med_kappa_edit)
-        row_median.addWidget(QtWidgets.QLabel("Window: "))
+        row_median.addWidget(QtWidgets.QLabel("Filter Width: "))
         row_median.addWidget(self.med_window_edit)
         row_median.addStretch(1)
 
@@ -838,8 +845,6 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.axis_1d.axhline(0., ls=':', color='black', lw=0.5, alpha=0.5)
         self.axis_1d.set_xlabel("Dispersion axis")
         self.axis_1d.set_ylabel("Extracted flux")
-        # self.figure_1d.tight_layout()
-        # connect scroll event to smoothing!
         self.canvas_1d = FigureCanvas(self.figure_1d)
         self.fig1d_mpl_toolbar = NavigationToolbar(self.canvas_1d, self)
         self.fig1d_mpl_toolbar.setFixedHeight(20)
@@ -1012,18 +1017,33 @@ class ExtractGUI(QtWidgets.QMainWindow):
     def save_spectrum_2d(self):
         """Save the background subtracted 2D spectrum"""
         current_dir = os.path.dirname(os.path.abspath(__file__))
+        current_dir += '/skysub_2d.fits'
         filters = "FITS Files (*.fits *.fit)"
         path, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save 2D', current_dir, filters)
         if path:
-            pass
+            bg_model = self.background.model2d
+            data2d = self.image2d.data - bg_model
+            prim_hdr = self.image2d.header
+            prim_hdr['AUTHOR'] = 'PyNOT'
+            prim_hdr['COMMENT'] = '2D background subtracted spectrum'
+            prim_hdr['CHEB_ORD'] = self.settings['BACKGROUND_POLY_ORDER']
+            hdu = fits.PrimaryHDU(data=data2d, header=prim_hdr)
+            hdu.writeto(path, overwrite=True, output_verify='silentfix')
 
     def save_spectrum_bg(self):
         """Save the fitted 2D background spectrum"""
         current_dir = os.path.dirname(os.path.abspath(__file__))
+        current_dir += '/sky_2d.fits'
         filters = "FITS Files (*.fits *.fit)"
         path, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save 2D', current_dir, filters)
         if path:
-            pass
+            bg_model = self.background.model2d
+            prim_hdr = fits.Header()
+            prim_hdr['AUTHOR'] = 'PyNOT'
+            prim_hdr['COMMENT'] = '2D background model spectrum'
+            prim_hdr['CHEB_ORD'] = self.settings['BACKGROUND_POLY_ORDER']
+            hdu = fits.PrimaryHDU(data=bg_model, header=prim_hdr)
+            hdu.writeto(path, overwrite=True, output_verify='silentfix')
 
     def save_spectrum_1d(self, index=0):
         if len(self.data1d) == 0:
@@ -1082,6 +1102,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
             self.remove_trace(index)
         if self.background is not None:
             self.background.clear()
+        self.axis_spsf.clear()
         self.axis_2d.clear()
         self.axis_2d_bg.clear()
         self.image2d = ImageData(fname, dispaxis)
@@ -1180,7 +1201,11 @@ class ExtractGUI(QtWidgets.QMainWindow):
                 # Median filter the data to remove outliers:
                 med_column = median_filter(column, 15)
                 noise = mad(column)*1.4826
-                this_mask = mask * (np.abs(column - med_column) < bg_kappa*noise)
+                filtering_mask = (np.abs(column - med_column) < bg_kappa*noise)
+                if np.sum(mask & filtering_mask) < bg_order:
+                    this_mask = mask
+                else:
+                    this_mask = mask & filtering_mask
                 # Fit Chebyshev polynomial model:
                 bg_model = Chebyshev.fit(y[this_mask], column[this_mask], bg_order, domain=(y.min(), y.max()))
                 self.background.model2d[:, i] = bg_model(y)
@@ -1287,8 +1312,11 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.trace_models.append(model)
         N = self.list_widget.count() + 1
         object_name = self.image2d.header['OBJECT'] + '_%i' % N
+        model.set_object_name(object_name)
+        if model.fixed:
+            object_name = "[ COPY ] " + object_name
         item = QtWidgets.QListWidgetItem(object_name)
-        item.setFlags(item.flags() | QtCore.Qt.ItemIsEditable)
+        # item.setFlags(item.flags() | QtCore.Qt.ItemIsEditable)
         item.setCheckState(QtCore.Qt.Checked)
         item.setForeground(QtGui.QColor(model.color))
         self.list_widget.addItem(item)
@@ -1366,7 +1394,14 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.canvas_2d.draw()
 
     def plot_trace_2d(self):
-        if len(self.last_fit) == 0:
+        active_models = list()
+        for model in self.trace_models:
+            if np.sum(model.model2d) > 0:
+                active_models.append(model)
+        if len(active_models) == 0:
+            msg = "No aperture models defined"
+            info = "Fit the aperture model before extracting."
+            WarningDialog(self, msg, info)
             return
 
         for num, model in enumerate(self.trace_models):
@@ -1425,19 +1460,21 @@ class ExtractGUI(QtWidgets.QMainWindow):
                     self.add_trace(trace_model)
 
     def model_change(self, text):
-        if text.lower() == 'tophat':
-            for num, model in enumerate(self.trace_models):
-                listItem = self.list_widget.item(num)
-                if listItem.checkState() == 2:
-                    model.set_visible()
-                else:
-                    model.set_visible(False)
-            self.canvas_spsf.draw()
-
-        elif text.lower() == 'gaussian' or text.lower() == 'moffat':
-            for model in self.trace_models:
-                model.set_visible(False)
-            self.canvas_spsf.draw()
+        # Changed to always show aperture limits...
+        # if text.lower() == 'tophat':
+        #     for num, model in enumerate(self.trace_models):
+        #         listItem = self.list_widget.item(num)
+        #         if listItem.checkState() == 2:
+        #             model.set_visible()
+        #         else:
+        #             model.set_visible(False)
+        #     self.canvas_spsf.draw()
+        #
+        # elif text.lower() == 'gaussian' or text.lower() == 'moffat':
+        #     for model in self.trace_models:
+        #         model.set_visible(False)
+        #     self.canvas_spsf.draw()
+        pass
 
     def fit_trace(self):
         if self.image2d is None:
@@ -1461,8 +1498,9 @@ class ExtractGUI(QtWidgets.QMainWindow):
         peaks = list()
         prominences = list()
         for trace_model in self.trace_models:
-            peaks.append(trace_model.cen)
-            prominences.append(trace_model.amp)
+            if not trace_model.fixed:
+                peaks.append(trace_model.cen)
+                prominences.append(trace_model.amp)
         this_fit = (dx, original_model, ymin, ymax, self.trace_models)
 
         if self.last_fit != this_fit:
@@ -1494,19 +1532,36 @@ class ExtractGUI(QtWidgets.QMainWindow):
 
             # Update model with fitted points:
             for num, trace_model in enumerate(self.trace_models):
-                trace_model.xmin = xmin
-                trace_model.xmax = xmax
-                trace_model.model_type = original_model
-                mu = np.array([par['mu_%i' % num] for par in trace_parameters])
-                if model_type == 'moffat':
-                    alpha = np.array([par['a_%i' % num] for par in trace_parameters])
-                    beta = np.array([par['b_%i' % num] for par in trace_parameters])
-                    trace_model.set_data(x_binned, mu, alpha=alpha, beta=beta)
+                if not trace_model.fixed:
+                    trace_model.xmin = xmin
+                    trace_model.xmax = xmax
+                    trace_model.model_type = original_model
+                    trace_model._original_type = original_model
+                    mu = np.array([par['mu_%i' % num] for par in trace_parameters])
+                    if model_type == 'moffat':
+                        alpha = np.array([par['a_%i' % num] for par in trace_parameters])
+                        beta = np.array([par['b_%i' % num] for par in trace_parameters])
+                        trace_model.set_data(x_binned, mu, alpha=alpha, beta=beta)
+                        # Set extraction limits to ±2xFWHM:
+                        profile = NN_moffat(trace_model.y, np.median(mu), np.median(alpha), np.median(beta), 0.)
+                        fwhm = get_FWHM(profile)
+                        lower = trace_model.cen - 2*fwhm
+                        upper = trace_model.cen + 2*fwhm
+                        trace_model.set_centroid(np.median(mu))
+                        trace_model.set_range(lower, upper)
 
-                elif model_type == 'gaussian':
-                    sig = np.array([par['sig_%i' % num] for par in trace_parameters])
-                    trace_model.set_data(x_binned, mu, sigma=sig)
+                    elif model_type == 'gaussian':
+                        sig = np.array([par['sig_%i' % num] for par in trace_parameters])
+                        trace_model.set_data(x_binned, mu, sigma=sig)
+                        # Set extraction limits to ±2xFWHM:
+                        profile = NN_gaussian(trace_model.y, np.median(mu), np.median(sig), 0.)
+                        fwhm = get_FWHM(profile)
+                        lower = trace_model.cen - 2*fwhm
+                        upper = trace_model.cen + 2*fwhm
+                        trace_model.set_centroid(np.median(mu))
+                        trace_model.set_range(lower, upper)
             self.last_fit = this_fit
+            self.canvas_spsf.draw()
             self.create_model_trace()
             self.plot_fitted_points()
         else:
@@ -1517,7 +1572,6 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.tab_widget.setCurrentIndex(1)
 
     def plot_fitted_points(self, update_only=False):
-        parameters = self.trace_models[0].get_parnames()
         if update_only:
             for model in self.trace_models:
                 parameters = model.get_parnames()
@@ -1545,14 +1599,17 @@ class ExtractGUI(QtWidgets.QMainWindow):
                 for line in model.point_lines['mu']:
                     line.remove()
             self.figure_points.clear()
-            N_rows = len(parameters)
-            if N_rows == 1:
-                self.axes_points = [self.figure_points.subplots(N_rows, 1)]
+            fit_model_type = self.model_chooser.currentText().lower()
+            if fit_model_type == 'moffat':
+                self.axes_points = self.figure_points.subplots(3, 1)
+            elif fit_model_type == 'gaussian':
+                self.axes_points = self.figure_points.subplots(2, 1)
             else:
-                self.axes_points = self.figure_points.subplots(N_rows, 1)
+                self.axes_points = [self.figure_points.subplots(1, 1)]
 
-            for ax, parname in zip(self.axes_points, parameters):
-                for model in self.trace_models:
+            for model in self.trace_models:
+                parameters = model.get_parnames()
+                for ax, parname in zip(self.axes_points, parameters):
                     mask = model.get_mask(parname)
                     # -- Plot traced points:
                     l1, = ax.plot(model.x_binned[mask], model.points[parname][mask],
@@ -1571,7 +1628,8 @@ class ExtractGUI(QtWidgets.QMainWindow):
                         lf, = ax.plot(model.x, model.fit[parname],
                                       color=model.color, ls='--', lw=1.0)
                         model.fit_lines[parname] = lf
-                ax.set_ylabel(r"$\%s$" % parname)
+                    if not model.fixed:
+                        ax.set_ylabel(r"$\%s$" % parname)
         self.canvas_points.draw()
         self.canvas_2d.draw()
 
@@ -1579,47 +1637,68 @@ class ExtractGUI(QtWidgets.QMainWindow):
         center_order, width_order = self.get_trace_orders()
         for model in self.trace_models:
             if len(model.x_binned) == 0:
-                continue
-            domain = (0., np.max(model.x))
-            x_binned = model.x_binned
-            # Fit the centroid `mu`:
-            mask_mu = model.get_mask('mu')
-            mu = model.points['mu']
-            mu_fit = Chebyshev.fit(x_binned[mask_mu], mu[mask_mu], deg=center_order, domain=domain)
-            model.fit['mu'] = mu_fit(model.x)
-
-            # Fit the remaining parameters:
-            parameters = model.get_parnames()
-            # Remove 'mu' from the list, at index 0:
-            parameters.pop(0)
-            for parname in parameters:
-                mask = model.get_mask(parname)
-                par = model.points[parname]
-                cheb_fit = Chebyshev.fit(x_binned[mask], par[mask], deg=width_order, domain=domain)
-                model.fit[parname] = cheb_fit(model.x)
-
-            # Create 2D model:
-            if model.model_type == 'moffat':
-                model_function = NN_moffat
-                pars_table = np.column_stack([model.fit['mu'], model.fit['alpha'], model.fit['beta'], np.zeros_like(model.x)])
-            elif model.model_type == 'gaussian':
-                model_function = NN_gaussian
-                pars_table = np.column_stack([model.fit['mu'], model.fit['sigma'], np.zeros_like(model.x)])
-            elif model.model_type == 'tophat':
-                model_function = tophat
+                # Force model_type to be 'tophat':
+                model.model_type = 'tophat'
+                model._original_type = 'tophat'
+                # Make flat box aperture:
                 lower, upper = model.get_range()
-                cen = model.cen
-                delta_lower = lower - cen
-                delta_upper = upper - cen
-                mu = model.fit['mu']
-                lower_array = np.round(mu + delta_lower, 0)
-                upper_array = np.round(mu + delta_upper, 0)
+                lower_array = lower * np.ones_like(model.x)
+                upper_array = upper * np.ones_like(model.x)
                 pars_table = np.column_stack([lower_array, upper_array])
+                for num, pars in enumerate(pars_table):
+                    P_i = tophat(model.y, *pars)
+                    model.model2d[:, num] = P_i
+                model.model2d /= np.sum(model.model2d, axis=0)
 
-            for num, pars in enumerate(pars_table):
-                P_i = model_function(model.y, *pars)
-                model.model2d[:, num] = P_i
-            model.model2d /= np.sum(model.model2d, axis=0)
+            else:
+                domain = (0., np.max(model.x))
+                x_binned = model.x_binned
+                # Fit the centroid `mu`:
+                mask_mu = model.get_mask('mu')
+                mu = model.points['mu']
+                mu_fit = Chebyshev.fit(x_binned[mask_mu], mu[mask_mu], deg=center_order, domain=domain)
+                model.fit['mu'] = mu_fit(model.x)
+
+                # Fit the remaining parameters:
+                parameters = model.get_parnames()
+                # Remove 'mu' from the list, at index 0:
+                parameters.pop(0)
+                for parname in parameters:
+                    mask = model.get_mask(parname)
+                    par = model.points[parname]
+                    cheb_fit = Chebyshev.fit(x_binned[mask], par[mask], deg=width_order, domain=domain)
+                    model.fit[parname] = cheb_fit(model.x)
+
+                # Create 2D model:
+                if model.model_type == 'moffat':
+                    model_function = NN_moffat
+                    pars_table = np.column_stack([model.fit['mu'], model.fit['alpha'], model.fit['beta'], np.zeros_like(model.x)])
+                elif model.model_type == 'gaussian':
+                    model_function = NN_gaussian
+                    pars_table = np.column_stack([model.fit['mu'], model.fit['sigma'], np.zeros_like(model.x)])
+                elif model.model_type == 'tophat':
+                    model_function = tophat
+                    lower, upper = model.get_range()
+                    cen = model.cen
+                    delta_lower = np.abs(cen - lower)
+                    delta_upper = np.abs(upper - cen)
+                    mu = model.fit['mu']
+                    lower_array = np.round(mu - delta_lower, 0)
+                    upper_array = np.round(mu + delta_upper, 0)
+                    pars_table = np.column_stack([lower_array, upper_array])
+
+                lower, upper = model.get_range()
+                dlow = np.abs(model.cen - lower)
+                dhigh = np.abs(model.cen - upper)
+                for num, pars in enumerate(pars_table):
+                    P_i = model_function(model.y, *pars)
+                    if model.model_type != 'tophat':
+                        il = int(pars[0] - dlow)
+                        ih = int(pars[0] + dhigh)
+                        P_i[:il] = 0.
+                        P_i[ih:] = 0.
+                    model.model2d[:, num] = P_i
+                model.model2d /= np.sum(model.model2d, axis=0)
 
         if plot is True:
             self.plot_trace_2d()
@@ -1670,7 +1749,14 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.plot_fitted_points(update_only=True)
 
     def extract(self):
-        if len(self.trace_models) == 0:
+        active_models = list()
+        for model in self.trace_models:
+            if np.sum(model.model2d) > 0:
+                active_models.append(model)
+        if len(active_models) == 0:
+            msg = "No aperture models defined"
+            info = "Fit the aperture model or create a box aperture before extracting."
+            WarningDialog(self, msg, info)
             return
 
         data1d_list = []
@@ -1716,12 +1802,13 @@ class ExtractGUI(QtWidgets.QMainWindow):
 
     def toggle_trace_models(self, listItem):
         index = self.list_widget.row(listItem)
-        model_type = self.model_chooser.currentText()
+        # model_type = self.model_chooser.currentText()
         if listItem.checkState() == 2:
             # Active:
             self.trace_models[index].activate()
-            if model_type.lower() == 'tophat':
-                self.trace_models[index].set_visible(True)
+            self.trace_models[index].set_visible(True)
+            # if model_type.lower() == 'tophat':
+            #     self.trace_models[index].set_visible(True)
         else:
             # Inactive:
             self.trace_models[index].deactivate()
@@ -1773,9 +1860,13 @@ class ExtractGUI(QtWidgets.QMainWindow):
         make2dmodel_action.setChecked(True)
         make2dmodel_action.triggered.connect(lambda x: self.create_model_trace(plot=True))
 
-        settings_action = QtWidgets.QAction("Edit Settings", self)
+        settings_action = QtWidgets.QAction("Settings", self)
         settings_action.setShortcut("ctrl+,")
         settings_action.triggered.connect(lambda checked: SettingsWindow(self))
+
+        view_hdr_action = QtWidgets.QAction("Display Header", self)
+        view_hdr_action.setShortcut("ctrl+shift+H")
+        view_hdr_action.triggered.connect(self.display_header)
 
         main_menu = self.menuBar()
         file_menu = main_menu.addMenu("File")
@@ -1798,6 +1889,18 @@ class ExtractGUI(QtWidgets.QMainWindow):
         edit_menu.addSeparator()
         edit_menu.addAction(settings_action)
 
+        view_menu = main_menu.addMenu("View")
+        view_menu.addAction(view_hdr_action)
+
+    def listItemDoubleClicked(self, item):
+        index = self.list_widget.currentIndex().row()
+        if index < 0 or len(self.trace_models) == 0:
+            return
+        current_model = self.trace_models[index]
+        if np.sum(current_model.model2d) == 0 or len(current_model.fit['mu']) == 0:
+            current_model.model_type = 'tophat'
+        ModelPropertiesWindow(current_model, index, self)
+
     def listItemRightClicked(self, QPos):
         index = self.list_widget.currentIndex().row()
         if index < 0 or len(self.trace_models) == 0:
@@ -1807,7 +1910,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
         remove_menu_item = self.listMenu.addAction("Delete Aperture")
         remove_menu_item.triggered.connect(lambda x: self.remove_trace(index))
         edit_menu_item = self.listMenu.addAction("Edit Properties")
-        edit_menu_item.triggered.connect(lambda x: ModelPropertiesWindow(current_model, self))
+        edit_menu_item.triggered.connect(lambda x: ModelPropertiesWindow(current_model, index, self))
         comp_menu_item = self.listMenu.addAction("Copy Aperture")
         comp_menu_item.triggered.connect(lambda x: self.copy_trace(current_model))
         if current_model.plot_1d is not None:
@@ -1821,6 +1924,12 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.listMenu.show()
 
     def copy_trace(self, trace_model):
+        if len(trace_model.fit['mu']) == 0:
+            msg = "Aperture not defined"
+            info = "Fit the trace parameters before copying."
+            WarningDialog(self, msg, info)
+            return
+
         new_trace_model = trace_model.copy()
         if new_trace_model.model_type == 'tophat':
             new_trace_model.set_visible(True)
@@ -1829,6 +1938,14 @@ class ExtractGUI(QtWidgets.QMainWindow):
             self.create_model_trace()
             self.plot_fitted_points()
             self.plot_trace_2d()
+
+    def display_header(self):
+        if self.image2d is not None:
+            HeaderViewer(self.image2d.header, parent=self)
+        else:
+            msg = "No Data Loaded"
+            info = "Load a 2D spectrum first"
+            WarningDialog(self, msg, info)
 
 
 class SettingsWindow(QtWidgets.QDialog):
@@ -2045,11 +2162,14 @@ class SaveWindow(QtWidgets.QDialog):
 
 
 class ModelPropertiesWindow(QtWidgets.QDialog):
-    def __init__(self, trace_model, parent=None):
+    def __init__(self, trace_model, list_index, parent=None):
         super(ModelPropertiesWindow, self).__init__(parent)
         self.setWindowTitle("Edit Model Properties")
+        self.parent = parent
         self.trace_model = trace_model
         self.color = self.trace_model.color
+        self.list_index = list_index
+        self.model_fwhm = 0.
 
         self.color_button = QtWidgets.QPushButton()
         self.color_button.setFixedWidth(35)
@@ -2057,7 +2177,34 @@ class ModelPropertiesWindow(QtWidgets.QDialog):
         self.color_button.clicked.connect(self.color_selector)
         self.color_button.setStyleSheet("background-color: %s;" % self.trace_model.color)
 
-        self.model_type_editor = QtWidgets.QLineEdit(self.trace_model.model_type)
+        self.update_button = QtWidgets.QPushButton("Update")
+        self.update_button.clicked.connect(self.update_values)
+
+        self.cancel_button = QtWidgets.QPushButton("Cancel")
+        self.cancel_button.clicked.connect(self.close)
+
+        self.model_type_editor = QtWidgets.QComboBox()
+        model_types = ['Tophat']
+        current_model_type = self.trace_model.model_type.capitalize()
+        _original_type = self.trace_model._original_type.capitalize()
+        if _original_type in ["Moffat", "Gaussian"]:
+            model_types.append(_original_type)
+        self.model_type_editor.addItems(model_types)
+        self.model_type_editor.setCurrentText(current_model_type)
+        self.model_type_editor.currentTextChanged.connect(self.update_fwhm)
+
+
+        cen = self.trace_model.cen
+        lower = np.abs(self.trace_model.lower - cen)
+        upper = np.abs(self.trace_model.upper - cen)
+        self.fwhm_label = QtWidgets.QLabel("FWHM = ...")
+        self.lower_editor = QtWidgets.QLineEdit("%i" % lower)
+        self.lower_editor.setValidator(QtGui.QIntValidator(0, 1000))
+        self.upper_editor = QtWidgets.QLineEdit("%i" % upper)
+        self.upper_editor.setValidator(QtGui.QIntValidator(0, 1000))
+        self.cen_editor = QtWidgets.QLineEdit("%i" % cen)
+        self.cen_editor.setValidator(QtGui.QIntValidator(0, 10000))
+
 
         main_layout = QtWidgets.QGridLayout()
         main_layout.addWidget(QtWidgets.QLabel("Color:"), 0, 0)
@@ -2066,6 +2213,21 @@ class ModelPropertiesWindow(QtWidgets.QDialog):
         main_layout.addWidget(QtWidgets.QLabel("Model Type:"), 1, 0)
         main_layout.addWidget(self.model_type_editor, 1, 1)
 
+        main_layout.addWidget(self.fwhm_label, 2, 0)
+
+        main_layout.addWidget(QtWidgets.QLabel("Upper limit:"), 3, 0)
+        main_layout.addWidget(self.upper_editor, 3, 1)
+
+        main_layout.addWidget(QtWidgets.QLabel("Lower limit:"), 4, 0)
+        main_layout.addWidget(self.lower_editor, 4, 1)
+
+        main_layout.addWidget(QtWidgets.QLabel("Aperture Centroid:"), 5, 0)
+        main_layout.addWidget(self.cen_editor, 5, 1)
+
+        main_layout.addWidget(self.update_button, 6, 0)
+        main_layout.addWidget(self.cancel_button, 6, 1)
+
+        self.update_fwhm()
         self.setLayout(main_layout)
         self.show()
 
@@ -2077,7 +2239,123 @@ class ModelPropertiesWindow(QtWidgets.QDialog):
         if color.isValid():
             self.color = str(color.name())
             self.color_button.setStyleSheet("background-color: %s;" % self.color)
-            self.trace_model.set_color(self.color)
+        self.raise_()
+        self.update_button.setFocus()
+
+    def update_values(self):
+        self.trace_model.set_color(self.color)
+        item = self.parent.list_widget.item(self.list_index)
+        item.setForeground(QtGui.QColor(self.color))
+        new_model_type = self.model_type_editor.currentText().lower()
+        self.trace_model.model_type = new_model_type
+        if new_model_type == 'tophat':
+            self.trace_model.set_visible(True)
+
+        new_lower = int(self.lower_editor.text())
+        new_upper = int(self.upper_editor.text())
+        new_centroid = int(self.cen_editor.text())
+        old_centroid = self.trace_model.cen
+        centroid_shift = new_centroid - old_centroid
+        if np.abs(centroid_shift) > 0:
+            self.trace_model.points['mu'] += centroid_shift
+            self.trace_model.fit['mu'] += centroid_shift
+            self.trace_model.set_centroid(new_centroid)
+        self.trace_model.set_range(new_centroid-new_lower, new_centroid+new_upper)
+
+        self.parent.create_model_trace()
+        self.parent.plot_fitted_points()
+        self.parent.plot_trace_2d()
+        self.parent.canvas_spsf.draw()
+        self.parent.canvas_2d.draw()
+        self.parent.canvas_1d.draw()
+        self.parent.canvas_points.draw()
+        self.close()
+
+    def update_fwhm(self):
+        new_model_type = self.model_type_editor.currentText().lower()
+        if new_model_type == 'moffat':
+            mu = self.trace_model.fit['mu']
+            alpha = self.trace_model.fit['alpha']
+            beta = self.trace_model.fit['beta']
+            profile = NN_moffat(self.trace_model.y, np.median(mu), np.median(alpha), np.median(beta), 0.)
+            self.fwhm = get_FWHM(profile)
+        elif new_model_type == 'gaussian':
+            mu = self.trace_model.fit['mu']
+            sigma = self.trace_model.fit['sigma']
+            profile = NN_gaussian(self.trace_model.y, np.median(mu), np.median(sigma), 0.)
+            self.fwhm = get_FWHM(profile)
+        else:
+            SPSF = self.parent.axis_spsf.lines[0].get_ydata()
+            SPSF -= np.median(SPSF)
+            SPSF[SPSF < 0] = 0.
+            self.fwhm = get_FWHM(SPSF)
+        self.fwhm_label.setText("FWHM = %.1f" % self.fwhm)
+
+
+class HeaderViewer(QtWidgets.QDialog):
+    def __init__(self, header, parent=None):
+        super(HeaderViewer, self).__init__(parent)
+        self.setWindowTitle("View Header")
+        self.pattern = ""
+        self.header_text = QtGui.QTextDocument(header.__repr__())
+        header_font = QtGui.QFont("Courier")
+        self.header_text.setDefaultFont(header_font)
+        self.header_text.setTextWidth(80)
+        self.header_text.adjustSize()
+
+        self.search_bar = QtWidgets.QLineEdit()
+        self.search_bar.textChanged.connect(self.search)
+        self.search_bar.returnPressed.connect(self.next_match)
+        self.search_button = QtWidgets.QPushButton("Find")
+        self.search_button.clicked.connect(self.next_match)
+        self.search_button.setDefault(False)
+        self.search_button.setAutoDefault(False)
+        self.search_result = QtWidgets.QLabel("")
+
+        self.text_edit = QtWidgets.QTextEdit()
+        self.text_edit.setReadOnly(True)
+        self.text_edit.setDocument(self.header_text)
+        self.text_edit.setMinimumWidth(600)
+        self.text_edit.setMinimumHeight(400)
+        self.cursor = QtGui.QTextCursor(self.header_text)
+        self.cursor.setPosition(0)
+
+        main_layout = QtWidgets.QVBoxLayout()
+        search_row = QtWidgets.QHBoxLayout()
+        results_row = QtWidgets.QHBoxLayout()
+
+        search_row.addWidget(QtWidgets.QLabel("Search:"))
+        search_row.addWidget(self.search_bar)
+        search_row.addWidget(self.search_button)
+        results_row.addStretch(1)
+        results_row.addWidget(self.search_result)
+
+        main_layout.addLayout(search_row)
+        main_layout.addLayout(results_row)
+        main_layout.addWidget(self.text_edit)
+
+        self.setLayout(main_layout)
+        self.show()
+
+    def search(self, pattern):
+        self.pattern = pattern
+        if pattern == '':
+            self.search_result.setText("")
+            self.cursor.setPosition(0)
+        else:
+            _matches = list(re.finditer(pattern, self.header_text.toPlainText()))
+            N_matches = len(_matches)
+            if N_matches == 1:
+                self.search_result.setText("1 match found")
+            elif N_matches > 1:
+                self.search_result.setText("%i matches found" % N_matches)
+            else:
+                self.search_result.setText("No matches found")
+
+    def next_match(self):
+        self.cursor = self.header_text.find(self.pattern, self.cursor)
+        self.text_edit.setTextCursor(self.cursor)
+
 
 class WarningDialog(QtWidgets.QDialog):
     def __init__(self, parent, text, info=""):

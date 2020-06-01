@@ -1,0 +1,79 @@
+{\rtf1\ansi\ansicpg1252\cocoartf1671\cocoasubrtf600
+{\fonttbl\f0\fswiss\fcharset0 Helvetica-Bold;\f1\fswiss\fcharset0 Helvetica-Light;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+{\info
+{\author Jens-Kristian Krogager}
+{\*\company Institut d'Astrophysique de Paris}}\paperw11900\paperh16840\margl1440\margr1440\vieww12600\viewh10200\viewkind0
+\pard\tx566\tx1133\tx1700\tx2267\tx2834\tx3401\tx3968\tx4535\tx5102\tx5669\tx6236\tx6803\pardirnatural\partightenfactor0
+
+\f0\b\fs36 \cf0 \
+PyNOT : Extract GUI
+\f1\b0\fs28 \
+by JK Krogager\
+\
+\
+All shortcuts involving the "cmd" on MacOS translate to "ctrl" button on Windows/Linux.\
+\
+
+\f0\b Load 2D Data:
+\f1\b0 \
+Use the File menu or "cmd+O". The dispersion should be along the x-axis. If this is not the case, the image can be rotated by "Edit > Flip 2D Image Axes" or "cmd+R".\
+\
+If the 2D image has not been background subtracted this should be done before fitting the spectral trace for optimal performance.\
+\
+\
+
+\f0\b Fitting 2D Sky Background:
+\f1\b0 \
+Start by marking regions for the background in the "SPSF viewer" (top right corner). Click the button "Mark Background" and click on the left and right ranges of the background region you want to include. Several regions can be marked (at least one on either side of the trace for good results). Then click "Fit Background" or hit "Cmd+Shift+F". The sky background is fitted using a Chebyshev model with a default order of 3. This can be changed in the settings ("Edit > Settings" or "Cmd+,")\
+If two background regions overlap they are merged into one.\
+If a background region is placed incorrectly it can be deleted by pressing the "Delete" button or "Cmd+D" and then clicking anywhere within the light blue background region (not the vertical lines, as this will delete the object).\
+\
+\
+
+\f0\b Auto-detection of Objects:
+\f1\b0 \
+Objects in the spectrum are automatically detected using a peak detection algorithm for which the parameters can be edited under "Edit > Settings". If this algorithm fails the object location can be added manually by clicking the "Add Object" button or "Cmd+A" and then marking the location on the SPSF viewer. The trace centroid can be dragged in the SPSF viewer to change the location. This only serves as an initial guess for fitting the trace.\
+\
+\
+
+\f0\b Aperture Model:
+\f1\b0 \
+Next when the object has been marked, choose an aperture model: Moffat, Gaussian or Tophat.\
+If Tophat is selected, two additional markers will show up to indicate the default width of the extraction aperture (\'b15 pixels). The width can be changed by dragging the lines or by changing the aperture properties: right click on the aperture in the "List of Extraction Apertures" (bottom right) and select "Edit Properties".\
+\
+\
+
+\f0\b Spectral Fitting:
+\f1\b0 \
+By clicking "Fit Spectral Trace" or "Cmd+F" the program will fit the SPSF with the given aperture model in bins averaged over a default of 50 columns (change bin size if smaller or larger bins are desired). The SPSF is only fitted within the Y-ranges marked in the "SPSF Ranges". Similarly, by changing the X-ranges, all fitted points outside this range will be neglected for the construction of the 2D aperture model.\
+When done, the program switches to the tab "Fitting Points". (You can change tabs by pressing "Cmd+1" for "2D View"; "Cmd+2" for "Fitting Points" and "Cmd+3" for the "1D View".\
+\
+In the "Fitting Points" tab, the points indicate the fitted positions of the trace and the width parameter(s), if a Moffat or Gaussian model was used. The fitted points can be median filtered or manually deselected by clicking on a point. Clicking a point will change it back and forth between being active or inactive (unless it's outside the X-range defined in the "SPSF Ranges").\
+After changing the Polynomial Orders or deselecting points you can refit the aperture model ("dotted lines") by hitting "Cmd+F" again or clicking the "Fit Spectral Trace" button. This will only refit the whole trace if you change the Y-range, the SPSF Model or the bin size.\
+\
+The aperture has now been defined and you can verify that it follows the data by going back to the "2D View" ("Cmd+1"). The aperture model is overplotted. Clicking on the points in the 2D View will disable them in the "Fitting Points" view as well.\
+\
+\pard\tx566\tx1133\tx1700\tx2267\tx2834\tx3401\tx3968\tx4535\tx5102\tx5669\tx6236\tx6803\pardirnatural\partightenfactor0
+
+\f0\b \cf0 Extraction:
+\f1\b0 \
+\pard\tx566\tx1133\tx1700\tx2267\tx2834\tx3401\tx3968\tx4535\tx5102\tx5669\tx6236\tx6803\pardirnatural\partightenfactor0
+\cf0 When the aperture is defined correctly, you are ready to "Extract" ("Cmd+E") which will bring you to the tab "1D View". If more than one object is defined, they will all show up in the same figure. You can toggle them visible/invisible by checking/unchecking them in the List of Extraction Apertures.\
+\
+\
+
+\f0\b Copy an Aperture:
+\f1\b0 \
+If you want to extract an object that is not significantly detected for the trace model to find it, you can copy a well-defined aperture from a strong source by right clicking on the given entry in the List of Apertures and selecting "Copy Aperture". The new aperture can then be dragged into place or adjusted by editing the properties ("right click > Edit Properties").\
+\
+\
+
+\f0\b Save Output:
+\f1\b0 \
+Once the 1D spectra are extracted you can save them either as a multi-extension FITS file, a FITS Table, or as an ASCII table. You can optionally include the 2D aperture as an extension of the output FITS file.\
+Any wavelength information present in the 2D header will be copied to the 1D spectrum. If more than one object has been defined, you can also save all the extracted spectra into one file as a multi-extension FITS Table with one Table for each object.\
+Lastly, the 2D sky-subtracted image and the 2D sky model can be saved to FITS files too.\
+\
+}
