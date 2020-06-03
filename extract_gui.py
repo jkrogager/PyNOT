@@ -9,7 +9,7 @@ Graphical interface to extract 1D spectra
 __author__ = "Jens-Kristian Krogager"
 __email__ = "krogager.jk@gmail.com"
 __credits__ = ["Jens-Kristian Krogager"]
-__version__ = '0.12'
+__version__ = '0.13'
 
 import copy
 import os
