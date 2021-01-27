@@ -6,7 +6,7 @@ path:
 # alternatively:
 # path: [dir1, dir2, dir3...]
 
-dataset:  MALS_NOT     # The PyNOT File Classification (*.pfc)
+dataset:               # The PyNOT File Classification (*.pfc)
 
 bias:
   kappa:  15
