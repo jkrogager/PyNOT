@@ -5,12 +5,14 @@ Graphic Interface for spectral line identification
 __author__ = "Jens-Kristian Krogager"
 __email__ = "krogager.jk@gmail.com"
 __credits__ = ["Jens-Kristian Krogager", "Johan Fynbo"]
-__version__ = '1.0'
+__version__ = '1.1'
 
 import os
 import sys
 import numpy as np
-from matplotlib.backends.backend_qt5agg import FigureCanvas, NavigationToolbar2QT as NavigationToolbar
+import matplotlib
+matplotlib.use('Qt5Agg')
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
 
 from PyQt5.QtCore import *
@@ -20,6 +22,24 @@ from PyQt5.QtWidgets import *
 from scipy.optimize import curve_fit
 from numpy.polynomial import Chebyshev
 from astropy.io import fits
+
+
+def create_pixtable(arc_fname, grism_name, tab_fname, dispaxis=2):
+    linelist_fname = ''
+    # Launch App:
+    qapp = QApplication(sys.argv)
+    app = GraphicInterface(fname,
+            grism_name=grism_name,
+            pixtable=tab_fname,
+            linelist_fname=linelist_fname,
+            dispaxis=dispaxis,
+            locked=True)
+    app.show()
+    qapp.exec_()
+    poly_order = int(app.poly_order.text())
+    pixtab_fname = app.output_fname
+    return poly_order, pixtab_fname
+
 
 
 def NN_gaussian(x, bg, mu, sigma, logamp):
@@ -33,7 +53,7 @@ def fit_gaussian_center(x, y):
     sig = 1.5
     mu = x[len(x)//2]
     p0 = np.array([bg, mu, sig, logamp])
-    popt, _ = curve_fit(NN_gaussian, x, y, p0)
+    popt, pcov = curve_fit(NN_gaussian, x, y, p0)
     return popt[1]
 
 
@@ -93,8 +113,27 @@ def load_linelist(fname):
     return sorted_list
 
 
+def create_pixel_array(hdr, dispaxis):
+    """Load reference array from header using CRVAL, CDELT, CRPIX along dispersion axis"""
+    if dispaxis not in [1, 2]:
+        raise ValueError("Dispersion Axis must be 1 (X-axis) or 2 (Y-axis)!")
+    p = hdr['CRVAL%i' % dispaxis]
+    s = hdr['CDELT%i' % dispaxis]
+    r = hdr['CRPIX%i' % dispaxis]
+    N = hdr['NAXIS%i' % dispaxis]
+    # -- If data are from NOT then check for binning and rescale CRPIX:
+    binning = 1
+    if 'DETXBIN' in hdr:
+        if dispaxis == 1:
+            binning = hdr['DETXBIN']
+        else:
+            binning = hdr['DETYBIN']
+    pix_array = p + s*(np.arange(N) - (r/binning - 1))
+    return pix_array
+
+
 class GraphicInterface(QMainWindow):
-    def __init__(self, arc_fname='', grism_name='', pixtable='', linelist_fname='', dispaxis=2, parent=None):
+    def __init__(self, arc_fname='', grism_name='', pixtable='', linelist_fname='', dispaxis=2, parent=None, locked=False):
         QMainWindow.__init__(self, parent)
         self.setWindowTitle('PyNOT: Identify Arc Lines')
         self._main = QWidget()
@@ -103,6 +142,8 @@ class GraphicInterface(QMainWindow):
         self.arc1d = np.array([])
         self.arc_fname = arc_fname
         self.grism_name = grism_name
+        self.pixtable = pixtable
+        self.output_fname = ''
         self.dispaxis = dispaxis
         self._fit_ref = None
         self.cheb_fit = None
@@ -111,6 +152,7 @@ class GraphicInterface(QMainWindow):
         self.pixel_list = list()
         self.linelist = np.array([])
         self._full_linelist = [['', '']]
+        self.state = None
 
         # Create Toolbar and Menubar
         toolbar = QToolBar()
@@ -118,46 +160,53 @@ class GraphicInterface(QMainWindow):
         toolbar_fontsize = QFont()
         toolbar_fontsize.setPointSize(14)
 
-        quit_action = QAction("Close", self)
+        if locked:
+            quit_action = QAction("Done", self)
+            quit_action.triggered.connect(self.done)
+        else:
+            quit_action = QAction("Close", self)
+            quit_action.triggered.connect(self.close)
         quit_action.setFont(toolbar_fontsize)
         quit_action.setStatusTip("Quit the application")
-        quit_action.triggered.connect(self.close)
         quit_action.setShortcut("ctrl+Q")
         toolbar.addAction(quit_action)
         toolbar.addSeparator()
 
         load_file_action = QAction("Load Spectrum", self)
         load_file_action.triggered.connect(self.load_spectrum)
-        load_file_action.setShortcut("ctrl+N")
+        if locked:
+            load_file_action.setEnabled(False)
         toolbar.addAction(load_file_action)
 
         save_pixtab_action = QAction("Save PixTable", self)
         save_pixtab_action.setShortcut("ctrl+S")
         save_pixtab_action.triggered.connect(self.save_pixtable)
-        toolbar.addAction(save_pixtab_action)
+
+        load_pixtab_action = QAction("Load PixTable", self)
+        load_pixtab_action.triggered.connect(self.load_pixtable)
+        if locked:
+            toolbar.addAction(load_pixtab_action)
+        else:
+            toolbar.addAction(save_pixtab_action)
 
         load_ref_action = QAction("Load LineList", self)
         load_ref_action.triggered.connect(self.load_linelist_fname)
         toolbar.addAction(load_ref_action)
 
-        load_pixtab_action = QAction("Load PixTable", self)
-        load_pixtab_action.triggered.connect(self.load_pixtable)
-        # toolbar.addAction(load_pixtab_action)
-
         toolbar.addSeparator()
 
-        add_action = QAction("Add Line (a)", self)
+        add_action = QAction("Add Line", self)
         add_action.setShortcut("ctrl+A")
         add_action.setStatusTip("Identify new line")
         add_action.setFont(toolbar_fontsize)
-        add_action.triggered.connect(self.add_line)
+        add_action.triggered.connect(lambda x: self.set_state('add'))
         toolbar.addAction(add_action)
 
-        del_action = QAction("Delete Line (d)", self)
+        del_action = QAction("Delete Line", self)
         del_action.setShortcut("ctrl+D")
         del_action.setStatusTip("Delete line")
         del_action.setFont(toolbar_fontsize)
-        del_action.triggered.connect(self.remove_line)
+        del_action.triggered.connect(lambda x: self.set_state('delete'))
         toolbar.addAction(del_action)
 
         clear_action = QAction("Clear Lines", self)
@@ -169,7 +218,7 @@ class GraphicInterface(QMainWindow):
         refit_action = QAction("Refit Line (r)", self)
         refit_action.setShortcut("ctrl+R")
         refit_action.setFont(toolbar_fontsize)
-        refit_action.triggered.connect(self.refit_line)
+        refit_action.triggered.connect(lambda x: self.set_state('move'))
         toolbar.addAction(refit_action)
 
         refit_all_action = QAction("Refit All", self)
@@ -205,6 +254,11 @@ class GraphicInterface(QMainWindow):
         edit_menu.addAction(fit_action)
         edit_menu.addAction(clear_fit_action)
         edit_menu.addAction(save_fit_action)
+        if locked:
+            update_cache_action = QAction("Update PyNOT cache", self)
+            update_cache_action.triggered.connect(self.update_cache)
+            edit_menu.addSeparator()
+            edit_menu.addAction(update_cache_action)
 
 
         # =============================================================
@@ -215,8 +269,10 @@ class GraphicInterface(QMainWindow):
 
         # Create Table for Reference Linelist:
         ref_layout = QVBoxLayout()
-        label_ref_header = QLabel("Reference Linelist\n")
+        label_ref_header = QLabel("Reference Linelist")
         label_ref_header.setAlignment(Qt.AlignCenter)
+        label_ref_header.setFixedHeight(32)
+        label_ref_header.setStyleSheet("""color: #555; line-height: 200%;""")
         self.reftable = QTableWidget()
         self.reftable.setColumnCount(2)
         self.reftable.setHorizontalHeaderLabels(["Wavelength", "Ion"])
@@ -229,8 +285,10 @@ class GraphicInterface(QMainWindow):
 
         # Create Table for Pixel Identifications:
         pixtab_layout = QVBoxLayout()
-        label_pixtab_header = QLabel("Pixel Table\n")
+        label_pixtab_header = QLabel("Pixel Table")
         label_pixtab_header.setAlignment(Qt.AlignCenter)
+        label_pixtab_header.setFixedHeight(32)
+        label_pixtab_header.setStyleSheet("""color: #555; line-height: 200%;""")
         self.linetable = QTableWidget()
         self.linetable.verticalHeader().hide()
         self.linetable.setColumnCount(2)
@@ -243,42 +301,49 @@ class GraphicInterface(QMainWindow):
         layout.addLayout(pixtab_layout)
 
 
-
         # Create Right-hand Side Layout: (buttons, figure, buttons and options for fitting)
         right_layout = QVBoxLayout()
 
         # Top row of options and bottons:
         bottom_hbox = QHBoxLayout()
         button_fit = QPushButton("Fit")
+        button_fit.setShortcut("ctrl+F")
         button_fit.clicked.connect(self.fit)
         button_clear_fit = QPushButton("Clear fit")
         button_clear_fit.clicked.connect(self.clear_fit)
-        button_show_resid = QPushButton("Resid/Data")
+        button_show_resid = QPushButton("Residual / Data")
+        button_show_resid.setShortcut("ctrl+T")
         button_show_resid.clicked.connect(self.toggle_residview)
         self.poly_order = QLineEdit("3")
+        self.poly_order.setFixedWidth(30)
+        self.poly_order.setAlignment(Qt.AlignCenter)
         self.poly_order.setValidator(QIntValidator(1, 100))
         self.poly_order.returnPressed.connect(self.fit)
         button_save_wave = QPushButton("Save Fit")
         button_save_wave.clicked.connect(self.save_wave)
+
+        bottom_hbox.addWidget(QLabel('Wavelength Solution: '))
         bottom_hbox.addWidget(button_fit)
-        bottom_hbox.addWidget(QLabel('Poly Order: '))
+        bottom_hbox.addStretch(1)
+        bottom_hbox.addWidget(QLabel('Polynomial Order: '))
         bottom_hbox.addWidget(self.poly_order)
         bottom_hbox.addStretch(1)
+        bottom_hbox.addWidget(QLabel('Toggle View: '))
         bottom_hbox.addWidget(button_show_resid)
         bottom_hbox.addStretch(1)
-        # bottom_hbox.addWidget(button_save_wave)
         bottom_hbox.addWidget(button_clear_fit)
+        bottom_hbox.addStretch(1)
 
         right_layout.addLayout(bottom_hbox)
 
         # Figure in the middle:
         self.fig = Figure(figsize=(6, 8))
-        self.canvas = FigureCanvas(self.fig)
+        self.canvas = FigureCanvasQTAgg(self.fig)
         self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.canvas.updateGeometry()
         self.canvas.mpl_connect('key_press_event', self.on_key_press)
+        self.canvas.mpl_connect('button_press_event', self.on_mouse_press)
         self.canvas.setFocusPolicy(Qt.StrongFocus)
-        # self.canvas.setFocusPolicy(Qt.ClickFocus)
         self.canvas.setFocus()
         right_layout.addWidget(self.canvas, 1)
         self.mpl_toolbar = NavigationToolbar(self.canvas, self)
@@ -350,13 +415,12 @@ class GraphicInterface(QMainWindow):
 
         if arc_fname:
             self.arc_fname = arc_fname
-            hdu = fits.open(arc_fname)
-            primhdr = hdu[0].header
-            raw_data = fits.getdata(arc_fname)
-            if len(hdu) > 1:
-                imghdr = hdu[1].header
-                primhdr.update(imghdr)
-            hdu.close()
+            with fits.open(arc_fname) as hdu:
+                primhdr = hdu[0].header
+                raw_data = fits.getdata(arc_fname)
+                if len(hdu) > 1:
+                    imghdr = hdu[1].header
+                    primhdr.update(imghdr)
             if 'DISPAXIS' in primhdr.keys():
                 self.dispaxis = primhdr['DISPAXIS']
             if self.dispaxis == 1:
@@ -364,7 +428,7 @@ class GraphicInterface(QMainWindow):
             ilow = raw_data.shape[1]//2 - 1
             ihigh = raw_data.shape[1]//2 + 1
             self.arc1d = np.sum(raw_data[:, ilow:ihigh], axis=1)
-            self.pix = np.arange(raw_data.shape[0])
+            self.pix = create_pixel_array(primhdr, self.dispaxis)
 
             self.ax.lines[0].set_data(self.pix, self.arc1d)
             self.ax.relim()
@@ -382,54 +446,73 @@ class GraphicInterface(QMainWindow):
 
         if filename:
             self._main.setUpdatesEnabled(False)
+            self.pixtable = filename
             pixtable = np.loadtxt(filename)
             for x, wl in pixtable:
                 self.append_table(x, wl)
-                vline = self.ax.axvline(x, color='r', ls=':', lw=1.0)
-                self.vlines.append(vline)
-                self.pixel_list.append(x)
             self.update_plot()
             self._main.setUpdatesEnabled(True)
             self.canvas.setFocus()
 
-    def save_pixtable(self):
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        filters = "All files (*)"
-        path = QFileDialog.getSaveFileName(self, 'Save Pixeltable', current_dir, filters)
-        if path[0]:
-            with open(str(path[0]), 'w') as tab_file:
+    def done(self):
+        msg = "Save the line identifications and continue?"
+        messageBox = QMessageBox()
+        messageBox.setText(msg)
+        messageBox.setStandardButtons(QMessageBox.Cancel | QMessageBox.Save)
+        retval = messageBox.exec_()
+        if retval == QMessageBox.Save:
+            fname = os.path.basename(self.arc_fname)
+            base_name, ext = os.path.splitext(fname)
+            out_fname = "%s_arcID_%s.tab" % (base_name, self.grism_name)
+            self.output_fname = out_fname
+            self.save_pixtable(out_fname)
+            self.close()
+
+    def save_pixtable(self, fname=None):
+        if fname is False:
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            filters = "All files (*)"
+            path = QFileDialog.getSaveFileName(self, 'Save Pixeltable', current_dir, filters)
+            fname = str(path[0])
+
+        if fname:
+            with open(fname, 'w') as tab_file:
                 pixvals, wavelengths = self.get_table_values()
                 tab_file.write("# Pixel Table for ALFOSC grism: %s\n" % self.grism_name)
                 tab_file.write("# Pixel    Wavelength [Å]\n")
                 np.savetxt(tab_file, np.column_stack([pixvals, wavelengths]),
                            fmt=" %8.2f   %8.2f")
 
-    def save_wave(self):
+    def update_cache(self):
+        msg = "Are you sure you want to update the PyNOT pixel table for %s" % self.grism_name
+        messageBox = QMessageBox()
+        messageBox.setText(msg)
+        messageBox.setStandardButtons(QMessageBox.Cancel | QMessageBox.Yes)
+        retval = messageBox.exec_()
+        if retval == QMessageBox.Yes:
+            self.save_pixtable(self.pixtable)
+
+    def save_wave(self, fname=None):
         if self.cheb_fit is None:
             return
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        path = QFileDialog.getSaveFileName(self, 'Save Polynomial Model', current_dir)
+        if fname is None:
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            path = QFileDialog.getSaveFileName(self, 'Save Polynomial Model', current_dir)
+            fname = str(path[0])
+
         poly_fit = self.cheb_fit.convert(kind=np.polynomial.Polynomial)
-        if path[0]:
-            with open(str(path[0]), 'w') as output:
+        if fname:
+            with open(fname, 'w') as output:
                 output.write("# PyNOT wavelength solution for grism: %s\n" % self.grism_name)
                 output.write("# Raw arc-frame filename: %s\n" % self.arc_fname)
                 output.write("# Wavelength residual = %.2f Å\n" % self._scatter)
-                output.write("# Polynomial coefficients:\n")
+                output.write("# Polynomial coefficients:  C_0 + C_1*x + C_2*x^2 ... \n")
                 poly_fit = self.cheb_fit.convert(kind=np.polynomial.Polynomial)
                 for i, c_i in enumerate(poly_fit.coef):
                     output.write(" % .3e\n" % c_i)
 
-    def remove_line(self):
-        self.ax.set_title("Click near the line you want to remove...")
-        self.canvas.draw()
-        point = self.fig.ginput(1, 0)
-        if len(point) == 0:
-            self.ax.set_title("")
-            self.canvas.draw()
-            return
-        x0, _ = point[0]
-        idx = np.argmin(np.abs(self.pixel_list - x0))
+    def remove_line(self, x0):
+        idx = np.argmin(np.abs(np.array(self.pixel_list) - x0))
         self.vlines[idx].remove()
         self.vlines.pop(idx)
         self.pixel_list.pop(idx)
@@ -438,7 +521,19 @@ class GraphicInterface(QMainWindow):
         self.update_plot()
 
     def append_table(self, x0, wl0=None):
-        rowPosition = self.linetable.rowCount()
+        n_rows = self.linetable.rowCount()
+        if n_rows == 0:
+            rowPosition = 0
+        else:
+            for n in range(n_rows):
+                x_item = self.linetable.item(n, 0)
+                x = float(x_item.text())
+                if x > x0:
+                    rowPosition = n
+                    break
+            else:
+                rowPosition = n_rows
+
         self.linetable.insertRow(rowPosition)
         item = QTableWidgetItem("%.2f" % x0)
         item.setFlags(Qt.ItemIsEnabled)
@@ -447,22 +542,18 @@ class GraphicInterface(QMainWindow):
 
         wl_item = QLineEdit("")
         wl_item.setValidator(QRegExpValidator(QRegExp(r"^\s*\d*\s*\.?\d*$")))
-        # wl_item.setValidator(QDoubleValidator())
         if wl0 is not None:
             wl_item.setText("%.2f" % wl0)
         wl_item.returnPressed.connect(self.look_up)
-        # wl_item.editingFinished.connect(self.look_up)
         self.linetable.setCellWidget(rowPosition, 1, wl_item)
+        self.linetable.cellWidget(rowPosition, 1).setFocus()
 
-    def add_line(self):
-        self.ax.set_title("Click to fit Gaussian centroid...")
-        self.canvas.draw()
-        point = self.fig.ginput(1, 0)
-        if len(point) == 0:
-            self.ax.set_title("")
-            self.canvas.draw()
-            return
-        x0, _ = point[0]
+        # Update Plot:
+        vline = self.ax.axvline(x0, color='r', ls=':', lw=1.0)
+        self.vlines.insert(rowPosition, vline)
+        self.pixel_list.insert(rowPosition, x0)
+
+    def add_line(self, x0):
         # -- Fit Gaussian
         cut = np.abs(self.pix - x0) <= 10
         pix_cut = self.pix[cut]
@@ -471,11 +562,9 @@ class GraphicInterface(QMainWindow):
 
         # Update Table:
         if self.cheb_fit is None:
-            rowPosition = self.linetable.rowCount()
-            self.append_table(x0)
-            self.linetable.cellWidget(rowPosition, 1).setFocus()
+            self.append_table(x_cen)
         else:
-            wl_predicted = self.cheb_fit(x0)
+            wl_predicted = self.cheb_fit(x_cen)
             line_idx = np.argmin(np.abs(self.linelist - wl_predicted))
             wl_sep = self.linelist[line_idx] - wl_predicted
             if wl_sep > 5.:
@@ -483,48 +572,27 @@ class GraphicInterface(QMainWindow):
                 QMessageBox.critical(None, 'No line found', msg)
             else:
                 wl_predicted = self.linelist[line_idx]
-            self.append_table(x0, wl_predicted)
+            self.append_table(x_cen, wl_predicted)
             self.update_plot()
 
-        # Update Plot:
-        vline = self.ax.axvline(x_cen, color='r', ls=':', lw=1.0)
-        self.vlines.append(vline)
-        self.pixel_list.append(x_cen)
         self.ax.set_title("")
         self.canvas.draw()
 
-    def refit_line(self, default=False, idx=None):
-        if idx is None:
-            self.ax.set_title("Click near a line you want to refit...")
-            self.canvas.draw()
-            point = self.fig.ginput(1, 0)
-            if len(point) == 0:
-                self.ax.set_title("")
-                self.canvas.draw()
-                return
-            x0, _ = point[0]
-            idx = np.argmin(np.abs(self.pixel_list - x0))
-            self.vlines[idx].set_linestyle('-')
-            self.ax.set_title("Now click near the new centroid...")
-            self.canvas.draw()
-            point2 = self.fig.ginput(1, 0)
-            x_old, _ = point2[0]
-            cut = np.abs(self.pix - x_old) <= 7
-            self.vlines[idx].set_linestyle(':')
-            self.ax.set_title("")
-            self.canvas.draw()
-        else:
+    def refit_line(self, idx=None, new_pos=None, default=False):
+        if new_pos is None:
             old_item = self.linetable.item(idx, 0)
             x_old = float(old_item.text())
-            cut1 = np.abs(self.pix - x_old) <= 25
+            cut1 = np.abs(self.pix - x_old) <= 20
             idx_max = np.argmax(self.arc1d * cut1)
             cut = np.abs(self.pix - self.pix[idx_max]) <= 10
+        else:
+            cut = np.abs(self.pix - new_pos) <= 7
         pix_cut = self.pix[cut]
         arc_cut = self.arc1d[cut]
         try:
             x_cen = fit_gaussian_center(pix_cut, arc_cut)
         except RuntimeError:
-            x_cen = x_old
+            x_cen = new_pos
 
         item = QTableWidgetItem("%.2f" % x_cen)
         item.setFlags(Qt.ItemIsEnabled)
@@ -563,19 +631,82 @@ class GraphicInterface(QMainWindow):
 
     def on_key_press(self, event):
         if event.key == 'a':
-            self.add_line()
+            self.add_line(event.xdata)
         elif event.key == 'd':
-            self.remove_line()
+            self.remove_line(event.xdata)
         elif event.key == 'r':
-            self.refit_line()
+            if self.state is None:
+                idx = np.argmin(np.abs(np.array(self.pixel_list) - event.xdata))
+                self.vlines[idx].set_linestyle('-')
+                self.ax.set_title("Now move cursor to new centroid and press 'r'...")
+                self.canvas.draw()
+                self.state = 'refit: %i' % idx
+            elif 'refit' in self.state:
+                idx = int(self.state.split(':')[1])
+                self.vlines[idx].set_linestyle(':')
+                self.ax.set_title("")
+                self.canvas.draw()
+                self.refit_line(idx=idx, new_pos=event.xdata)
+                self.state = None
 
-    def keyPressEvent(self, e):
-        if e.key() == Qt.Key_A:
-            self.add_line()
-        elif e.key() == Qt.Key_D:
-            self.remove_line()
-        elif e.key() == Qt.Key_R:
-            self.refit_line()
+    def set_state(self, state):
+        if state == 'add':
+            self.ax.set_title("Add:  Click on the line to add...")
+            self.canvas.draw()
+            self.state = state
+        elif state == 'delete':
+            self.ax.set_title("Delete:  Click on the line to delete...")
+            self.canvas.draw()
+            self.state = state
+        elif state == 'move':
+            if len(self.pixel_list) == 0:
+                self.ax.set_title("")
+                self.canvas.draw()
+                self.state = None
+                return
+            self.ax.set_title("Refit:  Click on the line to fit...")
+            self.canvas.draw()
+            self.state = state
+        elif state is None:
+            self.ax.set_title("")
+            self.canvas.draw()
+            self.state = None
+
+    def on_mouse_press(self, event):
+        if self.state is None:
+            pass
+
+        elif self.state == 'add':
+            self.add_line(event.xdata)
+            self.ax.set_title("")
+            self.canvas.draw()
+            self.state = None
+
+        elif self.state == 'delete':
+            self.remove_line(event.xdata)
+            self.ax.set_title("")
+            self.canvas.draw()
+            self.state = None
+
+        elif self.state == 'move':
+            if len(self.pixel_list) == 0:
+                self.ax.set_title("")
+                self.canvas.draw()
+                self.state = None
+                return
+            idx = np.argmin(np.abs(np.array(self.pixel_list) - event.xdata))
+            self.vlines[idx].set_linestyle('-')
+            self.ax.set_title("Now move cursor to new centroid and press 'r'...")
+            self.canvas.draw()
+            self.state = 'refit: %i' % idx
+
+        elif 'refit' in self.state:
+            idx = int(self.state.split(':')[1])
+            self.vlines[idx].set_linestyle(':')
+            self.ax.set_title("")
+            self.canvas.draw()
+            self.refit_line(idx=idx, new_pos=event.xdata)
+            self.state = None
 
     def get_table_values(self):
         pixvals = list()
@@ -589,7 +720,6 @@ class GraphicInterface(QMainWindow):
 
             if wl:
                 wl_text = wl.text()
-                # tmp = wl_text.replace('.', '')
                 if wl_text == '':
                     wavelengths.append(np.nan)
                 else:
@@ -607,7 +737,7 @@ class GraphicInterface(QMainWindow):
         pixvals, wavelengths = self.get_table_values()
         self.ax2.lines[0].set_data(pixvals, wavelengths)
         self.set_ylimits()
-        self.fig.canvas.draw()
+        self.canvas.draw()
         self.canvas.setFocus()
 
     def set_residview(self):
@@ -621,9 +751,9 @@ class GraphicInterface(QMainWindow):
             mean = np.nanmean(residuals)
             scatter = np.nanstd(residuals)
             self.resid_view.set_values(mean, scatter)
-            self.ax2.lines[0].set_ydata(residuals)
+            self.ax2.lines[0].set_data(pixvals, residuals)
             self.set_ylimits()
-            self.fig.canvas.draw()
+            self.canvas.draw()
             self.canvas.setFocus()
         else:
             msg = "Cannot calculate residuals. Data have not been fitted yet."
@@ -657,7 +787,10 @@ class GraphicInterface(QMainWindow):
             self._fit_view = 'data'
 
     def update_plot(self):
-        self.set_dataview()
+        if self._fit_view == 'data':
+            self.set_dataview()
+        elif self._fit_view == 'resid':
+            self.set_residview()
 
     def fit(self):
         pixvals, wavelengths = self.get_table_values()
@@ -682,7 +815,7 @@ class GraphicInterface(QMainWindow):
             else:
                 self._fit_ref.set_ydata(wave_solution)
                 self._fit_ref.set_label(scatter_label)
-            self.print_fit()
+            self.update_plot()
             self.ax2.legend(handlelength=0.5, frameon=False)
             self.canvas.draw()
             self.canvas.setFocus()
@@ -738,23 +871,18 @@ if __name__ == '__main__':
                         help="Dispersion axis 1: horizontal, 2: vertical  [default=2]")
     args = parser.parse_args()
 
-    if args.filename == 'test':
-        # Load Test Data:
-        tab_fname = 'calib/grism4_pixeltable.dat'
-        fname = '/Users/krogager/Data/NOT/MALS/ALzh010234.fits'
-        grism_name = 'grism4'
-        linelist_fname = 'calib/HeNe_linelist.dat'
-        dispaxis = 2
-    else:
-        fname = args.filename
-        linelist_fname = args.lines
-        tab_fname = ''
-        grism_name = ''
-        dispaxis = args.axis
-
+    arc_fname = args.filename
+    linelist_fname = args.lines
+    tab_fname = ''
+    grism_name = ''
+    dispaxis = args.axis
 
     # Launch App:
     qapp = QApplication(sys.argv)
-    app = GraphicInterface(fname, grism_name=grism_name, pixtable=tab_fname, linelist_fname=linelist_fname, dispaxis=dispaxis)
+    app = GraphicInterface(arc_fname,
+                           grism_name=grism_name,
+                           pixtable=tab_fname,
+                           linelist_fname=linelist_fname,
+                           dispaxis=dispaxis)
     app.show()
     qapp.exec_()
