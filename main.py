@@ -160,15 +160,15 @@ def main(raw_path, verbose=True):
             create_pixtable(arc_images_for_grism, grism_name)
 
     for sci_img in object_images:
-        if not os.path.exists(sci_img.target_name):
-            output_dir = sci_img.target_name + '/'
-            os.mkdir(sci_img.target_name)
+        output_dir = sci_img.target_name
+        if not os.path.exists(output_dir):
+            os.mkdir(output_dir)
 
-        master_bias_fname = output_dir + 'MASTER_BIAS.fits'
+        master_bias_fname = os.path.join(output_dir, 'MASTER_BIAS.fits')
         grism = alfosc.grism_translate[sci_img.grism]
-        comb_flat_fname = output_dir + 'FLAT_COMBINED_%s_%s.fits' % (grism, sci_img.slit)
-        norm_flat_fname = output_dir + 'NORM_FLAT_%s_%s.fits' % (grism, sci_img.slit)
-        final_2d_fname = output_dir + 'red2D_%s_%s.fits' % (sci_img.target_name, sci_img.date)
+        comb_flat_fname = os.path.join(output_dir, 'FLAT_COMBINED_%s_%s.fits' % (grism, sci_img.slit))
+        norm_flat_fname = os.path.join(output_dir, 'NORM_FLAT_%s_%s.fits' % (grism, sci_img.slit))
+        final_2d_fname = os.path.join(output_dir, 'red2D_%s_%s.fits' % (sci_img.target_name, sci_img.date))
 
         # Combine Bias Frames matched for CCD setup
         bias_frames = sci_img.match_files(database['BIAS'])
@@ -184,14 +184,14 @@ def main(raw_path, verbose=True):
 
         # Normalize the spectral flat field:
         normalize_spectral_flat(comb_flat_fname, output=norm_flat_fname,
-                                axis=args.flat_axis,
+                                axis=dispaxis,
                                 x1=args.flat_x1, x2=args.flat_x2,
                                 order=args.flat_order, sigma=args.flat_sigma,
                                 plot=args.plot, show=args.show, ext=args.ext,
                                 clobber=False, verbose=args.verbose)
 
         # Sensitivity Function:
-        std_frames = sci_img.match_files(database['SPEC_FLAT'], grism=True, slit=True, filter=True)
+        std_frames = sci_img.match_files(database['SPEC_FLUX-STD'], grism=True, slit=True, filter=True)
 
         # Science Reduction:
 

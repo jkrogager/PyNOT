@@ -214,7 +214,7 @@ def classify_file(fname, rules):
                 matches = ['ACQ_IMG']
 
         elif ftype == 'SPEC_OBJECT' and h['TCSTGT'] in calib_names:
-            matches = ['SPEC_STD']
+            matches = ['SPEC_FLUX-STD']
     elif len(matches) == 0:
         msg.append("No classification matched the file: %s" % fname)
     else:
