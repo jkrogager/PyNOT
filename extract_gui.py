@@ -699,15 +699,15 @@ class ExtractGUI(QtWidgets.QMainWindow):
         # Limits for profile averaging and fitting:
         self.xmin_edit = QtWidgets.QLineEdit("0")
         self.xmax_edit = QtWidgets.QLineEdit("")
-        self.xmin_edit.setValidator(QtGui.QIntValidator(0, 1e6))
-        self.xmax_edit.setValidator(QtGui.QIntValidator(0, 1e6))
+        self.xmin_edit.setValidator(QtGui.QIntValidator(0, 1000000))
+        self.xmax_edit.setValidator(QtGui.QIntValidator(0, 1000000))
         self.xmin_edit.returnPressed.connect(self.limits_updated)
         self.xmax_edit.returnPressed.connect(self.limits_updated)
 
         self.ymin_edit = QtWidgets.QLineEdit("0")
         self.ymax_edit = QtWidgets.QLineEdit("")
-        self.ymin_edit.setValidator(QtGui.QIntValidator(0, 1e6))
-        self.ymax_edit.setValidator(QtGui.QIntValidator(0, 1e6))
+        self.ymin_edit.setValidator(QtGui.QIntValidator(0, 1000000))
+        self.ymax_edit.setValidator(QtGui.QIntValidator(0, 1000000))
         self.ymin_edit.returnPressed.connect(self.limits_updated)
         self.ymax_edit.returnPressed.connect(self.limits_updated)
 
@@ -717,7 +717,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.model_chooser.currentTextChanged.connect(self.model_change)
 
         self.bins_edit = QtWidgets.QLineEdit("50")
-        self.bins_edit.setValidator(QtGui.QIntValidator(0, 1e6))
+        self.bins_edit.setValidator(QtGui.QIntValidator(0, 1000000))
         self.bins_edit.returnPressed.connect(self.fit_trace)
 
         self.med_kappa_edit = QtWidgets.QLineEdit("3")
