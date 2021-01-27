@@ -1,0 +1,8 @@
+-classify: True
+    raw_path: /Users/krogager/Data/NOT/MALS/
+    dataset:  MALS_NOT.pfc
+
+- bias: True
+    kappa:  5
+    sigma:  4
+
