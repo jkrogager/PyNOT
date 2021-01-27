@@ -291,8 +291,8 @@ def plot_2d_pixtable(arc2D_sub, pixtab2d):
 
 # ============== MAIN ===========================================================
 
-def transform(img_fname, arc_fname, pixtable_fname, output_fname='', deg_bg=5, deg_2d=5, wl_order=4, log=False, N_out=None,
-              kind='linear', fill_value='extrapolate', binning=1, dispaxis=2, fit_window=20):
+def rectify(img_fname, arc_fname, pixtable_fname, output_fname='', order_bg=5, order_2d=5, order_wl=4, log=False, N_out=None,
+            kind='linear', fill_value='extrapolate', binning=1, dispaxis=2, fit_window=20):
 
     arc2D = fits.getdata(arc_fname)
     img2D = fits.getdata(img_fname)
@@ -321,15 +321,18 @@ def transform(img_fname, arc_fname, pixtable_fname, output_fname='', deg_bg=5, d
     arc2D = arc2D[ilow:ihigh, :]
     img2D = img2D[ilow:ihigh, :]
 
-    arc2D_sub, _ = subtract_arc_background(arc2D, deg=deg_bg)
+    arc2D_sub, _ = subtract_arc_background(arc2D, deg=order_bg)
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         pixtab2d = create_2d_pixtab(arc2D_sub, ref_table, dx=fit_window, binning=binning)
 
-    fit_table2d = fit_2dwave_solution(pixtab2d, deg=deg_2d)
+    fit_table2d = fit_2dwave_solution(pixtab2d, deg=order_2d)
 
-    img2D_corr, wl, hdr_corr = apply_transform(img2D, fit_table2d, ref_table, header=hdr, wl_order=wl_order, log=log, N_out=N_out, kind=kind)
+    img2D_corr, wl, hdr_corr = apply_transform(img2D, fit_table2d, ref_table,
+                                               header=hdr, wl_order=order_wl,
+                                               log=log, N_out=N_out, kind=kind,
+                                               fill_value=fill_value)
 
     if output_fname:
         hdu = fits.PrimaryHDU(data=img2D_corr, header=hdr_corr)
@@ -342,4 +345,4 @@ if __name__ == '__main__':
     arc_fname = data_path + 'ALxh010192.fits'
     pixtable_fname = '/Users/krogager/coding/PyNOT/calib/grism7_pixeltable.dat'
 
-    # img_corr, wl, hdr = transform(img_fname, arc_fname, pixtable_fname)
+    # img_corr, wl, hdr = rectify(img_fname, arc_fname, pixtable_fname)
