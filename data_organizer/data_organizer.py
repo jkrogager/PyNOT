@@ -141,15 +141,99 @@ def parse_value(val):
     return new_val
 
 
-def classify(data_in, rule_file='/Users/krogager/coding/PyNOT/data_organizer/alfosc.rules', verbose=False, progress=True):
+def classify_file(fname, rules):
+    """
+    Classify input FITS file according to the set of `rules`, a list of string conditions
+    for header keywords. Each rule correspond to one filetype, e.g. BIAS, OBJECT
+    Returns a list of rules that
+    """
+    msg = list()
+    try:
+        h = fits.getheader(fname)
+    except OSError:
+        msg.append("File could not be opened: %s" % fname)
+        return [], msg
+
+    fileroot = fname.split('/')[-1]
+    if fileroot != h['FILENAME']:
+        msg.append("Filename does not match FILENAME in header: %s" % fname)
+        return [], msg
+
+    matches = list()
+    for rule in rules:
+        rule = rule.strip()
+        if ('#' in rule) or (len(rule) == 0):
+            continue
+
+        ftype = rule.split(':')[0].strip()
+        all_conditions = rule.split(':')[1].split(' and ')
+        criteria = list()
+        for cond in all_conditions:
+            if '==' in cond:
+                key, val = cond.split('==')
+                if 'open' in val.lower():
+                    criteria.append('open' in h[key].lower())
+                elif 'closed' in val.lower():
+                    criteria.append('closed' in h[key].lower())
+                else:
+                    val = parse_value(val)
+                    criteria.append(val == h[key])
+
+            elif '!=' in cond:
+                key, val = cond.split('!=')
+                if 'open' in val.lower():
+                    criteria.append('open' not in h[key].lower())
+                elif 'closed' in val.lower():
+                    criteria.append('closed' not in h[key].lower())
+                else:
+                    val = parse_value(val)
+                    criteria.append(val != h[key])
+
+            elif '>' in cond:
+                key, val = cond.split('>')
+                val = parse_value(val)
+                criteria.append(h[key] > val)
+
+            elif '<' in cond:
+                key, val = cond.split('<')
+                val = parse_value(val)
+                criteria.append(h[key] < val)
+
+            else:
+                raise ValueError("Invalid condition in rule: %s" % rule)
+
+        if np.all(criteria):
+            matches.append(ftype)
+
+    if len(matches) == 1:
+        ftype = matches[0]
+        if ftype == 'IMG_OBJECT':
+            # If no filter is defined and CCD readout is fast, the image is most likely an acquisition image
+            img_filter = get_filter(h)
+            if img_filter == '' and h['FPIX'] > 200:
+                matches = ['ACQ_IMG']
+
+        elif ftype == 'SPEC_OBJECT' and h['TCSTGT'] in calib_names:
+            matches = ['SPEC_STD']
+    elif len(matches) == 0:
+        msg.append("No classification matched the file: %s" % fname)
+    else:
+        msg.append("More than one classification was found for file: %s" % fname)
+        msg.append(", ".join(matches))
+
+    return matches, msg
+
+
+def classify(data_in, rule_file='/Users/krogager/coding/PyNOT/data_organizer/alfosc.rules', verbose=True, progress=True):
     """
     The input can be a single .fits file, a string given the path to a directory,
     a list of .fits files, or a list of directories.
-    Classify given input 'files' using the rules defined in 'xsh.rules'
+    Classify given input 'files' using the rules defined in 'alfosc.rules'.
     Returns
     'Data_Type' containing the classification for the pipeline
                 recipes.
     """
+    msg = list()
 
     # Determine the input type:
     if isinstance(data_in, str):
@@ -165,104 +249,56 @@ def classify(data_in, rule_file='/Users/krogager/coding/PyNOT/data_organizer/alf
             files = []
             for path in data_in:
                 files += glob(path+'/*.fits')
+    else:
+        raise ValueError("Input must be a string or a list of strings")
 
     data_type = dict()
     not_classified_files = list()
 
+    if not os.path.exists(rule_file):
+        raise FileNotFoundError("ALFOSC ruleset could not be found: %s" % rule_file)
+
     with open(rule_file) as rulebook:
         rules = rulebook.readlines()
 
-    if progress:
+    if progress and verbose:
         print("")
         print(" Classifying files: ")
 
     for num, fname in enumerate(files):
-        h = fits.getheader(fname)
-        fileroot = fname.split('/')[-1]
-        if fileroot != h['FILENAME']:
-            continue
-
-        matches = list()
-        for rule in rules:
-            rule = rule.strip()
-            if ('#' in rule) or (len(rule) == 0):
-                continue
-
-            ftype = rule.split(':')[0].strip()
-            all_conditions = rule.split(':')[1].split(' and ')
-            criteria = list()
-            for cond in all_conditions:
-                if '==' in cond:
-                    key, val = cond.split('==')
-                    if 'open' in val.lower():
-                        criteria.append('open' in h[key].lower())
-                    elif 'closed' in val.lower():
-                        criteria.append('closed' in h[key].lower())
-                    else:
-                        val = parse_value(val)
-                        criteria.append(val == h[key])
-
-                elif '!=' in cond:
-                    key, val = cond.split('!=')
-                    if 'open' in val.lower():
-                        criteria.append('open' not in h[key].lower())
-                    elif 'closed' in val.lower():
-                        criteria.append('closed' not in h[key].lower())
-                    else:
-                        val = parse_value(val)
-                        criteria.append(val != h[key])
-
-                elif '>' in cond:
-                    key, val = cond.split('>')
-                    val = parse_value(val)
-                    criteria.append(h[key] > val)
-
-                elif '<' in cond:
-                    key, val = cond.split('<')
-                    val = parse_value(val)
-                    criteria.append(h[key] < val)
-
-            if np.all(criteria):
-                data_type[fname] = ftype
-                matches.append(ftype)
+        matches, output_msg = classify_file(fname, rules)
 
         if len(matches) == 1:
             ftype = matches[0]
-            if matches[0] == 'IMG_OBJECT':
-                # If no filter is defined and CCD readout is fast, the image is most likely an acquisition image
-                img_filter = get_filter(h)
-                if img_filter == '' and h['FPIX'] > 200:
-                    ftype = 'ACQ_IMG'
-
-            if matches[0] == 'SPEC_OBJECT':
-                if h['TCSTGT'] in calib_names:
-                    ftype = 'SPEC_STD'
-
             data_type[fname] = ftype
+
         elif len(matches) == 0:
+            msg.append(" [ERROR]  - " + output_msg[0])
             not_classified_files.append(fname)
+
         else:
-            if verbose:
-                print(" - ERROR : More than one filetype was found for file: %s" % fname)
-                print(matches)
-                print("")
+            msg.append(" [ERROR]  - " + output_msg[0])
+            msg.append("            " + output_msg[1])
 
         if progress:
             sys.stdout.write("\r  %6.2f%%" % (100.*(num+1)/len(files)))
             sys.stdout.flush()
 
+    msg.append("")
+    msg.append("          > Classification finished.")
+    msg.append("          > Successfully classified %i out of %i files." % (len(data_type.keys()), len(files)))
+    msg.append("")
+    if len(files) != len(data_type.keys()):
+        msg.append("[WARNING] - Files not classified:")
+        for item in not_classified_files:
+            msg.append("          - %s" % item)
+    msg.append("")
+    output_msg = "\n".join(msg)
 
     if verbose:
-        print("\n")
-        print(" Classification finished.")
-        print(" Successfully classified %i out of %i files." % (len(data_type.keys()), len(files)))
-        print("")
-        if len(files) != len(data_type.keys()):
-            print(" Files not classified:")
-            for item in not_classified_files:
-                print("   %s" % item)
+        print(output_msg)
 
-    return data_type
+    return data_type, output_msg
 
 
 def write_report(dt, output=''):
