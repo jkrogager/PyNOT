@@ -37,7 +37,7 @@ def mad(img):
     return np.median(np.abs(img - np.median(img)))
 
 
-def combine_bias_frames(bias_frames, output='', kappa=15, clobber=False, verbose=False):
+def combine_bias_frames(bias_frames, output='', kappa=15, overwrite=False, verbose=False):
     """Combine individual bias frames to create a 'master bias' frame.
     The combination is performed using robust sigma-clipping and
     median combination. Bad pixels are subsequently replaced by the
@@ -55,7 +55,7 @@ def combine_bias_frames(bias_frames, output='', kappa=15, clobber=False, verbose
     kappa : integer [default=15]
         Number of sigmas above which to reject pixels.
 
-    blobber : boolean [default=False]
+    overwrite : boolean [default=False]
         Overwrite existing output file if True.
 
     Returns
@@ -106,7 +106,7 @@ def combine_bias_frames(bias_frames, output='', kappa=15, clobber=False, verbose
     return master_bias
 
 
-def combine_flat_frames(raw_frames, mbias='', output='', match_slit='',
+def combine_flat_frames(raw_frames, mbias='', overwrite='', match_slit='',
                         kappa=5, verbose=False, clobber=False):
     """Combine individual spectral flat frames to create a 'master flat' frame.
     The individual frames are normalized to the mode of the 1D collapsed spectral
@@ -141,7 +141,7 @@ def combine_flat_frames(raw_frames, mbias='', output='', match_slit='',
     verbose : boolean [default=False]
         If True, print status messages.
 
-    clobber : boolean [default=False]
+    overwrite : boolean [default=False]
         Overwrite existing output file if True.
 
     Returns
@@ -230,7 +230,7 @@ def combine_flat_frames(raw_frames, mbias='', output='', match_slit='',
 
 
 def normalize_spectral_flat(fname, output='', axis=1, x1=0, x2=2050, order=24, sigma=5,
-                            plot=True, show=True, ext=1, clobber=False, verbose=False):
+                            plot=True, show=True, ext=1, overwrite=False, verbose=False):
     """
     Normalize spectral flat field for long-slit observations. Parameters are optimized
     for NOT/ALFOSC spectra with horizontal slits, i.e., vertical spectra [axis=1],
@@ -271,6 +271,9 @@ def normalize_spectral_flat(fname, output='', axis=1, x1=0, x2=2050, order=24, s
     ext : integer [default=1]
         File extension to open, default is 1 for ALFOSC which has a Primary extension with no data
         and the Image extension containing the raw data.
+
+    overwrite : boolean [default=False]
+        Overwrite existing output file if True.
 
     Returns
     =======
@@ -478,7 +481,7 @@ if __name__ == '__main__':
                                     x1=args.flat_x1, x2=args.flat_x2,
                                     order=args.flat_order, sigma=args.flat_sigma,
                                     plot=args.plot, show=args.show, ext=args.ext,
-                                    clobber=False, verbose=args.verbose)
+                                    overwrite=False, verbose=args.verbose)
 
         elif len(args.flat) > 1:
             flat_frames = args.flat
@@ -490,4 +493,4 @@ if __name__ == '__main__':
                                     x1=args.flat_x1, x2=args.flat_x2,
                                     order=args.flat_order, sigma=args.flat_sigma,
                                     plot=args.plot, show=args.show, ext=args.ext,
-                                    clobber=False, verbose=args.verbose)
+                                    overwrite=False, verbose=args.verbose)
