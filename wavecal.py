@@ -5,8 +5,8 @@ Wavelength Calibration and 2D Transformation
 __author__ = "Jens-Kristian Krogager"
 __version__ = '1.0'
 
-# import os
-# import sys
+import os
+import sys
 from astropy.io import fits
 import numpy as np
 from numpy.polynomial import Chebyshev
@@ -17,6 +17,9 @@ from scipy.optimize import curve_fit
 from scipy.signal import find_peaks
 import warnings
 
+from PyQt5.QtWidgets import QApplication
+
+from identify_gui import GraphicInterface
 
 def get_alfosc_header(fname, verbose=True):
     with fits.open(fname) as hdu:
@@ -28,38 +31,39 @@ def get_alfosc_header(fname, verbose=True):
     return primhdr
 
 # -- Function to call from PyNOT.main
-def create_pixtable(arc_images, grism_name):
+def create_pixtable(arc_image, grism_name, pixtable_name, linelist_fname, dispaxis=2, order_wl=3):
     """
-    arc_images : list(class:RawImage)
-        List of arc images of class RawImage.
+    arc_image : str
+        Filename of arc image
 
     grism_name : str
         Grism name, ex: grism4
     """
-    # -- Find out which files to combine:
-    arc_type = dict()
-    for img in arc_images:
-        if img.filetype not in arc_type.keys():
-            arc_type[img.filetype] = list()
-        arc_type[img.filetype].append(img)
-    if 'ARC_HeNe' in arc_type.keys():
-        # Remove pure He and Ne frames:
-        if 'ARC_He' in list(arc_type.keys()):
-            arc_type.pop('ARC_He')
-        if 'ARC_Ne' in list(arc_type.keys()):
-            arc_type.pop('ARC_Ne')
+    # Launch App:
+    qapp = QApplication(sys.argv)
+    app = GraphicInterface(arc_image,
+                           grism_name=grism_name,
+                           pixtable=pixtable_name,
+                           linelist_fname=linelist_fname,
+                           dispaxis=dispaxis,
+                           order_wl=order_wl,
+                           locked=True)
+    app.show()
+    qapp.exec_()
 
-    arc_images = sum(arc_type.values(), [])
-    # Select images with same image size:
-    this_slit = arc_images[0].slit
-    images_to_combine = [img for img in arc_images if img.slit == this_slit]
-    median_img = np.median([im.data for im in images_to_combine], axis=0)
-    if 'vert' in this_slit.lower():
-        raise ValueError("Vertical slits are not supported yet! %s " % this_slit)
+    poly_order = int(app.poly_order.text())
+    saved_pixtab_fname = app.output_fname
+    if not os.path.exists(pixtable_name):
+        app.save_pixtable(pixtable_name)
+    if app.message:
+        msg = "          > Successfully saved line identifications: %s\n" % saved_pixtab_fname
+    else:
+        msg = " [ERROR]  - Something went wrong in line identification of %s\n" % grism_name
 
-    arc1d = np.sum(median_img, axis=0)
-    # Pass to GUI and retrieve the solution...
-    # FIX THIS!
+    del app
+    del qapp
+
+    return poly_order, saved_pixtab_fname, msg
 
 
 def modNN_gaussian(x, bg, mu, sigma, logamp):

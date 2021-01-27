@@ -6,15 +6,18 @@ from astropy.io import fits
 from argparse import ArgumentParser
 from collections import defaultdict
 import os
+import sys
 import datetime
 import yaml
 
-from . import alfosc
-from . import data_organizer as do
-from .calibs import combine_bias_frames, combine_flat_frames, normalize_spectral_flat
+import alfosc
+import data_organizer as do
+from calibs import combine_bias_frames, combine_flat_frames, normalize_spectral_flat
+from wavecal import create_pixtable
+
 
 code_dir = os.path.dirname(os.path.abspath(__file__))
-calib_dir = os.path.join(code_dir, '/calib/')
+calib_dir = os.path.join(code_dir, 'calib/')
 defaults_fname = os.path.join(calib_dir, 'default_options.yml')
 v_file = os.path.join(code_dir, 'VERSION')
 with open(v_file) as version_file:
@@ -103,42 +106,47 @@ def get_options(option_fname):
     return options
 
 
-def main(raw_path, options_fname=None, verbose=True):
+def main(raw_path=None, options_fname=None, verbose=True):
     log = Report(verbose)
 
     # -- Parse Options from YAML
     options = get_options(defaults_fname)
+
     if options_fname:
         user_options = get_options(options_fname)
         options.update(user_options)
+        if not raw_path:
+            raw_path = user_options['path']
 
     if not os.path.exists(raw_path):
         log.error("Data path does not exist : %s" % raw_path)
         log.fatal_error()
         return
 
-    dataset = options['dataset']
-    if dataset is not None:
+    dataset_fname = options['dataset']
+    if os.path.exists(dataset_fname):
         # -- load collection
+        database = do.io.load_database(dataset_fname)
+        log.write("Loaded file classification database: %s" % dataset_fname)
         # -- reclassify (takes already identified files into account)
-        pass
 
-    # Classify files:
-    log.write("Classyfying files in folder: %s" % raw_path)
-    try:
-        database, message = do.classify(raw_path, progress=verbose)
-        # -- Save collection
-        log.commit(message)
-        log.add_linebreak()
-    except ValueError as err:
-        log.error(str(err))
-        print(err)
-        log.fatal_error()
-        return
-    except FileNotFoundError as err:
-        log.error(str(err))
-        log.fatal_error()
-        return
+    else:
+        # Classify files:
+        log.write("Classyfying files in folder: %s" % raw_path)
+        try:
+            database, message = do.classify(raw_path, progress=verbose)
+            do.io.save_database(database, dataset_fname)
+            log.commit(message)
+            log.write("Saved database to file: %s" % dataset_fname)
+        except ValueError as err:
+            log.error(str(err))
+            print(err)
+            log.fatal_error()
+            return
+        except FileNotFoundError as err:
+            log.error(str(err))
+            log.fatal_error()
+            return
 
     # -- Organize object files in dataset:
     object_filelist = database['SPEC_OBJECT']
@@ -160,7 +168,10 @@ def main(raw_path, options_fname=None, verbose=True):
 
     # -- Check arc line files:
     arc_images = list()
-    for arc_type in ['ARC_He', 'ARC_HeNe', 'ARC_Ne', 'ARC_ThAr']:
+    # for arc_type in ['ARC_He', 'ARC_HeNe', 'ARC_Ne', 'ARC_ThAr']:
+    for arc_type in ['ARC_HeNe', 'ARC_ThAr']:
+        # For now only HeNe arc lines are accepted!
+        # Implement ThAr and automatic combination of He + Ne
         if arc_type in database.keys():
             arc_images += database[arc_type]
 
@@ -192,56 +203,81 @@ def main(raw_path, options_fname=None, verbose=True):
         # Check if pixeltables exist:
         grisms_to_identify = list()
         for grism_name in grism_list:
-            pixtab_fname = calib_dir + '/%s_pixeltable.dat' % grism_name
+            pixtab_fname = os.path.join(calib_dir, '%s_pixeltable.dat' % grism_name)
             if not os.path.exists(pixtab_fname):
                 grisms_to_identify.append(grism_name)
                 log.write("%s : pixel table does not exist. Will identify lines..." % grism_name)
             else:
                 log.write("%s : pixel table already exists" % grism_name)
+                options[grism_name+'_pixtab'] = pixtab_fname
         log.add_linebreak()
 
     if len(grisms_to_identify) > 0:
         log.write("Starting interactive definition of pixel table...")
 
+    # Identify interactively for grisms that are not defined
+    # add the new pixel tables to the calib cache for future use
     for grism_name in grisms_to_identify:
-        create_pixtable(arc_images_for_grism, grism_name)
+        try:
+            arc_fname = arc_images_for_grism[grism_name][0]
+            if grism_name+'_pixtab' in options:
+                pixtab_fname = options[grism_name+'_pixtab']
+            else:
+                pixtab_fname = os.path.join(calib_dir, '%s_pixeltable.dat' % grism_name)
+            linelist_fname = os.path.join(calib_dir, 'HeNe_linelist.dat')
+            poly_order, saved_pixtab_fname, msg = create_pixtable(arc_fname, grism_name,
+                                                                  pixtab_fname, linelist_fname,
+                                                                  dispaxis=options['dispaxis'],
+                                                                  order_wl=options['identify']['order_wl'])
+            options['rectify']['order_wl'] = poly_order
+            options[grism_name+'_pixtab'] = saved_pixtab_fname
+            log.commit(msg)
+        except:
+            log.fatal_error()
+            log.save()
+            print("Unexpected error:", sys.exc_info()[0])
+            raise
 
-    for sci_img in object_images:
-        output_dir = sci_img.target_name
-        if not os.path.exists(output_dir):
-            os.mkdir(output_dir)
-
-        master_bias_fname = os.path.join(output_dir, 'MASTER_BIAS.fits')
-        grism = alfosc.grism_translate[sci_img.grism]
-        comb_flat_fname = os.path.join(output_dir, 'FLAT_COMBINED_%s_%s.fits' % (grism, sci_img.slit))
-        norm_flat_fname = os.path.join(output_dir, 'NORM_FLAT_%s_%s.fits' % (grism, sci_img.slit))
-        final_2d_fname = os.path.join(output_dir, 'red2D_%s_%s.fits' % (sci_img.target_name, sci_img.date))
-
-        # Combine Bias Frames matched for CCD setup
-        bias_frames = sci_img.match_files(database['BIAS'])
-        combine_bias_frames(bias_frames, output=master_bias_fname,
-                            kappa=bias_kappa,
-                            verbose=verbose)
-
-        # Combine Flat Frames matched for CCD setup, grism, slit and filter
-        flat_frames = sci_img.match_files(database['SPEC_FLAT'], grism=True, slit=True, filter=True)
-        _ = combine_flat_frames(flat_frames, mbias=master_bias_fname,
-                                output=comb_flat_fname,
-                                kappa=flat_kappa, verbose=verbose)
-
-        # Normalize the spectral flat field:
-        normalize_spectral_flat(comb_flat_fname, output=norm_flat_fname,
-                                axis=dispaxis,
-                                x1=args.flat_x1, x2=args.flat_x2,
-                                order=args.flat_order, sigma=args.flat_sigma,
-                                plot=args.plot, show=args.show, ext=args.ext,
-                                clobber=False, verbose=args.verbose)
-
-        # Sensitivity Function:
-        std_fname, = sci_img.match_files(database['SPEC_FLUX-STD'], grism=True, slit=True, filter=True, get_closest_time=True)
-        # -- steps in response function
-
-        # Science Reduction:
+    print("Moving on...")
+    # for sci_img in object_images:
+    #     raw_base = sci_img.filename.split('.')[0][2:]
+    #     output_dir = sci_img.target_name + '_' + raw_base
+    #     if not os.path.exists(output_dir):
+    #         os.mkdir(output_dir)
+    #
+    #     master_bias_fname = os.path.join(output_dir, 'MASTER_BIAS.fits')
+    #     grism = alfosc.grism_translate[sci_img.grism]
+    #     comb_flat_fname = os.path.join(output_dir, 'FLAT_COMBINED_%s_%s.fits' % (grism, sci_img.slit))
+    #     norm_flat_fname = os.path.join(output_dir, 'NORM_FLAT_%s_%s.fits' % (grism, sci_img.slit))
+    #     final_2d_fname = os.path.join(output_dir, 'red2D_%s_%s.fits' % (sci_img.target_name, sci_img.date))
+    #
+    #     # Combine Bias Frames matched for CCD setup
+    #     bias_frames = sci_img.match_files(database['BIAS'])
+    #     combine_bias_frames(bias_frames, output=master_bias_fname,
+    #                         kappa=bias_kappa,
+    #                         verbose=verbose)
+    #
+    #     # Combine Flat Frames matched for CCD setup, grism, slit and filter
+    #     flat_frames = sci_img.match_files(database['SPEC_FLAT'], grism=True, slit=True, filter=True)
+    #     _ = combine_flat_frames(flat_frames, mbias=master_bias_fname,
+    #                             output=comb_flat_fname,
+    #                             kappa=flat_kappa, verbose=verbose)
+    #
+    #     # Normalize the spectral flat field:
+    #     normalize_spectral_flat(comb_flat_fname, output=norm_flat_fname,
+    #                             axis=dispaxis,
+    #                             x1=args.flat_x1, x2=args.flat_x2,
+    #                             order=args.flat_order, sigma=args.flat_sigma,
+    #                             plot=args.plot, show=args.show, ext=args.ext,
+    #                             clobber=False, verbose=args.verbose)
+    #
+    #     # Sensitivity Function:
+    #     std_fname, = sci_img.match_files(database['SPEC_FLUX-STD'], grism=True, slit=True, filter=True, get_closest_time=True)
+    #     # -- steps in response function
+    #
+    #     # Science Reduction:
+    #     # pixtab_fname comes from identify_GUI
+    #     # pixtab_path = os.path.join(output_dir, pixtab_fname)
 
 
 if __name__ == '__main__':
@@ -254,6 +290,9 @@ if __name__ == '__main__':
 
     if args.path:
         main(args.path, options_fname=args.options)
+
+    elif args.options:
+        main(options_fname=args.options)
 
     else:
         print("\n  Running PyNOT Data Processing Pipeline\n")

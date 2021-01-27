@@ -232,7 +232,7 @@ def classify_file(fname, rules):
     return matches, msg
 
 
-def classify(data_in, rule_file='/Users/krogager/coding/PyNOT/data_organizer/alfosc.rules', verbose=True, progress=True):
+def classify(data_in, rule_file='/Users/krogager/coding/PyNOT/data_organizer/alfosc.rules', progress=True):
     """
     The input can be a single .fits file, a string given the path to a directory,
     a list of .fits files, or a list of directories.
@@ -269,7 +269,7 @@ def classify(data_in, rule_file='/Users/krogager/coding/PyNOT/data_organizer/alf
     with open(rule_file) as rulebook:
         rules = rulebook.readlines()
 
-    if progress and verbose:
+    if progress:
         print("")
         print(" Classifying files: ")
 
@@ -302,9 +302,6 @@ def classify(data_in, rule_file='/Users/krogager/coding/PyNOT/data_organizer/alf
             msg.append("          - %s" % item)
     msg.append("")
     output_msg = "\n".join(msg)
-
-    if verbose:
-        print(output_msg)
 
     database = TagDatabase(data_types)
 

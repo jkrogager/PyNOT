@@ -24,16 +24,15 @@ from numpy.polynomial import Chebyshev
 from astropy.io import fits
 
 
-def create_pixtable(arc_fname, grism_name, tab_fname, dispaxis=2):
-    linelist_fname = ''
+def run_gui(arc_fname, grism_name, tab_fname, linelist_fname, dispaxis=2):
     # Launch App:
     qapp = QApplication(sys.argv)
     app = GraphicInterface(fname,
-            grism_name=grism_name,
-            pixtable=tab_fname,
-            linelist_fname=linelist_fname,
-            dispaxis=dispaxis,
-            locked=True)
+                           grism_name=grism_name,
+                           pixtable=tab_fname,
+                           linelist_fname=linelist_fname,
+                           dispaxis=dispaxis,
+                           locked=True)
     app.show()
     qapp.exec_()
     poly_order = int(app.poly_order.text())
@@ -133,7 +132,7 @@ def create_pixel_array(hdr, dispaxis):
 
 
 class GraphicInterface(QMainWindow):
-    def __init__(self, arc_fname='', grism_name='', pixtable='', linelist_fname='', dispaxis=2, parent=None, locked=False):
+    def __init__(self, arc_fname='', grism_name='', pixtable='', linelist_fname='', dispaxis=2, order_wl=3, parent=None, locked=False):
         QMainWindow.__init__(self, parent)
         self.setWindowTitle('PyNOT: Identify Arc Lines')
         self._main = QWidget()
@@ -153,6 +152,7 @@ class GraphicInterface(QMainWindow):
         self.linelist = np.array([])
         self._full_linelist = [['', '']]
         self.state = None
+        self.message = None
 
         # Create Toolbar and Menubar
         toolbar = QToolBar()
@@ -314,7 +314,7 @@ class GraphicInterface(QMainWindow):
         button_show_resid = QPushButton("Residual / Data")
         button_show_resid.setShortcut("ctrl+T")
         button_show_resid.clicked.connect(self.toggle_residview)
-        self.poly_order = QLineEdit("3")
+        self.poly_order = QLineEdit("%i" % order_wl)
         self.poly_order.setFixedWidth(30)
         self.poly_order.setAlignment(Qt.AlignCenter)
         self.poly_order.setValidator(QIntValidator(1, 100))
@@ -377,7 +377,6 @@ class GraphicInterface(QMainWindow):
 
         if os.path.exists(linelist_fname):
             self.load_linelist_fname(linelist_fname)
-
 
     def load_linelist_fname(self, linelist_fname=None):
         if linelist_fname is False:
@@ -465,8 +464,10 @@ class GraphicInterface(QMainWindow):
             base_name, ext = os.path.splitext(fname)
             out_fname = "%s_arcID_%s.tab" % (base_name, self.grism_name)
             self.output_fname = out_fname
-            self.save_pixtable(out_fname)
-            self.close()
+            success = self.save_pixtable(out_fname)
+            if success:
+                self.message = "Success"
+                self.close()
 
     def save_pixtable(self, fname=None):
         if fname is False:
@@ -478,10 +479,17 @@ class GraphicInterface(QMainWindow):
         if fname:
             with open(fname, 'w') as tab_file:
                 pixvals, wavelengths = self.get_table_values()
-                tab_file.write("# Pixel Table for ALFOSC grism: %s\n" % self.grism_name)
-                tab_file.write("# Pixel    Wavelength [Å]\n")
-                np.savetxt(tab_file, np.column_stack([pixvals, wavelengths]),
-                           fmt=" %8.2f   %8.2f")
+                if len(pixvals) < 2:
+                    QMessageBox.critical(None, 'Not enough lines identified', 'You need to identify at least 3 lines')
+                    return False
+                else:
+                    tab_file.write("# Pixel Table for ALFOSC grism: %s\n" % self.grism_name)
+                    tab_file.write("# Pixel    Wavelength [Å]\n")
+                    np.savetxt(tab_file, np.column_stack([pixvals, wavelengths]),
+                               fmt=" %8.2f   %8.2f")
+            return True
+        else:
+            return False
 
     def update_cache(self):
         msg = "Are you sure you want to update the PyNOT pixel table for %s" % self.grism_name

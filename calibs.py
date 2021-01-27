@@ -8,10 +8,7 @@ __credits__ = ["Jens-Kristian Krogager"]
 
 from argparse import ArgumentParser
 import numpy as np
-try:
-    import pyfits as pf
-except:
-    import astropy.io.fits as pf
+import astropy.io.fits as pf
 import matplotlib.pyplot as plt
 from matplotlib import ticker
 from scipy.ndimage import gaussian_filter1d
@@ -19,8 +16,13 @@ from numpy.polynomial import Chebyshev
 import os
 from os.path import exists, basename
 
-import PyNOT
 import alfosc
+
+code_dir = os.path.dirname(os.path.abspath(__file__))
+calib_dir = os.path.join(code_dir, '/calib/')
+v_file = os.path.join(code_dir, 'VERSION')
+with open(v_file) as version_file:
+    __version__ = version_file.read().strip()
 
 
 def my_formatter(x, p, scale_pow):
@@ -90,7 +92,7 @@ def combine_bias_frames(bias_frames, output='', kappa=15, overwrite=False, verbo
             hdr[key] = hdr1[key]
         hdr['NCOMBINE'] = len(bias_frames)
         hdr.add_comment('Median combined Master Bias')
-        hdr.add_comment('PyNOT version %r' % PyNOT.__version__)
+        hdr.add_comment('PyNOT version %s' % __version__)
 
         if output[-5:] == '.fits':
             pass
@@ -101,7 +103,7 @@ def combine_bias_frames(bias_frames, output='', kappa=15, overwrite=False, verbo
 
     pf.writeto(output, master_bias, header=hdr, clobber=clobber)
     if verbose:
-        print " Saved output: "+output
+        print(" Saved output: "+output)
 
     return master_bias
 
@@ -154,13 +156,13 @@ def combine_flat_frames(raw_frames, mbias='', overwrite='', match_slit='',
         bias = pf.getdata(mbias)
     else:
         if verbose:
-            print "  WARNING - No master bias frame provided!"
+            print("  WARNING - No master bias frame provided!")
         bias = 0.
 
     flats = list()
     flat_peaks = list()
     if verbose:
-        print""
+        print("")
     for fname in raw_frames:
         hdr = pf.getheader(fname)
         if match_slit != '' and match_slit in alfosc.slits:
@@ -171,7 +173,7 @@ def combine_flat_frames(raw_frames, mbias='', overwrite='', match_slit='',
                 flats.append(flat/peak_val)
                 flat_peaks.append(peak_val)
                 if verbose:
-                    print " Appended file: %s   mode=%.1f" % (fname, peak_val)
+                    print(" Appended file: %s   mode=%.1f" % (fname, peak_val))
 
         elif match_slit == '':
             flat = pf.getdata(fname)
@@ -180,11 +182,11 @@ def combine_flat_frames(raw_frames, mbias='', overwrite='', match_slit='',
             flats.append(flat/peak_val)
             flat_peaks.append(peak_val)
             if verbose:
-                print " Appended file: %s   mode=%.1f" % (fname, peak_val)
+                print(" Appended file: %s   mode=%.1f" % (fname, peak_val))
 
         else:
-            print "Invalid Slit Name given:  %s" % match_slit
-            return None
+            print("Invalid Slit Name given:  %s" % match_slit)
+            return
 
     # Perform robust clipping using median absolute deviation
     # Assuming a Gaussian distribution:
@@ -201,7 +203,7 @@ def combine_flat_frames(raw_frames, mbias='', overwrite='', match_slit='',
 
     flat_combine = np.median(flats, 0) * median
     if verbose:
-        print " Combined %i files" % len(flats)
+        print(" Combined %i files" % len(flats))
 
     hdr = pf.getheader(raw_frames[0], 0)
     hdr1 = pf.getheader(raw_frames[0], 1)
@@ -209,7 +211,7 @@ def combine_flat_frames(raw_frames, mbias='', overwrite='', match_slit='',
         hdr[key] = hdr1[key]
     hdr['NCOMBINE'] = len(flats)
     hdr.add_comment('Median combined Master Spectral Flat')
-    hdr.add_comment('PyNOT version %r' % PyNOT.__version__)
+    hdr.add_comment('PyNOT version %s' % __version__)
 
     if output:
         if output[-5:] == '.fits':
@@ -224,7 +226,7 @@ def combine_flat_frames(raw_frames, mbias='', overwrite='', match_slit='',
 
     pf.writeto(output, flat_combine, header=hdr, clobber=clobber)
     if verbose:
-        print " Saved output: "+output
+        print(" Saved output: "+output)
 
     return output
 
@@ -300,10 +302,10 @@ def normalize_spectral_flat(fname, output='', axis=1, x1=0, x2=2050, order=24, s
         hdr = HDU[ext].header
 
     if verbose:
-        print ""
-        print "Running task:  Normalization of Spectral Flat Field"
-        print ""
-        print "  Input file:"
+        print("")
+        print("Running task:  Normalization of Spectral Flat Field")
+        print("")
+        print("  Input file:")
         HDU.info()
 
     flat1D = np.mean(flat, axis)
@@ -394,7 +396,7 @@ def normalize_spectral_flat(fname, output='', axis=1, x1=0, x2=2050, order=24, s
     hdr['ORDER'] = (order, 'Order used for Chebyshev polynomial fit')
     hdr['NORMRMS'] = (noise, 'RMS noise of normalization [ADUs]')
     hdr.add_comment('Normalized Spectral Flat')
-    hdr.add_comment('PyNOT version %r' % PyNOT.__version__)
+    hdr.add_comment('PyNOT version %s' % __version__)
     if output:
         # save the file:
         if output[-5:] == '.fits':
@@ -407,8 +409,8 @@ def normalize_spectral_flat(fname, output='', axis=1, x1=0, x2=2050, order=24, s
         output = 'NORM_FLAT_%s_%s.fits' % (grism, slit_name)
 
     if verbose:
-        print ""
-        print "  Output file saved:  %s" % output
+        print("")
+        print("  Output file saved:  %s" % output)
     pf.writeto(output, flat_norm, header=hdr, clobber=clobber)
 
     return flat_norm
@@ -452,18 +454,18 @@ if __name__ == '__main__':
         if len(args.bias) == 1:
             bias_frames = np.loadtxt(args.bias[0], usecols=(0,), dtype=str)
             if args.verbose:
-                print "Combining bias files:"
+                print("Combining bias files:")
                 for fname in args.bias:
-                    print "   " + fname
+                    print("   " + fname)
             combine_bias_frames(bias_frames, output='MASTER_BIAS.fits',
                                 kappa=args.bias_kappa,
                                 verbose=args.verbose)
 
         elif len(args.bias) > 1:
             if args.verbose:
-                print "Combining bias files:"
+                print("Combining bias files:")
                 for fname in args.bias:
-                    print "   " + fname
+                    print("   " + fname)
             bias_frames = args.bias
             combine_bias_frames(bias_frames, output='MASTER_BIAS.fits',
                                 kappa=args.bias_kappa,
