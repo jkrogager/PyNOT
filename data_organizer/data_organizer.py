@@ -376,9 +376,11 @@ class RawImage(object):
         self.x_unit = primhdr['CUNIT1']
         self.y_unit = primhdr['CUNIT2']
 
-    def match_files(self, filelist, date=True, binning=True, shape=True, grism=False, slit=False, filter=False):
+    def match_files(self, filelist, date=True, binning=True, shape=True, grism=False, slit=False, filter=False, get_closest_time=False):
+        """Return list of filenames that match the given criteria"""
         matches = list()
         # sort by:
+        all_times = list()
         for fname in filelist:
             this_hdr = fits.getheader(fname, 0)
             criteria = list()
@@ -415,6 +417,11 @@ class RawImage(object):
 
             if np.all(criteria):
                 matches.append(fname)
+                all_times.append(this_mjd)
+
+        if get_closest_time:
+            index = np.argmin(np.abs(np.array(all_times) - self.mjd))
+            matches = matches[index:index+1]
 
         return matches
 
