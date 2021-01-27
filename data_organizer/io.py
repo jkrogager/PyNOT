@@ -4,46 +4,27 @@
 Input / Output functions for the DataSet class.
 """
 
-from DataOrganizer import DataSet, get_pipeline_version
+from data_organizer import TagDatabase
 
 
-def save_dataset(dataset, output_fname, verbose=True):
-    """Save DataSet to file."""
-    with open(output_fname, 'w') as out:
-        # -- Write metadata
-        out.write("# X-shooter dataset\n")
-        out.write("version = %s\n" % dataset.version)
-        # -- Write file-database:
-        for key, values in dataset.tag_database.items():
-            for fname in values:
-                out.write("%s : %s\n" % (fname, key))
-
-    if verbose:
-        print(" Saved dataset to file: %s\n" % output_fname)
+def save_database(database, output_fname):
+    """Save file database to file."""
+    collection = database.file_database
+    output_strings = ['%s: %s' % item for item in collection.items()]
+    # Sort the files based on their classification:
+    sorted_output = sorted(output_strings, key=lambda x: x.split(':')[1])
+    with open(output_fname, 'w') as output:
+        output.write("\n".join(sorted_output))
 
 
-def load_dataset(input_fname):
-    """Load Dataset from file."""
+def load_database(input_fname):
+    """Load file database from file."""
     with open(input_fname) as input_file:
         all_lines = input_file.readlines()
 
-    file_database = dict()
+    file_database = {}
     for line in all_lines:
-        if line[0] == '#':
-            continue
-        elif 'version = ' in line:
-            version = line.split('=')[1].strip()
-        else:
-            fname, category = line.split(' : ')
-            file_database[fname.strip()] = category.strip()
+        fname, ftype = line.split(':')
+        file_database[fname.strip()] = ftype.strip()
 
-    current_version = get_pipeline_version()
-    if current_version != version:
-        print("  [WARNING] - Pipeline version in dataset does not match installed version of esorex!")
-        print("              Dataset: %s    ESOREX: %s" % (version, current_version))
-        print("              Consider regenerating the dataset from scratch.")
-
-    # -- Initiate DataSet:
-    xsh_dataset = DataSet(set_static=False)
-    xsh_dataset.set_tag_database(file_database)
-    return xsh_dataset
+    return TagDatabase(file_database)

@@ -74,7 +74,7 @@ class Report(object):
             output.write(self.report)
 
 
-def main(raw_path, verbose=True):
+def main(raw_path, dataset=None, verbose=True):
     log = Report()
 
     if not os.path.exists(raw_path):
@@ -82,11 +82,16 @@ def main(raw_path, verbose=True):
         log.write("Pipeline terminated!")
         return
 
+    if dataset is not None:
+        # -- load collection
+        # -- check that all files in raw_path are in collection
+        pass
+
     # Classify files:
     log.write("Classyfying files in folder: %s" % raw_path)
     try:
-        collection, message = do.classify(raw_path, progress=verbose)
-        database = do.TagDatabase(collection)
+        database, message = do.classify(raw_path, progress=verbose)
+        # -- Save collection
         log.commit(message)
     except ValueError as err:
         log.error(str(err))
@@ -108,56 +113,58 @@ def main(raw_path, verbose=True):
             print("%20s  %9s  %11s  %.0f" % (sci_img.object, sci_img.grism, sci_img.slit, sci_img.exptime))
         print("")
 
-    # -- Check BIAS:
-
-    # -- Check FLAT:
-
-    # -- Check FLUX_STD:
-
     # -- Check ARC:
     arc_images = list()
     for arc_type in ['ARC_He', 'ARC_HeNe', 'ARC_Ne', 'ARC_ThAr']:
         if arc_type in database.keys():
-            arc_images += list(map(lambda x: do.RawImage(x, arc_type), database[arc_type]))
-    grism_list = list()
-    # get list of unique grisms in dataset:
-    for sci_img in object_images:
-        grism_name = alfosc.grism_translate[sci_img.grism]
-        if grism_name not in grism_list:
-            grism_list.append(grism_name)
+            arc_images += database[arc_type]
 
-    # Check if pixeltable exists:
-    create_pixtab = list()
-    for grism_name in grism_list:
-        pixtab_fname = calib_dir + '/%s_pixeltable.dat' % grism_name
-        if not os.path.exists(pixtab_fname):
-            create_pixtab.append(grism_name)
-
-    if len(create_pixtab) == 0:
+    if identify_interactive and identify_all:
         pass
-    elif len(create_pixtab) == 1:
-        print("\n - The following grism is used in the dataset")
-        print("   but no pixeltable exists in the calibration database:")
     else:
-        print("\n - The following grisms are used in the dataset")
-        print("   but no pixeltable exists in the calibration database:")
-    for grism_name in create_pixtab:
-        print(grism_name)
+        # identify all grisms (identify_all==FALSE)
+        # identify only missing grisms (identify_interactive==FALSE)
 
-    print("\n   Starting interactive definition of pixeltable...")
-    print("   Get your line identification plot ready!")
-    for grism_name in create_pixtab:
-        arc_images_for_grism = list()
-        for arc_img in arc_images:
-            this_grism = alfosc.grism_translate[arc_img.grism]
-            if this_grism == grism_name:
-                arc_images_for_grism.append(arc_img)
+        # get list of unique grisms in dataset:
+        grism_list = list()
+        for sci_img in object_images:
+            grism_name = alfosc.grism_translate[sci_img.grism]
+            if grism_name not in grism_list:
+                grism_list.append(grism_name)
 
-        if len(arc_images_for_grism) == 0:
-            print("[ERROR] - No arc frames defined for grism: " + grism_name)
-            return None
+        # Check if pixeltable exists:
+        if identify_interactive:
+            # Make pixeltable for all grisms:
+            grisms_to_identify = grism_list
         else:
-            create_pixtable(arc_images_for_grism, grism_name)
+            grisms_to_identify = list()
+            for grism_name in grism_list:
+                pixtab_fname = calib_dir + '/%s_pixeltable.dat' % grism_name
+                if not os.path.exists(pixtab_fname):
+                    grisms_to_identify.append(grism_name)
+
+            if len(grisms_to_identify) == 0:
+                pass
+            else:
+                print("\n - The following grisms are used in the dataset")
+                print("   but no pixeltable exists in the calibration database:")
+            for grism_name in grisms_to_identify:
+                print(grism_name)
+
+        print("\n   Starting interactive definition of pixeltable...")
+        print("   Get your line identification plot ready!")
+        for grism_name in grisms_to_identify:
+            arc_images_for_grism = list()
+            for arc_img in arc_images:
+                this_grism = alfosc.grism_translate[arc_img.grism]
+                if this_grism == grism_name:
+                    arc_images_for_grism.append(arc_img)
+
+            if len(arc_images_for_grism) == 0:
+                print("[ERROR] - No arc frames defined for grism: " + grism_name)
+                return None
+            else:
+                create_pixtable(arc_images_for_grism, grism_name)
 
     for sci_img in object_images:
         output_dir = sci_img.target_name
@@ -191,7 +198,8 @@ def main(raw_path, verbose=True):
                                 clobber=False, verbose=args.verbose)
 
         # Sensitivity Function:
-        std_frames = sci_img.match_files(database['SPEC_FLUX-STD'], grism=True, slit=True, filter=True)
+        std_fname, = sci_img.match_files(database['SPEC_FLUX-STD'], grism=True, slit=True, filter=True, get_closest_time=True)
+        # -- steps in response function
 
         # Science Reduction:
 

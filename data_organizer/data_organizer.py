@@ -141,6 +141,14 @@ def parse_value(val):
     return new_val
 
 
+def get_unclassified_files(file_list, database):
+    missing_files = list()
+    for fname in file_list:
+        if fname not in database.file_database:
+            missing_files.append(fname)
+    return missing_files
+
+
 def classify_file(fname, rules):
     """
     Classify input FITS file according to the set of `rules`, a list of string conditions
@@ -252,7 +260,7 @@ def classify(data_in, rule_file='/Users/krogager/coding/PyNOT/data_organizer/alf
     else:
         raise ValueError("Input must be a string or a list of strings")
 
-    data_type = dict()
+    data_types = dict()
     not_classified_files = list()
 
     if not os.path.exists(rule_file):
@@ -270,7 +278,7 @@ def classify(data_in, rule_file='/Users/krogager/coding/PyNOT/data_organizer/alf
 
         if len(matches) == 1:
             ftype = matches[0]
-            data_type[fname] = ftype
+            data_types[fname] = ftype
 
         elif len(matches) == 0:
             msg.append(" [ERROR]  - " + output_msg[0])
@@ -286,9 +294,9 @@ def classify(data_in, rule_file='/Users/krogager/coding/PyNOT/data_organizer/alf
 
     msg.append("")
     msg.append("          > Classification finished.")
-    msg.append("          > Successfully classified %i out of %i files." % (len(data_type.keys()), len(files)))
+    msg.append("          > Successfully classified %i out of %i files." % (len(data_types.keys()), len(files)))
     msg.append("")
-    if len(files) != len(data_type.keys()):
+    if len(files) != len(data_types.keys()):
         msg.append("[WARNING] - Files not classified:")
         for item in not_classified_files:
             msg.append("          - %s" % item)
@@ -298,17 +306,50 @@ def classify(data_in, rule_file='/Users/krogager/coding/PyNOT/data_organizer/alf
     if verbose:
         print(output_msg)
 
-    return data_type, output_msg
+    database = TagDatabase(data_types)
+
+    return database, output_msg
 
 
-def write_report(dt, output=''):
+def reclassify(data_in, database, **kwargs):
+    # Determine the input type:
+    if isinstance(data_in, str):
+        if os.path.isfile(data_in):
+            files = [data_in]
+        elif os.path.isdir(data_in):
+            files = glob(data_in+'/*.fits')
+
+    elif isinstance(data_in, list):
+        if os.path.isfile(data_in[0]):
+            files = data_in
+        elif os.path.isdir(data_in[0]):
+            files = []
+            for path in data_in:
+                files += glob(path+'/*.fits')
+    else:
+        raise ValueError("Input must be a string or a list of strings")
+
+    missing_files = get_unclassified_files(files, database)
+
+    if len(missing_files) == 0:
+        output_msg = "No new files to classify!"
+        new_database = database
+    else:
+        new_database, output_msg = classify(missing_files, **kwargs)
+        new_database = database + new_database
+
+    return new_database, output_msg
+
+
+
+def write_report(collection, output=''):
     """
     Write a report of a given data collection from the `classify` function
 
     If `output` is given, the report will be saved to this filename.
     """
     # Sort the files by file-type:
-    tags = TagDatabase(dt)
+    tags = TagDatabase(collection)
 
     report = "# Data Report for ALFOSC\n"
     for tag in sorted(tags.keys()):
@@ -462,156 +503,3 @@ class TagDatabase(dict):
             return True
 
         return False
-
-
-class DataSet(object):
-    """
-    This is the main class for identifying datasets
-    'data_in' gives path to fold containing data files, or a list of data filenames
-    'mode' is one of: 'SLIT_STARE', 'SLIT_NOD', 'SLIT_OFFSET', 'IFU_STAR', 'IFU_OFFSET'
-    'silent' turns off text notifications to the terminal
-    """
-    def __str__(self):
-        """ Define a string representation of the DataSet. """
-        N_files = len(self.tag_database.file_database.keys())
-        str_rep = "X-shooter DataSet (MODE: %s). Number of files in dataset: %i" % (self.mode, N_files)
-        return str_rep
-
-    def __init__(self, data_in=None, silent=False):
-
-        self.version = __version__
-        self.tag_database = TagDatabase(dict())
-
-        if data_in:
-            self.add_files(data_in, silent)
-            self.check_science_frames()
-
-    def set_tag_database(self, file_database):
-        """
-        Set a new tag-database from a file_database.
-        This will overwrite the current database!
-        """
-        self.tag_database = TagDatabase(file_database)
-
-    def add_files(self, data_in, silent=False):
-        new_file_database = classify(data_in, silent=silent)
-        new_tag_database = TagDatabase(new_file_database)
-        self._file_database = new_file_database
-        self.tag_database = self.tag_database + new_tag_database
-
-    def check_science_frames(self):
-        pass
-
-    def has_tag(self, tag):
-        return self.tag_database.has_tag(tag)
-
-    def reset_tag(self, tag):
-        if self.has_tag(tag):
-            self.tag_database[tag] = list()
-
-    def remove_tag(self, tag):
-        if self.has_tag(tag):
-            fnames = self.tag_database.pop(tag)
-            for fname in fnames:
-                self.tag_database.file_database.pop(fname)
-
-    def set_tag(self, tag, files):
-        if self.has_tag(tag):
-            if isinstance(files, list):
-                self.tag_database[tag] = files
-            elif isinstance(files, str):
-                self.tag_database[tag] = [files]
-            else:
-                print(" - Invalid argument `files`: %r" % files)
-        else:
-            print(" - Invalid Type: %r" % tag)
-
-    def append(self, tag, files):
-        if self.has_tag(tag):
-            if isinstance(files, list):
-                self.tag_database[tag] += files
-            elif isinstance(files, str):
-                self.tag_database[tag].append(files)
-            else:
-                print(" Invalid argument: %r" % files)
-        else:
-            print(" - Invalid Type: %r" % tag)
-
-    def all_tags(self):
-        return self.tag_database.keys()
-
-    def get_files(self, tag):
-        if self.has_tag(tag):
-            return self.tag_database[tag]
-        else:
-            return None
-
-    # -- Match DARK frames based on date and then exptime:
-    def match_dark(self, fname):
-        """Find the dark frames with matching exposure time"""
-        target_hdr = fits.getheader(fname)
-        target_exptime = target_hdr['EXPTIME']
-        target_date = target_hdr['MJD-OBS']
-
-        date_sorted = group_calibs_by_date(self.get_files('DARK_NIR'))
-        all_dates = date_sorted.keys()
-        date_diff = [float(mjd) - target_date for mjd in all_dates]
-        this_date = all_dates[np.argmin(date_diff)]
-
-        matched_dark_frames = list()
-        for dark_frame in date_sorted[this_date]:
-            hdr = fits.getheader(dark_frame)
-            exptime = hdr['EXPTIME']
-            if exptime == target_exptime:
-                matched_dark_frames.append(dark_frame)
-
-        if len(matched_dark_frames) < 3:
-            print(" [WARNING] - Less than 3 DARK frames were supplied: %i" % len(matched_dark_frames))
-
-        return ('DARK', matched_dark_frames)
-
-    def match_flat(self, tag, fname, date=False):
-        """Find the flat frames with matching slit width and binning"""
-        target_hdr = fits.getheader(fname)
-        target_slit = target_hdr['ALAPRTNM']
-        target_ccd = get_binning(fname)
-        target_date = get_mjd(target_hdr['DATE-OBS'])
-        target_exptime = target_hdr['EXPTIME']
-
-        exptimes = list()
-        all_matched_flat_frames = list()
-        if date:
-            date_sorted = group_calibs_by_date(self.get_files(tag))
-            all_dates = date_sorted.keys()
-            date_diff = [float(mjd) - target_date for mjd in all_dates]
-            this_date = all_dates[np.argmin(np.abs(date_diff))]
-            for frame in date_sorted[this_date]:
-                hdr = fits.getheader(frame)
-                slit = hdr['ALAPRTNM']
-                ccd = get_binning(frame)
-                if slit == target_slit and ccd == target_ccd:
-                    all_matched_flat_frames.append(frame)
-                    exptimes.append(hdr['EXPTIME'])
-        else:
-            for frame in self.get_files(tag):
-                hdr = fits.getheader(frame)
-                slit = hdr['ALAPRTNM']
-                ccd = get_binning(frame)
-                if slit == target_slit and ccd == target_ccd:
-                    all_matched_flat_frames.append(frame)
-                    exptimes.append(hdr['EXPTIME'])
-
-        # find the most frequent exposure time:
-        exp_list = occurence(exptimes)
-        top_freq = np.argmax(np.argmax([val[1] for val in exp_list]))
-        target_exptime = exp_list[top_freq][0]
-        # Return only files with same exposure time
-        matched_flat_frames = list()
-        for fname, exptime in zip(all_matched_flat_frames, exptimes):
-            if exptime == target_exptime:
-                matched_flat_frames.append(fname)
-
-        if len(matched_flat_frames) % 2 == 0:
-            print(" - Even number of flat frames! Should be uneven...")
-
-        return (tag, matched_flat_frames)
