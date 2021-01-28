@@ -39,31 +39,45 @@ def create_pixtable(arc_image, grism_name, pixtable_name, linelist_fname, dispax
     grism_name : str
         Grism name, ex: grism4
     """
+
+    fname = os.path.basename(arc_image)
+    base_name, ext = os.path.splitext(fname)
+    output_pixtable = "%s_arcID_%s.tab" % (base_name, grism_name)
     # Launch App:
-    qapp = QApplication(sys.argv)
-    app = GraphicInterface(arc_image,
+    global qapp
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+    gui = GraphicInterface(arc_image,
                            grism_name=grism_name,
                            pixtable=pixtable_name,
                            linelist_fname=linelist_fname,
+                           output=output_pixtable,
                            dispaxis=dispaxis,
                            order_wl=order_wl,
                            locked=True)
-    app.show()
-    qapp.exec_()
+    gui.show()
+    app.exit(app.exec_())
 
-    poly_order = int(app.poly_order.text())
-    saved_pixtab_fname = app.output_fname
-    if not os.path.exists(pixtable_name):
-        app.save_pixtable(pixtable_name)
-    if app.message:
-        msg = "          > Successfully saved line identifications: %s\n" % saved_pixtab_fname
+    if os.path.exists(output_pixtable) and gui.message == 'ok':
+        # The GUI exited successfully
+        order_wl = int(gui.poly_order.text())
+        msg = "          > Successfully saved line identifications: %s\n" % output_pixtable
+
+        if not os.path.exists(pixtable_name):
+            # move output_pixtable to pixtable_name:
+            copy_command = "cp %s %s" % (output_pixtable, pixtable_name)
+            # os.system(copy_command)                                            # <-- UPDATE BEFORE RELEASE
+            print(copy_command)
+
     else:
         msg = " [ERROR]  - Something went wrong in line identification of %s\n" % grism_name
+        order_wl = None
+        output_pixtable = None
 
-    del app
-    del qapp
+    del gui
 
-    return poly_order, saved_pixtab_fname, msg
+    return order_wl, output_pixtable, msg
 
 
 def modNN_gaussian(x, bg, mu, sigma, logamp):

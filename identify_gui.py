@@ -35,8 +35,7 @@ def run_gui(arc_fname, grism_name, tab_fname, linelist_fname, dispaxis=2):
                            locked=True)
     app.show()
     qapp.exec_()
-    poly_order = int(app.poly_order.text())
-    pixtab_fname = app.output_fname
+    # Get from temp file...
     return poly_order, pixtab_fname
 
 
@@ -132,7 +131,8 @@ def create_pixel_array(hdr, dispaxis):
 
 
 class GraphicInterface(QMainWindow):
-    def __init__(self, arc_fname='', grism_name='', pixtable='', linelist_fname='', dispaxis=2, order_wl=3, parent=None, locked=False):
+    def __init__(self, arc_fname='', grism_name='', pixtable='', linelist_fname='', output='',
+                 dispaxis=2, order_wl=3, parent=None, locked=False):
         QMainWindow.__init__(self, parent)
         self.setWindowTitle('PyNOT: Identify Arc Lines')
         self._main = QWidget()
@@ -142,7 +142,7 @@ class GraphicInterface(QMainWindow):
         self.arc_fname = arc_fname
         self.grism_name = grism_name
         self.pixtable = pixtable
-        self.output_fname = ''
+        self.output_fname = output
         self.dispaxis = dispaxis
         self._fit_ref = None
         self.cheb_fit = None
@@ -152,7 +152,7 @@ class GraphicInterface(QMainWindow):
         self.linelist = np.array([])
         self._full_linelist = [['', '']]
         self.state = None
-        self.message = None
+        self.message = ""
 
         # Create Toolbar and Menubar
         toolbar = QToolBar()
@@ -460,13 +460,9 @@ class GraphicInterface(QMainWindow):
         messageBox.setStandardButtons(QMessageBox.Cancel | QMessageBox.Save)
         retval = messageBox.exec_()
         if retval == QMessageBox.Save:
-            fname = os.path.basename(self.arc_fname)
-            base_name, ext = os.path.splitext(fname)
-            out_fname = "%s_arcID_%s.tab" % (base_name, self.grism_name)
-            self.output_fname = out_fname
-            success = self.save_pixtable(out_fname)
+            success = self.save_pixtable(self.output_fname)
             if success:
-                self.message = "Success"
+                self.message = "ok"
                 self.close()
 
     def save_pixtable(self, fname=None):
@@ -479,7 +475,8 @@ class GraphicInterface(QMainWindow):
         if fname:
             with open(fname, 'w') as tab_file:
                 pixvals, wavelengths = self.get_table_values()
-                if len(pixvals) < 2:
+                mask = ~np.isnan(wavelengths)
+                if np.sum(mask) < 2:
                     QMessageBox.critical(None, 'Not enough lines identified', 'You need to identify at least 3 lines')
                     return False
                 else:

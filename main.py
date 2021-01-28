@@ -100,6 +100,19 @@ class Report(object):
         self.save()
 
 
+class State(dict):
+    """A collection of variables for the pipeline, such as arc line ID tables etc."""
+    def __init__(self):
+        dict.__init__(self, {})
+        self.current = ''
+
+    def print_current_state(self):
+        print(self.current)
+
+    def set_current_state(self, state):
+        self.current = state
+
+
 def get_options(option_fname):
     with open(option_fname) as opt_file:
         options = yaml.full_load(opt_file)
@@ -108,6 +121,7 @@ def get_options(option_fname):
 
 def main(raw_path=None, options_fname=None, verbose=True):
     log = Report(verbose)
+    status = State()
 
     # -- Parse Options from YAML
     options = get_options(defaults_fname)
@@ -154,9 +168,10 @@ def main(raw_path=None, options_fname=None, verbose=True):
 
     log.add_linebreak()
     log.write(" - The following objects were found in the dataset:", prefix='')
-    log.write("      OBJECT          GRISM       SLIT      EXPTIME", prefix='')
+    log.write("      OBJECT           GRISM        SLIT      EXPTIME       FILENAME", prefix='')
     for sci_img in object_images:
-        log.write("%20s  %9s  %11s  %.0f" % (sci_img.object, sci_img.grism, sci_img.slit, sci_img.exptime), prefix='')
+        output_variables = (sci_img.object, sci_img.grism, sci_img.slit, sci_img.exptime, os.path.basename(sci_img.filename))
+        log.write("%20s  %9s  %11s   %5.0f  %s" % output_variables, prefix='')
     log.add_linebreak()
 
     # get list of unique grisms in dataset:
@@ -212,12 +227,10 @@ def main(raw_path=None, options_fname=None, verbose=True):
                 options[grism_name+'_pixtab'] = pixtab_fname
         log.add_linebreak()
 
-    if len(grisms_to_identify) > 0:
-        log.write("Starting interactive definition of pixel table...")
-
     # Identify interactively for grisms that are not defined
     # add the new pixel tables to the calib cache for future use
     for grism_name in grisms_to_identify:
+        log.write("Starting interactive definition of pixel table for %s" % grism_name)
         try:
             arc_fname = arc_images_for_grism[grism_name][0]
             if grism_name+'_pixtab' in options:
@@ -229,8 +242,8 @@ def main(raw_path=None, options_fname=None, verbose=True):
                                                                   pixtab_fname, linelist_fname,
                                                                   dispaxis=options['dispaxis'],
                                                                   order_wl=options['identify']['order_wl'])
-            options['rectify']['order_wl'] = poly_order
-            options[grism_name+'_pixtab'] = saved_pixtab_fname
+            status[saved_pixtab_fname] = poly_order
+            status[grism_name+'_pixtab'] = saved_pixtab_fname
             log.commit(msg)
         except:
             log.fatal_error()
@@ -238,7 +251,6 @@ def main(raw_path=None, options_fname=None, verbose=True):
             print("Unexpected error:", sys.exc_info()[0])
             raise
 
-    print("Moving on...")
     # for sci_img in object_images:
     #     raw_base = sci_img.filename.split('.')[0][2:]
     #     output_dir = sci_img.target_name + '_' + raw_base
