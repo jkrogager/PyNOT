@@ -21,7 +21,7 @@ from PyQt5.QtWidgets import QApplication
 
 from identify_gui import GraphicInterface
 
-def get_alfosc_header(fname, verbose=True):
+def get_alfosc_header(fname):
     with fits.open(fname) as hdu:
         primhdr = hdu[0].header
         imghdr = hdu[1].header
@@ -31,7 +31,7 @@ def get_alfosc_header(fname, verbose=True):
     return primhdr
 
 # -- Function to call from PyNOT.main
-def create_pixtable(arc_image, grism_name, pixtable_name, linelist_fname, dispaxis=2, order_wl=3):
+def create_pixtable(arc_image, grism_name, pixtable_name, linelist_fname, order_wl=4):
     """
     arc_image : str
         Filename of arc image
@@ -53,7 +53,6 @@ def create_pixtable(arc_image, grism_name, pixtable_name, linelist_fname, dispax
                            pixtable=pixtable_name,
                            linelist_fname=linelist_fname,
                            output=output_pixtable,
-                           dispaxis=dispaxis,
                            order_wl=order_wl,
                            locked=True)
     gui.show()
@@ -62,7 +61,7 @@ def create_pixtable(arc_image, grism_name, pixtable_name, linelist_fname, dispax
     if os.path.exists(output_pixtable) and gui.message == 'ok':
         # The GUI exited successfully
         order_wl = int(gui.poly_order.text())
-        msg = "          > Successfully saved line identifications: %s\n" % output_pixtable
+        msg = "          - Successfully saved line identifications: %s\n" % output_pixtable
 
         if not os.path.exists(pixtable_name):
             # move output_pixtable to pixtable_name:
@@ -78,6 +77,29 @@ def create_pixtable(arc_image, grism_name, pixtable_name, linelist_fname, dispax
     del gui
 
     return order_wl, output_pixtable, msg
+
+
+def verify_arc_frame(arc_fname, dispaxis=2):
+    """
+    Return True if the arc lines fill the full detector plane, else return False.
+    The full detector plane is considered the region between 10th and 90th percentile
+    of the pixels along the slit.
+
+    `dispaxis` = 2 for vertical spectra, 1 for horizontal spectra.
+    """
+    arc2D = fits.getdata(arc_fname)
+    hdr = get_alfosc_header(arc_fname)
+    if 'DISPAXIS' in hdr:
+        dispaxis = hdr['DISPAXIS']
+
+    if dispaxis == 2:
+        # Reorient image to have dispersion along x-axis:
+        arc2D = arc2D.T
+
+    ilow, ihigh = detect_borders(arc2D)
+    imax = arc2D.shape[0]
+    result = (ilow < 0.1*imax) & (ihigh > 0.9*imax)
+    return result
 
 
 def modNN_gaussian(x, bg, mu, sigma, logamp):
@@ -324,14 +346,14 @@ def rectify(img_fname, arc_fname, pixtable_fname, output_fname='', order_bg=5, o
         img2D = img2D.T
         arc2D = arc2D.T
 
-        if 'DETYBIN' in hdr.keys():
+        if 'DETYBIN' in hdr:
             binning = hdr['DETYBIN']
         hdr['CDELT2'] = hdr['CDELT1']
         hdr['CRVAL2'] = hdr['CRVAL1']
         hdr['CRPIX2'] = hdr['CRPIX1']
         hdr['CTYPE2'] = 'LINEAR'
     else:
-        if 'DETXBIN' in hdr.keys():
+        if 'DETXBIN' in hdr:
             binning = hdr['DETXBIN']
 
     ilow, ihigh = detect_borders(arc2D)

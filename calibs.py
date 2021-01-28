@@ -39,7 +39,7 @@ def mad(img):
     return np.median(np.abs(img - np.median(img)))
 
 
-def combine_bias_frames(bias_frames, output='', kappa=15, overwrite=False, verbose=False):
+def combine_bias_frames(bias_frames, output='', kappa=15, overwrite=True):
     """Combine individual bias frames to create a 'master bias' frame.
     The combination is performed using robust sigma-clipping and
     median combination. Bad pixels are subsequently replaced by the
@@ -62,12 +62,15 @@ def combine_bias_frames(bias_frames, output='', kappa=15, overwrite=False, verbo
 
     Returns
     =======
-
-    master_bias : np.array (N, M)
-        Final median combined bias frame, same shape as input images.
+    output_msg: string
+        The log of the function steps and errors
     """
+    msg = list()
+    msg.append("          - Running task: Bias Combination")
+
     bias = list()
     for frame in bias_frames:
+        msg.append("          - Loaded bias frame: %s" % frame)
         bias.append(pf.getdata(frame))
 
     mask = np.zeros_like(bias[0], dtype=int)
@@ -79,11 +82,14 @@ def combine_bias_frames(bias_frames, output='', kappa=15, overwrite=False, verbo
         this_mask = np.abs(img - median) > kappa*sig
         masked_bias.append(np.ma.masked_where(this_mask, img))
         mask += 1*this_mask
+    msg.append("          - Masking outlying pixels: kappa = %f" % kappa)
+    msg.append("          - Total number of masked pixels: %i" % np.sum(mask))
 
     master_bias = np.median(masked_bias, 0)
     Ncomb = len(bias) - mask
 
     master_bias[Ncomb == 0] = np.median(master_bias[Ncomb != 0])
+    msg.append("          - Combined %i files" % len(bias))
 
     if output:
         hdr = pf.getheader(bias_frames[0], 0)
@@ -101,15 +107,15 @@ def combine_bias_frames(bias_frames, output='', kappa=15, overwrite=False, verbo
     else:
         output = 'MASTER_BIAS.fits'
 
-    pf.writeto(output, master_bias, header=hdr, clobber=clobber)
-    if verbose:
-        print(" Saved output: "+output)
+    pf.writeto(output, master_bias, header=hdr, overwrite=overwrite)
+    msg.append("          - Successfully median combined bias frames: %s" % output)
+    output_msg = "\n".join(msg)
 
-    return master_bias
+    return output_msg
 
 
-def combine_flat_frames(raw_frames, mbias='', overwrite='', match_slit='',
-                        kappa=5, verbose=False, clobber=False):
+def combine_flat_frames(raw_frames, mbias='', output='', match_slit='',
+                        kappa=5, verbose=False, overwrite=True):
     """Combine individual spectral flat frames to create a 'master flat' frame.
     The individual frames are normalized to the mode of the 1D collapsed spectral
     shape. Individual frames are clipped using a kappa-sigma-clipping on the mode
@@ -148,21 +154,22 @@ def combine_flat_frames(raw_frames, mbias='', overwrite='', match_slit='',
 
     Returns
     =======
+    output : string
+        Filename of combined flat field image
 
-    flat_combine : np.array (N, M)
-        Final median combined flat frame, same shape as input images.
+    output_msg : string
+        The log of the function steps and errors
     """
+    msg = list()
+    msg.append("          - Running task: Spectral Flat Combination")
     if mbias and exists(mbias):
         bias = pf.getdata(mbias)
     else:
-        if verbose:
-            print("  WARNING - No master bias frame provided!")
+        msg.append("[WARNING] - No master bias frame provided!")
         bias = 0.
 
     flats = list()
     flat_peaks = list()
-    if verbose:
-        print("")
     for fname in raw_frames:
         hdr = pf.getheader(fname)
         if match_slit != '' and match_slit in alfosc.slits:
@@ -172,8 +179,7 @@ def combine_flat_frames(raw_frames, mbias='', overwrite='', match_slit='',
                 peak_val = np.max(np.mean(flat, 1))
                 flats.append(flat/peak_val)
                 flat_peaks.append(peak_val)
-                if verbose:
-                    print(" Appended file: %s   mode=%.1f" % (fname, peak_val))
+                msg.append("          - Loaded FLAT file: %s   mode=%.1f" % (fname, peak_val))
 
         elif match_slit == '':
             flat = pf.getdata(fname)
@@ -181,12 +187,11 @@ def combine_flat_frames(raw_frames, mbias='', overwrite='', match_slit='',
             peak_val = np.max(np.mean(flat, 1))
             flats.append(flat/peak_val)
             flat_peaks.append(peak_val)
-            if verbose:
-                print(" Appended file: %s   mode=%.1f" % (fname, peak_val))
+            msg.append("          - Loaded FLAT file: %s   mode=%.1f" % (fname, peak_val))
 
         else:
-            print("Invalid Slit Name given:  %s" % match_slit)
-            return
+            msg.append(" [ERROR]  - Invalid Slit Name given:  %s" % match_slit)
+            raise ValueError("\n".join(msg))
 
     # Perform robust clipping using median absolute deviation
     # Assuming a Gaussian distribution:
@@ -202,8 +207,7 @@ def combine_flat_frames(raw_frames, mbias='', overwrite='', match_slit='',
         flats.pop(index)
 
     flat_combine = np.median(flats, 0) * median
-    if verbose:
-        print(" Combined %i files" % len(flats))
+    msg.append("          - Combined %i files" % len(flats))
 
     hdr = pf.getheader(raw_frames[0], 0)
     hdr1 = pf.getheader(raw_frames[0], 1)
@@ -220,22 +224,23 @@ def combine_flat_frames(raw_frames, mbias='', overwrite='', match_slit='',
             output += '.fits'
     else:
         grism = alfosc.grism_translate[hdr['ALGRNM']]
-        # output = 'FLAT_COMBINED_%s.fits' % grism
         slit_name = hdr['ALAPRTNM']
         output = 'FLAT_COMBINED_%s_%s.fits' % (grism, slit_name)
 
-    pf.writeto(output, flat_combine, header=hdr, clobber=clobber)
+    pf.writeto(output, flat_combine, header=hdr, overwrite=overwrite)
+    msg.append("          - Generating combined MASTER FLAT: %s" % output)
+    output_msg = "\n".join(msg)
     if verbose:
-        print(" Saved output: "+output)
+        print(output_msg)
 
-    return output
+    return output, output_msg
 
 
-def normalize_spectral_flat(fname, output='', axis=1, x1=0, x2=2050, order=24, sigma=5,
-                            plot=True, show=True, ext=1, overwrite=False, verbose=False):
+def normalize_spectral_flat(fname, output='', fig_dir='', axis=2, lower=0, upper=2050, order=24, sigma=5,
+                            plot=True, show=True, ext=1, overwrite=True, verbose=False):
     """
     Normalize spectral flat field for long-slit observations. Parameters are optimized
-    for NOT/ALFOSC spectra with horizontal slits, i.e., vertical spectra [axis=1],
+    for NOT/ALFOSC spectra with horizontal slits, i.e., vertical spectra [axis=2],
     and grism #4.
     In order to keep the edges from diverging greatly, the code uses a relatively
     low polynomial order to fit the edges while using smoothing to recover the central
@@ -251,13 +256,13 @@ def normalize_spectral_flat(fname, output='', axis=1, x1=0, x2=2050, order=24, s
     output : string [default='']
         Filename of normalized flat frame, if not given the output is not saved to file
 
-    axis : integer [default=1]
-        Dispersion axis, 0: horizontal spectra, 1: vertical spectra
+    axis : integer [default=2]
+        Dispersion axis, 1: horizontal spectra, 2: vertical spectra
 
-    x1 : integer [default=0]
+    lower : integer [default=0]
         Mask pixels below this number in the fit to the spectral shape
 
-    x2 : integer [default=1028]
+    upper : integer [default=2050]
         Mask pixels above this number in the fit to the spectral shape
 
     order : integer [default=24]
@@ -279,50 +284,55 @@ def normalize_spectral_flat(fname, output='', axis=1, x1=0, x2=2050, order=24, s
 
     Returns
     =======
+    output : string
+        Filename of normalized flat field image
 
-    norm_flat : np.array (N, M)
-        Normalized 2D flat field image, same shape as in input image.
+    output_msg: string
+        The log of the function steps and errors
 
     """
+    msg = list()
 
-    HDU = pf.open(fname)
-    if len(HDU)+1 <= ext:
-        flat = HDU[ext].data
-    else:
-        ext = 0
-        flat = HDU[0].data
+    with pf.open(fname) as HDU:
+        if len(HDU)+1 <= ext:
+            flat = HDU[ext].data
+        else:
+            ext = 0
+            flat = HDU[0].data
 
-    if ext > 0 and HDU[0].size == 0:
-        # No data in first extension, merge headers:
-        hdr = HDU[0].header
-        for key in HDU[1].header.keys():
-            hdr[key] = HDU[1].header[key]
+        if ext > 0 and HDU[0].size == 0:
+            # No data in first extension, merge headers:
+            hdr = HDU[0].header
+            for key in HDU[1].header.keys():
+                hdr[key] = HDU[1].header[key]
 
-    else:
-        hdr = HDU[ext].header
+        else:
+            hdr = HDU[ext].header
 
-    if verbose:
-        print("")
-        print("Running task:  Normalization of Spectral Flat Field")
-        print("")
-        print("  Input file:")
-        HDU.info()
+    msg.append("          - Running task: Spectral Flat Normalization")
+    msg.append("          - Input file: %s" % fname)
 
-    flat1D = np.mean(flat, axis)
+    flat1D = np.mean(flat, axis-1)
     x = np.arange(len(flat1D))
-    x2 = x2 / hdr['DETYBIN']
-    fit = Chebyshev.fit(x[x1:x2], flat1D[x1:x2], order)
+    lower = int(lower)
+    if axis == 2:
+        upper = int(upper / hdr['DETYBIN'])
+    else:
+        upper = int(upper / hdr['DETXBIN'])
+    fit = Chebyshev.fit(x[lower:upper], flat1D[lower:upper], order)
 
     flat_model = gaussian_filter1d(flat1D, sigma)
+    msg.append("          - Creating combined spectral model using Gaussian smoothing")
+    msg.append("          - and Chebyshev polynomium of degree: %i" % order)
 
     # substitute the fit in the ends to remove convolution effects:
-    dx = len(x)-x2
+    dx = len(x)-upper
     ycut = len(x) - 2*dx
     flat_model[:3*sigma] = fit(x[:3*sigma])
     flat_model[ycut:] = fit(x[ycut:])
 
     # make 2D spectral shape:
-    if axis == 1:
+    if axis == 2:
         model2D = np.resize(flat_model, flat.T.shape)
         model2D = model2D.T
     else:
@@ -332,6 +342,9 @@ def normalize_spectral_flat(fname, output='', axis=1, x1=0, x2=2050, order=24, s
     hdr['DATAMIN'] = np.min(flat_norm)
     hdr['DATAMAX'] = np.max(flat_norm)
     noise = np.std(flat1D - flat_model)
+    data_range = (np.min(flat_norm), np.max(flat_norm), np.median(flat_norm))
+    msg.append("          - Standard deviation of 1D residuals: %.2f ADUs" % noise)
+    msg.append("          - Normalized data range: min=%.2e  max=%.2e  median=%.2e" % data_range)
 
     if plot:
         plt.close('all')
@@ -342,19 +355,19 @@ def normalize_spectral_flat(fname, output='', axis=1, x1=0, x2=2050, order=24, s
         ax2_2d = fig2D.add_subplot(122)
         ax1_2d.imshow(flat, origin='lower')
         ax1_2d.set_title("Raw Flat")
-        std_norm = np.std(flat_norm[x1:x2, :])
-        v1 = np.mean(flat_norm[x1:x2, :]) - 3*std_norm
-        v2 = np.mean(flat_norm[x1:x2, :]) + 3*std_norm
+        std_norm = np.std(flat_norm[lower:upper, :])
+        v1 = np.mean(flat_norm[lower:upper, :]) - 3*std_norm
+        v2 = np.mean(flat_norm[lower:upper, :]) + 3*std_norm
         ax2_2d.imshow(flat_norm, origin='lower', vmin=v1, vmax=v2)
         ax2_2d.set_title("Normalized Flat")
-        if axis == 1:
-            ax1_2d.set_xlabel("Spatial Direction  [pixels along slit]")
-            ax2_2d.set_xlabel("Spatial Direction  [pixels along slit]")
-            ax1_2d.set_ylabel("Spectral Direction  [pixels along wavelength]")
+        if axis == 2:
+            ax1_2d.set_xlabel("Spatial Axis [pixels]")
+            ax2_2d.set_xlabel("Spatial Axis [pixels]")
+            ax1_2d.set_ylabel("Dispersion Axis [pixels]")
         else:
-            ax1_2d.set_ylabel("Spatial Direction  [pixels along slit]")
-            ax1_2d.set_xlabel("Spectral Direction  [pixels along wavelength]")
-            ax2_2d.set_xlabel("Spectral Direction  [pixels along wavelength]")
+            ax1_2d.set_ylabel("Spatial Axis [pixels]")
+            ax1_2d.set_xlabel("Dispersion Axis [pixels]")
+            ax2_2d.set_xlabel("Dispersion Axis [pixels]")
 
         ax1_1d = fig1D.add_subplot(211)
         ax2_1d = fig1D.add_subplot(212)
@@ -365,7 +378,7 @@ def normalize_spectral_flat(fname, output='', axis=1, x1=0, x2=2050, order=24, s
         ax2_1d.plot(x, residuals, 'crimson', lw=2, alpha=0.8)
         ax2_1d.axhline(0., ls='--', color='k', lw=0.5)
 
-        ax2_1d.set_xlabel("Spectral Direction  [pixels along wavelength]")
+        ax2_1d.set_xlabel("Dispersion Axis [pixels]")
 
         power = np.floor(np.log10(np.max(flat1D))) - 1
         majFormatter = ticker.FuncFormatter(lambda x, p: my_formatter(x, p, power))
@@ -376,20 +389,24 @@ def normalize_spectral_flat(fname, output='', axis=1, x1=0, x2=2050, order=24, s
         majFormatter2 = ticker.FuncFormatter(lambda x, p: my_formatter(x, p, power2))
         ax2_1d.get_yaxis().set_major_formatter(majFormatter2)
         ax2_1d.set_ylabel('Residual  [$10^{{{0:d}}}$ ADU]'.format(int(power2)))
-        noise = np.std(residuals[x1:x2])
+        noise = np.std(residuals[lower:upper])
         ax2_1d.set_ylim(-8*noise, 8*noise)
 
         ax1_1d.minorticks_on()
         ax2_1d.minorticks_on()
 
-        if not exists("diagnostics"):
-            os.mkdir("diagnostics")
+        if not exists(fig_dir) and fig_dir != '':
+            os.mkdir(fig_dir)
         file_base = basename(fname)
         fname_root = file_base.strip('.fits')
-        fig1D.savefig("diagnostics/specflat1d_"+fname_root+".pdf")
-        fig2D.savefig("diagnostics/specflat2d_"+fname_root+".pdf")
+        fig1d_fname = os.path.join(fig_dir, "specflat_1d_%s.pdf" % fname_root)
+        fig2d_fname = os.path.join(fig_dir, "specflat_2d_%s.pdf" % fname_root)
+        fig1D.savefig(fig1d_fname)
+        fig2D.savefig(fig2d_fname)
+        msg.append("          - Saved graphic output for 1D model: %s" % fig1d_fname)
+        msg.append("          - Saved graphic output for 2D model: %s" % fig2d_fname)
         if show:
-            plt.show()
+            plt.show(block=True)
         else:
             plt.close('all')
 
@@ -408,12 +425,13 @@ def normalize_spectral_flat(fname, output='', axis=1, x1=0, x2=2050, order=24, s
         slit_name = hdr['ALAPRTNM']
         output = 'NORM_FLAT_%s_%s.fits' % (grism, slit_name)
 
+    pf.writeto(output, flat_norm, header=hdr, overwrite=overwrite)
+    msg.append("          - Generating normalized MASTER FLAT: %s" % output)
+    output_msg = "\n".join(msg)
     if verbose:
-        print("")
-        print("  Output file saved:  %s" % output)
-    pf.writeto(output, flat_norm, header=hdr, clobber=clobber)
+        print(output_msg)
 
-    return flat_norm
+    return output, output_msg
 
 
 if __name__ == '__main__':
@@ -426,9 +444,9 @@ if __name__ == '__main__':
                         help="Raw Spectral flat frame(s)")
     parser.add_argument("--flat-kappa", type=int, default=5,
                         help="Threshold for sigma-kappa clipping in FLAT combiniation")
-    parser.add_argument("--flat-x1", type=int, default=0,
+    parser.add_argument("--flat-lower", type=int, default=0,
                         help="Lower boundary on pixels used for spectral shape fitting")
-    parser.add_argument("--flat-x2", type=int, default=2050,
+    parser.add_argument("--flat-upper", type=int, default=2050,
                         help="Upper boundary on pixels used for spectral shape fitting")
     parser.add_argument("--flat-slit", type=str, default='',
                         help="Only combine flats taking with the given slit")
@@ -436,8 +454,10 @@ if __name__ == '__main__':
                         help="Polynomial order for fit to spectral shape")
     parser.add_argument("--flat-sigma", type=int, default=5,
                         help="Kernel width for Gaussian smoothing")
-    parser.add_argument("--flat-axis", type=int, default=1,
-                        help="Dispersion axis, 0: horizontal, 1: vertical")
+    parser.add_argument("--flat-axis", type=int, default=2,
+                        help="Dispersion axis, 1: horizontal, 2: vertical")
+    parser.add_argument("--plot-dir", type=str, default="",
+                        help="Directory to save plots")
     parser.add_argument("-p", "--plot", action="store_true",
                         help="Plot diagnostics for spectral flat fielding?")
     parser.add_argument("-s", "--show", action="store_true",
@@ -453,46 +473,35 @@ if __name__ == '__main__':
     if args.bias is not None:
         if len(args.bias) == 1:
             bias_frames = np.loadtxt(args.bias[0], usecols=(0,), dtype=str)
-            if args.verbose:
-                print("Combining bias files:")
-                for fname in args.bias:
-                    print("   " + fname)
-            combine_bias_frames(bias_frames, output='MASTER_BIAS.fits',
-                                kappa=args.bias_kappa,
-                                verbose=args.verbose)
 
         elif len(args.bias) > 1:
-            if args.verbose:
-                print("Combining bias files:")
-                for fname in args.bias:
-                    print("   " + fname)
             bias_frames = args.bias
-            combine_bias_frames(bias_frames, output='MASTER_BIAS.fits',
-                                kappa=args.bias_kappa,
-                                verbose=args.verbose)
+
+        else:
+            raise ValueError("Invalid input for --bias")
+
+        combine_bias_frames(bias_frames, output='MASTER_BIAS.fits',
+                            kappa=args.bias_kappa,
+                            verbose=args.verbose)
 
     # Check if flat frames are present:
     # ---------------------------------
     if args.flat is not None:
         if len(args.flat) == 1:
             flat_frames = np.loadtxt(args.flat[0], usecols=(0,), dtype=str)
-            mflat_fname = combine_flat_frames(flat_frames, mbias='MASTER_BIAS.fits',
-                                              match_slit=args.flat_slit,
-                                              kappa=args.flat_kappa, verbose=args.verbose)
-            normalize_spectral_flat(mflat_fname, axis=args.flat_axis,
-                                    x1=args.flat_x1, x2=args.flat_x2,
-                                    order=args.flat_order, sigma=args.flat_sigma,
-                                    plot=args.plot, show=args.show, ext=args.ext,
-                                    overwrite=False, verbose=args.verbose)
 
         elif len(args.flat) > 1:
             flat_frames = args.flat
-            mflat_fname = combine_flat_frames(flat_frames, mbias='MASTER_BIAS.fits',
-                                              match_slit=args.flat_slit,
-                                              kappa=args.flat_kappa, verbose=args.verbose)
 
-            normalize_spectral_flat(mflat_fname, axis=args.flat_axis,
-                                    x1=args.flat_x1, x2=args.flat_x2,
-                                    order=args.flat_order, sigma=args.flat_sigma,
-                                    plot=args.plot, show=args.show, ext=args.ext,
-                                    overwrite=False, verbose=args.verbose)
+        else:
+            raise ValueError("Invalid input for --flat")
+
+        mflat_fname = combine_flat_frames(flat_frames, mbias='MASTER_BIAS.fits',
+                                          match_slit=args.flat_slit,
+                                          kappa=args.flat_kappa, verbose=args.verbose)
+
+        normalize_spectral_flat(mflat_fname, axis=args.flat_axis,
+                                x1=args.flat_x1, x2=args.flat_x2,
+                                order=args.flat_order, sigma=args.flat_sigma,
+                                plot=args.plot, show=args.show, ext=args.ext,
+                                overwrite=False, verbose=args.verbose)

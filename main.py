@@ -64,7 +64,7 @@ class Report(object):
             text += '\n'
         self.lines.append(text)
 
-    def write(self, text, prefix='          > '):
+    def write(self, text, prefix='          - '):
         text = prefix + text
         if self.verbose:
             print(text)
@@ -94,9 +94,14 @@ class Report(object):
         with open(self.fname, 'w') as output:
             output.write(self.report)
 
+    def exit(self):
+        print(" - Pipeline terminated.")
+        print(" Consult the log: %s\n" % self.fname)
+        self.save()
+
     def fatal_error(self):
-        print("!! FATAL ERROR !!")
-        print("Consult the log: %s\n" % self.fname)
+        print(" !! FATAL ERROR !!")
+        print(" Consult the log: %s\n" % self.fname)
         self.save()
 
 
@@ -119,7 +124,7 @@ def get_options(option_fname):
     return options
 
 
-def main(raw_path=None, options_fname=None, verbose=True):
+def main(raw_path=None, options_fname=None, verbose=False):
     log = Report(verbose)
     status = State()
 
@@ -208,12 +213,17 @@ def main(raw_path=None, options_fname=None, verbose=True):
     identify_all = options['identify']['all']
     identify_interactive = options['identify']['interactive']
     if identify_interactive and identify_all:
+        grisms_to_identify = []
         log.write("Identify: interactively reidentify arc lines for all objects")
+        log.add_linebreak()
+
     elif identify_interactive and not identify_all:
         # Make pixeltable for all grisms:
         grisms_to_identify = grism_list
         log.write("Identify: interactively reidentify all grisms in dataset:")
         log.write(", ".join(grisms_to_identify))
+        log.add_linebreak()
+
     else:
         # Check if pixeltables exist:
         grisms_to_identify = list()
@@ -226,6 +236,7 @@ def main(raw_path=None, options_fname=None, verbose=True):
                 log.write("%s : pixel table already exists" % grism_name)
                 options[grism_name+'_pixtab'] = pixtab_fname
         log.add_linebreak()
+
 
     # Identify interactively for grisms that are not defined
     # add the new pixel tables to the calib cache for future use
@@ -240,7 +251,6 @@ def main(raw_path=None, options_fname=None, verbose=True):
             linelist_fname = os.path.join(calib_dir, 'HeNe_linelist.dat')
             poly_order, saved_pixtab_fname, msg = create_pixtable(arc_fname, grism_name,
                                                                   pixtab_fname, linelist_fname,
-                                                                  dispaxis=options['dispaxis'],
                                                                   order_wl=options['identify']['order_wl'])
             status[saved_pixtab_fname] = poly_order
             status[grism_name+'_pixtab'] = saved_pixtab_fname
@@ -251,45 +261,86 @@ def main(raw_path=None, options_fname=None, verbose=True):
             print("Unexpected error:", sys.exc_info()[0])
             raise
 
-    # for sci_img in object_images:
-    #     raw_base = sci_img.filename.split('.')[0][2:]
-    #     output_dir = sci_img.target_name + '_' + raw_base
-    #     if not os.path.exists(output_dir):
-    #         os.mkdir(output_dir)
-    #
-    #     master_bias_fname = os.path.join(output_dir, 'MASTER_BIAS.fits')
-    #     grism = alfosc.grism_translate[sci_img.grism]
-    #     comb_flat_fname = os.path.join(output_dir, 'FLAT_COMBINED_%s_%s.fits' % (grism, sci_img.slit))
-    #     norm_flat_fname = os.path.join(output_dir, 'NORM_FLAT_%s_%s.fits' % (grism, sci_img.slit))
-    #     final_2d_fname = os.path.join(output_dir, 'red2D_%s_%s.fits' % (sci_img.target_name, sci_img.date))
-    #
-    #     # Combine Bias Frames matched for CCD setup
-    #     bias_frames = sci_img.match_files(database['BIAS'])
-    #     combine_bias_frames(bias_frames, output=master_bias_fname,
-    #                         kappa=bias_kappa,
-    #                         verbose=verbose)
-    #
-    #     # Combine Flat Frames matched for CCD setup, grism, slit and filter
-    #     flat_frames = sci_img.match_files(database['SPEC_FLAT'], grism=True, slit=True, filter=True)
-    #     _ = combine_flat_frames(flat_frames, mbias=master_bias_fname,
-    #                             output=comb_flat_fname,
-    #                             kappa=flat_kappa, verbose=verbose)
-    #
-    #     # Normalize the spectral flat field:
-    #     normalize_spectral_flat(comb_flat_fname, output=norm_flat_fname,
-    #                             axis=dispaxis,
-    #                             x1=args.flat_x1, x2=args.flat_x2,
-    #                             order=args.flat_order, sigma=args.flat_sigma,
-    #                             plot=args.plot, show=args.show, ext=args.ext,
-    #                             clobber=False, verbose=args.verbose)
-    #
-    #     # Sensitivity Function:
-    #     std_fname, = sci_img.match_files(database['SPEC_FLUX-STD'], grism=True, slit=True, filter=True, get_closest_time=True)
-    #     # -- steps in response function
-    #
-    #     # Science Reduction:
-    #     # pixtab_fname comes from identify_GUI
-    #     # pixtab_path = os.path.join(output_dir, pixtab_fname)
+    for sci_img in object_images[:1]:
+        raw_base = os.path.basename(sci_img.filename).split('.')[0][2:]
+        output_dir = sci_img.target_name + '_' + raw_base
+        if not os.path.exists(output_dir):
+            os.mkdir(output_dir)
+            log.write("Created output directory: %s" % output_dir)
+
+        master_bias_fname = os.path.join(output_dir, 'MASTER_BIAS.fits')
+        grism = alfosc.grism_translate[sci_img.grism]
+        comb_flat_fname = os.path.join(output_dir, 'FLAT_COMBINED_%s_%s.fits' % (grism, sci_img.slit))
+        norm_flat_fname = os.path.join(output_dir, 'NORM_FLAT_%s_%s.fits' % (grism, sci_img.slit))
+        final_2d_fname = os.path.join(output_dir, 'red2D_%s_%s.fits' % (sci_img.target_name, sci_img.date))
+
+        # Combine Bias Frames matched for CCD setup
+        bias_frames = sci_img.match_files(database['BIAS'])
+        if len(bias_frames) < 3:
+            log.warn("Must have at least 3 bias frames to combine, not %i" % len(bias_frames))
+            if 'master_bias' in options['bias']:
+                log.warn("Using master bias frame: %s" % options['bias']['master_bias'])
+                master_bias_fname = options['bias']['master_bias']
+            else:
+                log.error("No backup bias frame! Either provide more than 3 bias frames")
+                log.error("or provide one using the option: bias::master_bias")
+                log.fatal_error()
+                return
+        else:
+            try:
+                bias_msg = combine_bias_frames(bias_frames, output=master_bias_fname,
+                                               kappa=options['bias']['kappa'], overwrite=True)
+                log.commit(bias_msg+'\n')
+            except:
+                log.error("Median combination of bias frames failed!")
+                log.fatal_error()
+                print("Unexpected error:", sys.exc_info()[0])
+                raise
+
+
+        # Combine Flat Frames matched for CCD setup, grism, slit and filter
+        flat_frames = sci_img.match_files(database['SPEC_FLAT'], grism=True, slit=True, filter=True)
+        try:
+            _, flat_msg = combine_flat_frames(flat_frames, mbias=master_bias_fname,
+                                              output=comb_flat_fname,
+                                              kappa=options['flat']['kappa'],
+                                              overwrite=True)
+            log.commit(flat_msg+'\n')
+        except ValueError as err:
+            log.commit(str(err)+'\n')
+            log.fatal_error()
+            return
+        except:
+            log.error("Combination of flat frames failed!")
+            log.fatal_error()
+            print("Unexpected error:", sys.exc_info()[0])
+            raise
+
+        # Normalize the spectral flat field:
+        try:
+            _, norm_msg = normalize_spectral_flat(comb_flat_fname, output=norm_flat_fname,
+                                                  fig_dir=output_dir, axis=sci_img.dispaxis,
+                                                  lower=options['flat']['lower'], upper=options['flat']['upper'],
+                                                  order=options['flat']['order'], sigma=options['flat']['sigma'],
+                                                  plot=options['flat']['plot'], show=options['flat']['show'],
+                                                  overwrite=True)
+            log.commit(norm_msg+'\n')
+        except:
+            log.error("Normalization of flat frames failed!")
+            log.fatal_error()
+            print("Unexpected error:", sys.exc_info()[0])
+            raise
+
+        # Sensitivity Function:
+        std_fname, = sci_img.match_files(database['SPEC_FLUX-STD'], grism=True, slit=True, filter=True, get_closest_time=True)
+        log.write("Spectroscopic Flux Standard: %s" % std_fname)
+        # -- steps in response function
+
+        # Science Reduction:
+        # pixtab_fname comes from identify_GUI
+        # pixtab_path = os.path.join(output_dir, pixtab_fname)
+        log.exit()
+        break
 
 
 if __name__ == '__main__':
@@ -298,13 +349,15 @@ if __name__ == '__main__':
                         help="Path to directory containing the raw data")
     parser.add_argument("--options", type=str, default='',
                         help="Filename of options in YAML format")
+    parser.add_argument("-v", "--verbose", action="store_true",
+                        help="Print log to terminal")
     args = parser.parse_args()
 
     if args.path:
-        main(args.path, options_fname=args.options)
+        main(args.path, options_fname=args.options, verbose=args.verbose)
 
     elif args.options:
-        main(options_fname=args.options)
+        main(options_fname=args.options, verbose=args.verbose)
 
     else:
         print("\n  Running PyNOT Data Processing Pipeline\n")

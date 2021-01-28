@@ -293,8 +293,8 @@ def classify(data_in, rule_file='/Users/krogager/coding/PyNOT/data_organizer/alf
             sys.stdout.flush()
 
     msg.append("")
-    msg.append("          > Classification finished.")
-    msg.append("          > Successfully classified %i out of %i files." % (len(data_types.keys()), len(files)))
+    msg.append("          - Classification finished.")
+    msg.append("          - Successfully classified %i out of %i files." % (len(data_types.keys()), len(files)))
     msg.append("")
     if len(files) != len(data_types.keys()):
         msg.append("[WARNING] - Files not classified:")
@@ -373,6 +373,7 @@ class RawImage(object):
         self.header = primhdr
         self.binning = get_binning_from_hdr(primhdr)
         file_root = fname.split('/')[-1]
+        self.dispaxis = None
         if file_root != primhdr['FILENAME']:
             raise ValueError("The file doesn't seem to be a raw FITS image.")
 
@@ -395,6 +396,10 @@ class RawImage(object):
         self.filter = get_filter(self.header)
         self.slit = self.header['ALAPRTNM']
         self.grism = self.header['ALGRNM']
+        if 'Vert' in self.slit:
+            self.dispaxis = 1
+        elif 'Slit' in self.slit:
+            self.dispaxis = 2
 
         self.exptime = self.header['EXPTIME']
         self.object = self.header['OBJECT']

@@ -1,43 +1,44 @@
 # Give the path to the raw data:
 # either as a single directory or a list of directories
-path: 
-  - /Users/krogager/Data/NOT/MALS/
-  - /Users/krogager/Data/
+path:
+  - /path/to/data1
+  - /path/to/data2
 # alternatively:
 # path: [dir1, dir2, dir3...]
 
-dataset:               # The PyNOT File Classification (*.pfc)
+dataset:                    # The PyNOT File Classification (*.pfc)
 
 bias:
   kappa:  15
 
 flat:
-  kappa:  5     # Threshold for sigma clipping in Flat combiniation
-  lower:  0     # Upper boundary on pixels used for spectral shape fitting
-  upper:  2050  # Upper boundary on pixels used for spectral shape fitting
-  order:  24    # Polynomial order for fit to spectral shape
-  sigma:  5     # Kernel width for Gaussian smoothing
+  kappa:  5                 # Threshold for sigma clipping in Flat combiniation
+  lower:  0                 # Upper boundary on pixels used for spectral shape fitting
+  upper:  2050              # Upper boundary on pixels used for spectral shape fitting
+  order:  24                # Polynomial order for fit to spectral shape
+  sigma:  5                 # Kernel width for Gaussian smoothing
+  plot:   True              # Make diagnostic plots?
+  show:   False             # Show plots and block pipeline until figures are closed?
 
 identify:
-  interactive: True
-  order_wl:   4 # Polynomial order used for wavelength fit as a function of input pixel
-  all: False    # Interactively reidentify for all targets?
+  interactive: True         # Identify lines interactively using a graphical interface
+  order_wl:    4            # Polynomial order used for wavelength fit as a function of input pixel
+  all:         False        # Interactively reidentify arc reference frame for each target?
 
 rectify:
-  order_bg:   5            # Polynomial order for background subtraction of line continuum
-  order_2d:   5            # Polynomial order for spatial reconstruction of arc lines
-  order_wl:   4            # Polynomial order used for wavelength fit as a function of input pixel
-  log:        False        # Use logarithmic binning in wavelength?
-  N_out:      null         # Number of output pixels along dispersion axis. If null or no value is given, use number of pixels in the input image.
-  kind:       linear       # Argument of scipy.interpolate.interp1d [linear, zero, slinear, quadratic, cubic]
-  fill_value: extrapolate  # Argument of scipy.interpolate.interp1d for data interpolation onto final grid
-  binning:    1            # Binning along dispersion axis
-  dispaxis:   2            # Dispersion axis: 1 horizontal, 2 vertical
-  fit_window: 20           # Fitting window in pixels around each arc line to determine centroid  (optimized for grism 4)
+  order_bg:   5             # Polynomial order for background subtraction of line continuum
+  order_2d:   5             # Polynomial order for spatial reconstruction of arc lines
+  order_wl:   4             # Polynomial order used for wavelength fit as a function of input pixel
+  log:        False         # Use logarithmic binning in wavelength?
+  N_out:      null          # Number of output pixels along dispersion axis. If null or no value is given, use number of pixels in the input image.
+  kind:       'linear'      # Argument of scipy.interpolate.interp1d [linear, zero, slinear, quadratic, cubic]
+  fill_value: 'extrapolate' # Argument of scipy.interpolate.interp1d for data interpolation onto final grid
+  binning:    1             # Binning along dispersion axis
+  dispaxis:   2             # Dispersion axis: 1 horizontal, 2 vertical
+  fit_window: 20            # Fitting window in pixels around each arc line to determine centroid  (optimized for grism 4)
 
 extract:
   interactive: True
 
 response:
   interactive: False
-

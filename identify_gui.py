@@ -422,6 +422,18 @@ class GraphicInterface(QMainWindow):
                     primhdr.update(imghdr)
             if 'DISPAXIS' in primhdr.keys():
                 self.dispaxis = primhdr['DISPAXIS']
+            elif 'TELESCOP' in primhdr:
+                if primhdr['TELESCOP'] == 'NOT':
+                    if 'Vert' in primhdr['ALAPRTNM']:
+                        self.dispaxis = 1
+                    elif 'Slit' in primhdr['ALAPRTNM']:
+                        self.dispaxis = 2
+                    else:
+                        self.arc_fname = ''
+                        error_msg = 'Invalid format for slit: %s' % primhdr['ALAPRTNM']
+                        QMessageBox.critical(None, 'Invalid Aperture', error_msg)
+                        return
+
             if self.dispaxis == 1:
                 raw_data = raw_data.T
             ilow = raw_data.shape[1]//2 - 1
