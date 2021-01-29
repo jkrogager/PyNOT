@@ -272,6 +272,8 @@ def main(raw_path=None, options_fname=None, verbose=False):
         grism = alfosc.grism_translate[sci_img.grism]
         comb_flat_fname = os.path.join(output_dir, 'FLAT_COMBINED_%s_%s.fits' % (grism, sci_img.slit))
         norm_flat_fname = os.path.join(output_dir, 'NORM_FLAT_%s_%s.fits' % (grism, sci_img.slit))
+        rect2d_fname = os.path.join(output_dir, 'RECT2D_%s.fits' % (sci_img.target_name))
+        sens_fname = os.path.join(output_dir, 'SENSITIVITY_%s.fits' % (grism))
         final_2d_fname = os.path.join(output_dir, 'red2D_%s_%s.fits' % (sci_img.target_name, sci_img.date))
 
         # Combine Bias Frames matched for CCD setup
@@ -281,16 +283,18 @@ def main(raw_path=None, options_fname=None, verbose=False):
             if 'master_bias' in options['bias']:
                 log.warn("Using master bias frame: %s" % options['bias']['master_bias'])
                 master_bias_fname = options['bias']['master_bias']
+                status['master_bias'] = master_bias_fname
             else:
                 log.error("No backup bias frame! Either provide more than 3 bias frames")
-                log.error("or provide one using the option: bias::master_bias")
+                log.error("or provide one using the option: bias.master_bias")
                 log.fatal_error()
                 return
         else:
             try:
-                bias_msg = combine_bias_frames(bias_frames, output=master_bias_fname,
-                                               kappa=options['bias']['kappa'], overwrite=True)
+                _, bias_msg = combine_bias_frames(bias_frames, output=master_bias_fname,
+                                                  kappa=options['bias']['kappa'], overwrite=True)
                 log.commit(bias_msg+'\n')
+                status['master_bias'] = master_bias_fname
             except:
                 log.error("Median combination of bias frames failed!")
                 log.fatal_error()
@@ -300,12 +304,18 @@ def main(raw_path=None, options_fname=None, verbose=False):
 
         # Combine Flat Frames matched for CCD setup, grism, slit and filter
         flat_frames = sci_img.match_files(database['SPEC_FLAT'], grism=True, slit=True, filter=True)
+        if len(flat_frames) == 0:
+            log.error("No flat frames provided!")
+            log.fatal_error()
+            return
+
         try:
             _, flat_msg = combine_flat_frames(flat_frames, mbias=master_bias_fname,
                                               output=comb_flat_fname,
                                               kappa=options['flat']['kappa'],
                                               overwrite=True)
             log.commit(flat_msg+'\n')
+            status['flat_combined'] = comb_flat_fname
         except ValueError as err:
             log.commit(str(err)+'\n')
             log.fatal_error()
@@ -325,11 +335,27 @@ def main(raw_path=None, options_fname=None, verbose=False):
                                                   plot=options['flat']['plot'], show=options['flat']['show'],
                                                   overwrite=True)
             log.commit(norm_msg+'\n')
+            status['flat_normalized'] = norm_flat_fname
         except:
             log.error("Normalization of flat frames failed!")
             log.fatal_error()
             print("Unexpected error:", sys.exc_info()[0])
             raise
+
+        # Rectify:
+        if identify_interactive and identify_all:
+            # run interactive GUI
+            # poly_order, pixtable, msg = create_pixtable(...)
+            pass
+        else:
+            order_wl = status[saved_pixtab_fname]
+            pixtable = status[grism_name+'_pixtab']
+
+        # Call rectify
+        # -- update logging in rectify!!
+        arc_fname, = sci_img.match_files(arc_images, grism=True, slit=True, filter=True, get_closest_time=True)
+        rectify(sci_img.filename, arc_fname, pixtable, output_fname=rect2d_fname,
+                dispaxis=sci_img.dispaxis, **options['rectify'])
 
         # Sensitivity Function:
         std_fname, = sci_img.match_files(database['SPEC_FLUX-STD'], grism=True, slit=True, filter=True, get_closest_time=True)
