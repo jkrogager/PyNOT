@@ -19,7 +19,8 @@ import warnings
 
 from PyQt5.QtWidgets import QApplication
 
-from identify_gui import GraphicInterface
+from identify_gui import GraphicInterface, create_pixel_array
+
 
 def get_alfosc_header(fname):
     with fits.open(fname) as hdu:
@@ -116,16 +117,18 @@ def fit_gaussian_center(x, y):
     p0 = np.array([bg, mu, sig, logamp])
     try:
         popt, pcov = curve_fit(modNN_gaussian, x, y, p0)
-        return popt[1], pcov[1, 1]
+        if pcov is None:
+            return popt[1], None
+        else:
+            return popt[1], pcov[1, 1]
+
     except RuntimeError:
         return np.nan, np.nan
 
 
-def fit_lines(arc1D, ref_table, dx=20, binning=1.):
-    x = np.arange(len(arc1D))
+def fit_lines(x, arc1D, ref_table, dx=20):
     pixels = list()
     for pix, l_vac in ref_table:
-        pix = pix/binning
         xlow = int(pix - dx)
         xhigh = int(pix + dx)
         pix_cen, cov = fit_gaussian_center(x[xlow:xhigh], arc1D[xlow:xhigh])
@@ -199,7 +202,7 @@ def detect_borders(arc2D, kappa=20.):
     return (row_min, row_max)
 
 
-def create_2d_pixtab(arc2D_sub, ref_table, dx=20, binning=1.):
+def create_2d_pixtab(arc2D_sub, pix, ref_table, dx=20):
     """Fit reference lines to each row to obtain 2D pixel table"""
 
     # Image should already be oriented correctly, i.e., dispersion along x-axis
@@ -207,7 +210,7 @@ def create_2d_pixtab(arc2D_sub, ref_table, dx=20, binning=1.):
 
     pixtab2d = list()
     for row in arc2D_sub:
-        line_pos = fit_lines(row, ref_table, dx=dx, binning=binning)
+        line_pos = fit_lines(pix, row, ref_table, dx=dx)
         pixtab2d.append(line_pos)
 
     pixtab2d = np.array(pixtab2d)
@@ -235,12 +238,15 @@ def fit_2dwave_solution(pixtab2d, deg=5):
     return fit_table2d.T
 
 
-def apply_transform(img2D, fit_table2d, ref_table, header={}, wl_order=4, log=False, N_out=None, kind='cubic', fill_value='extrapolate'):
+def apply_transform(img2D, pix, fit_table2d, ref_table, header={}, wl_order=4, log=False, N_out=None, kind='cubic', fill_value='extrapolate'):
     """
     Apply 2D wavelength transformation to the input image
 
     img2D : array, shape(M, N)
         Input 2D spectrum oriented with dispersion along x-axis!
+
+    pix : array, shape (N)
+        Input pixel array along dispersion axis.
 
     fit_table2d : array, shape(M, L)
         Fitted wavelength solutions from corresponding arc-line frame
@@ -287,21 +293,27 @@ def apply_transform(img2D, fit_table2d, ref_table, header={}, wl_order=4, log=Fa
     if N_out is None:
         N_out = img2D.shape[1]
 
-    pix_in = np.arange(img2D.shape[1])
+    pix_in = pix
     cen = fit_table2d.shape[0]//2
     ref_wl = ref_table[:, 1]
     central_solution = Chebyshev.fit(fit_table2d[cen], ref_wl, deg=wl_order, domain=[pix_in.min(), pix_in.max()])
     wl_central = central_solution(pix_in)
     if log:
         wl = np.logspace(np.log10(wl_central.min()), np.log10(wl_central.max()), N_out)
+        hdr_tr = header.copy()
+        hdr_tr['CRPIX1'] = 1
+        hdr_tr['CDELT1'] = np.diff(np.log10(wl))[0]
+        hdr_tr['CRVAL1'] = np.log10(wl[0])
+        hdr_tr['CTYPE1'] = 'LOGLAM  '
+        hdr_tr['CUNIT1'] = 'ANGSTROM'
     else:
         wl = np.linspace(wl_central.min(), wl_central.max(), N_out)
-
-    hdr_tr = header.copy()
-    hdr_tr['CDELT1'] = np.diff(wl)[0]
-    hdr_tr['CRVAL1'] = wl[0]
-    hdr_tr['CTYPE1'] = 'LINEAR  '
-    hdr_tr['CUNIT1'] = 'ANGSTROM'
+        hdr_tr = header.copy()
+        hdr_tr['CRPIX1'] = 1
+        hdr_tr['CDELT1'] = np.diff(wl)[0]
+        hdr_tr['CRVAL1'] = wl[0]
+        hdr_tr['CTYPE1'] = 'LINEAR  '
+        hdr_tr['CUNIT1'] = 'ANGSTROM'
 
     img2D_tr = np.zeros((img2D.shape[0], N_out))
     for i, row in enumerate(img2D):
@@ -345,14 +357,19 @@ def rectify(img_fname, arc_fname, pixtable_fname, output_fname='', order_bg=5, o
         # Reorient image to have dispersion along x-axis:
         img2D = img2D.T
         arc2D = arc2D.T
+        pix_in = create_pixel_array(hdr, dispaxis=2)
 
         if 'DETYBIN' in hdr:
             binning = hdr['DETYBIN']
+            hdr['DETYBIN'] = hdr['DETXBIN']
+            hdr['DETXBIN'] = binning
         hdr['CDELT2'] = hdr['CDELT1']
         hdr['CRVAL2'] = hdr['CRVAL1']
         hdr['CRPIX2'] = hdr['CRPIX1']
         hdr['CTYPE2'] = 'LINEAR'
+        hdr['CUNIT2'] = hdr['CUNIT1']
     else:
+        pix_in = create_pixel_array(hdr, dispaxis=1)
         if 'DETXBIN' in hdr:
             binning = hdr['DETXBIN']
 
@@ -365,11 +382,11 @@ def rectify(img_fname, arc_fname, pixtable_fname, output_fname='', order_bg=5, o
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        pixtab2d = create_2d_pixtab(arc2D_sub, ref_table, dx=fit_window, binning=binning)
+        pixtab2d = create_2d_pixtab(arc2D_sub, pix_in, ref_table, dx=fit_window, binning=binning)
 
     fit_table2d = fit_2dwave_solution(pixtab2d, deg=order_2d)
 
-    img2D_corr, wl, hdr_corr = apply_transform(img2D, fit_table2d, ref_table,
+    img2D_corr, wl, hdr_corr = apply_transform(img2D, pix_in, fit_table2d, ref_table,
                                                header=hdr, wl_order=order_wl,
                                                log=log, N_out=N_out, kind=kind,
                                                fill_value=fill_value)
