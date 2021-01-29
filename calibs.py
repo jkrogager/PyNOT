@@ -62,6 +62,9 @@ def combine_bias_frames(bias_frames, output='', kappa=15, overwrite=True):
 
     Returns
     =======
+    output : string
+        Filename of combined bias image
+
     output_msg: string
         The log of the function steps and errors
     """
@@ -111,7 +114,7 @@ def combine_bias_frames(bias_frames, output='', kappa=15, overwrite=True):
     msg.append("          - Successfully median combined bias frames: %s" % output)
     output_msg = "\n".join(msg)
 
-    return output_msg
+    return output, output_msg
 
 
 def combine_flat_frames(raw_frames, mbias='', output='', match_slit='',
