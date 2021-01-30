@@ -5,7 +5,6 @@ Graphic Interface for spectral line identification
 __author__ = "Jens-Kristian Krogager"
 __email__ = "krogager.jk@gmail.com"
 __credits__ = ["Jens-Kristian Krogager", "Johan Fynbo"]
-__version__ = '1.1'
 
 import os
 import sys
@@ -22,6 +21,11 @@ from PyQt5.QtWidgets import *
 from scipy.optimize import curve_fit
 from numpy.polynomial import Chebyshev
 from astropy.io import fits
+
+code_dir = os.path.dirname(os.path.abspath(__file__))
+v_file = os.path.join(code_dir, 'VERSION')
+with open(v_file) as version_file:
+    __version__ = version_file.read().strip()
 
 
 def run_gui(arc_fname, grism_name, tab_fname, linelist_fname, dispaxis=2):
