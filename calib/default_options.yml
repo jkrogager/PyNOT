@@ -29,7 +29,7 @@ rectify:
   order_bg:   5             # Polynomial order for background subtraction of line continuum
   order_2d:   3             # Polynomial order for spatial reconstruction of arc lines
   log:        False         # Use logarithmic binning in wavelength?
-  N_out:      null          # Number of output pixels along dispersion axis. If null or no value is given, use number of pixels in the input image.
+  N_out:      null          # No. of output pixels along dispersion axis. If null is given, use No. of pixels in input image.
   kind:       'linear'      # Argument of scipy.interpolate.interp1d [linear, zero, slinear, quadratic, cubic]
   fill_value: 'extrapolate' # Argument of scipy.interpolate.interp1d for data interpolation onto final grid
   fit_window: 20            # Fitting window in pixels around each arc line to determine centroid  (optimized for grism 4)
@@ -40,7 +40,16 @@ scired:
   niter:   4          # Number of iterations for cosmic ray rejection
 
 extract:
-  interactive: True
+  interactive:  True        # Extract the 1D spectrum using a graphical user interface?
+  model_name:   'moffat'    # Profile type for optimal extraction 'moffat' or 'gaussian', otherwise 'tophat'
+  dx:           50          # Fit the spectral trace for every `dx` pixels along dispersion axis
+  width_scale:  2           # If model_name is 'tophat', this scales the width in terms of FWHM below and above the centroid
+  xmin:         null        # Exclude pixels above this index for the fitting and object identification [dispersion axis]
+  xmax:         null        # Exclude pixels below this index for the fitting and object identification [dispersion axis]
+  ymin:         null        # Exclude pixels above this index for the fitting and object identification [spatial axis]
+  ymax:         null        # Exclude pixels below this index for the fitting and object identification [spatial axis]
+  order_center: 3           # Polynomial order used to fit the centroid along the spectral trace
+  order_width:  1           # Polynomial order used to fit the width of the spectral trace
 
 response:
   interactive: False

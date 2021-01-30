@@ -247,7 +247,7 @@ def fit_trace(img2D, x, y, model_name='moffat', dx=50, ymin=None, ymax=None, xmi
     return (x_binned, N_obj, trace_parameters, fwhm, output_msg)
 
 
-def create_2d_profile(img2D, model_name='moffat', dx=50, width_scale=2, xmin=None, xmax=None, ymin=None, ymax=None, center_order=3, width_order=1):
+def create_2d_profile(img2D, model_name='moffat', dx=50, width_scale=2, xmin=None, xmax=None, ymin=None, ymax=None, order_center=3, order_width=1):
     """
     img2D : np.array(M, N)
         Input image with dispersion along x-axis!
@@ -268,10 +268,10 @@ def create_2d_profile(img2D, model_name='moffat', dx=50, width_scale=2, xmin=Non
     ymin, ymax : int  [default=None]
         Minimum and maximum extent to fit along the spatial axis
 
-    center_order : int  [default=3]
+    order_center : int  [default=3]
         Order of Chebyshev polynomium for the trace position
 
-    width_order : int [ default=1]
+    order_width : int [ default=1]
         Order of Chebyshev polynomium for the trace width
 
     Returns
@@ -314,8 +314,8 @@ def create_2d_profile(img2D, model_name='moffat', dx=50, width_scale=2, xmin=Non
 
     msg.append("          - Creating 2D spectral profile from fitted parameters")
     msg.append("          - Profile type: %s" % model_name)
-    msg.append("          - Interpolating centroid using Chebyshev polynomium of degree: %i" % center_order)
-    msg.append("          - Interpolating profile width using Chebyshev polynomium of degree: %i" % width_order)
+    msg.append("          - Interpolating centroid using Chebyshev polynomium of degree: %i" % order_center)
+    msg.append("          - Interpolating profile width using Chebyshev polynomium of degree: %i" % order_width)
     trace_models_2d = list()
     trace_info = list()
     domain = [0, img2D.shape[1]]
@@ -330,7 +330,7 @@ def create_2d_profile(img2D, model_name='moffat', dx=50, width_scale=2, xmin=Non
         w_mu = 1./mu_err**2
         mu_med, mask_mu = median_filter_data(mu, 3., 11)
         mask_mu &= (x_binned > xmin) & (x_binned < xmax)
-        mu_fit = Chebyshev.fit(x_binned[mask_mu], mu[mask_mu], deg=center_order, domain=domain, w=w_mu[mask_mu])
+        mu_fit = Chebyshev.fit(x_binned[mask_mu], mu[mask_mu], deg=order_center, domain=domain, w=w_mu[mask_mu])
         info_dict['mu'] = mu
         info_dict['mask_mu'] = mask_mu
         info_dict['fit_mu'] = mu_fit(x)
@@ -346,7 +346,7 @@ def create_2d_profile(img2D, model_name='moffat', dx=50, width_scale=2, xmin=Non
             w_sig = 1./sig_err**2
             sig_med, mask_sig = median_filter_data(sig, 3., 21)
             mask_sig &= (x_binned > xmin) & (x_binned < xmax)
-            sig_fit = Chebyshev.fit(x_binned[mask_sig], sig[mask_sig], deg=width_order, domain=domain, w=w_sig[mask_sig])
+            sig_fit = Chebyshev.fit(x_binned[mask_sig], sig[mask_sig], deg=order_width, domain=domain, w=w_sig[mask_sig])
             info_dict['sig'] = sig
             info_dict['mask_sig'] = mask_sig
             info_dict['fit_sig'] = sig_fit(x)
@@ -372,8 +372,8 @@ def create_2d_profile(img2D, model_name='moffat', dx=50, width_scale=2, xmin=Non
             mask_a &= (x_binned > xmin) & (x_binned < xmax)
             mask_b &= (x_binned > xmin) & (x_binned < xmax)
 
-            a_fit = Chebyshev.fit(x_binned[mask_a], a[mask_a], deg=width_order, domain=domain, w=w_a[mask_a])
-            b_fit = Chebyshev.fit(x_binned[mask_b], b[mask_b], deg=width_order, domain=domain, w=w_b[mask_b])
+            a_fit = Chebyshev.fit(x_binned[mask_a], a[mask_a], deg=order_width, domain=domain, w=w_a[mask_a])
+            b_fit = Chebyshev.fit(x_binned[mask_b], b[mask_b], deg=order_width, domain=domain, w=w_b[mask_b])
             info_dict['a'] = a
             info_dict['mask_a'] = mask_a
             info_dict['fit_a'] = a_fit(x)
@@ -458,7 +458,7 @@ def plot_diagnostics(pdf, spec1D, err1D, info_dict, width_scale=2):
 
 
 
-def auto_extract_img(img2D, err2D, *, N=None, pdf_fname=None, mask=None, model_name='moffat', dx=50, width_scale=2, xmin=None, xmax=None, ymin=None, ymax=None, center_order=3, width_order=1):
+def auto_extract_img(img2D, err2D, *, N=None, pdf_fname=None, mask=None, model_name='moffat', dx=50, width_scale=2, xmin=None, xmax=None, ymin=None, ymax=None, order_center=3, order_width=1):
     assert err2D.shape == img2D.shape, "input image and error image do not match in shape"
     if N == 0:
         raise ValueError("Invalid input: N must be an integer larger than or equal to 1, not %r" % N)
@@ -478,7 +478,7 @@ def auto_extract_img(img2D, err2D, *, N=None, pdf_fname=None, mask=None, model_n
     # Optimal Extraction:
     profile_values = create_2d_profile(img2D, model_name=model_name, dx=dx, width_scale=width_scale,
                                        xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax,
-                                       center_order=center_order, width_order=width_order)
+                                       order_center=order_center, order_width=order_width)
     trace_models_2d, trace_info, profile_msg = profile_values
     msg.append(profile_msg)
 
@@ -515,7 +515,7 @@ def auto_extract_img(img2D, err2D, *, N=None, pdf_fname=None, mask=None, model_n
     return spectra, output_msg
 
 
-def auto_extract(fname, output, dispaxis=1, *, N=None, pdf_fname=None, mask=None, model_name='moffat', dx=50, width_scale=2, xmin=None, xmax=None, ymin=None, ymax=None, center_order=3, width_order=1):
+def auto_extract(fname, output, dispaxis=1, *, N=None, pdf_fname=None, mask=None, model_name='moffat', dx=50, width_scale=2, xmin=None, xmax=None, ymin=None, ymax=None, order_center=3, order_width=1):
     """Automatically extract object spectra in the given file. Dispersion along the x-axis is assumed!"""
     msg = list()
     img2D = fits.getdata(fname)
@@ -541,7 +541,7 @@ def auto_extract(fname, output, dispaxis=1, *, N=None, pdf_fname=None, mask=None
     spectra, ext_msg = auto_extract_img(img2D, err2D, N=N, pdf_fname=pdf_fname, mask=mask,
                                         model_name=model_name, dx=dx, width_scale=width_scale,
                                         xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax,
-                                        center_order=center_order, width_order=width_order)
+                                        order_center=order_center, order_width=order_width)
     msg.append(ext_msg)
 
     hdu = fits.HDUList()
