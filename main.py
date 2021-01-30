@@ -13,8 +13,8 @@ import yaml
 import alfosc
 import data_organizer as do
 from calibs import combine_bias_frames, combine_flat_frames, normalize_spectral_flat
-from wavecal import create_pixtable
-
+from wavecal import create_pixtable, rectify
+from scired import raw_correction
 
 code_dir = os.path.dirname(os.path.abspath(__file__))
 calib_dir = os.path.join(code_dir, 'calib/')
@@ -220,21 +220,22 @@ def main(raw_path=None, options_fname=None, verbose=False):
     elif identify_interactive and not identify_all:
         # Make pixeltable for all grisms:
         grisms_to_identify = grism_list
-        log.write("Identify: interactively reidentify all grisms in dataset:")
+        log.write("Identify: interactively identify all grisms in dataset:")
         log.write(", ".join(grisms_to_identify))
         log.add_linebreak()
 
     else:
         # Check if pixeltables exist:
-        grisms_to_identify = list()
+        grisms_to_identify = []
         for grism_name in grism_list:
             pixtab_fname = os.path.join(calib_dir, '%s_pixeltable.dat' % grism_name)
             if not os.path.exists(pixtab_fname):
-                grisms_to_identify.append(grism_name)
                 log.write("%s : pixel table does not exist. Will identify lines..." % grism_name)
+                grisms_to_identify.append(grism_name)
             else:
                 log.write("%s : pixel table already exists" % grism_name)
-                options[grism_name+'_pixtab'] = pixtab_fname
+                status[grism_name+'_pixtab'] = pixtab_fname
+                status[pixtab_fname] = options['identify']['order_wl']
         log.add_linebreak()
 
 
@@ -261,7 +262,7 @@ def main(raw_path=None, options_fname=None, verbose=False):
             print("Unexpected error:", sys.exc_info()[0])
             raise
 
-    for sci_img in object_images[:1]:
+    for sci_img in object_images[27:28]:                                       # <-- FIX BEFORE RELEASE
         raw_base = os.path.basename(sci_img.filename).split('.')[0][2:]
         output_dir = sci_img.target_name + '_' + raw_base
         if not os.path.exists(output_dir):
@@ -274,6 +275,7 @@ def main(raw_path=None, options_fname=None, verbose=False):
         norm_flat_fname = os.path.join(output_dir, 'NORM_FLAT_%s_%s.fits' % (grism, sci_img.slit))
         rect2d_fname = os.path.join(output_dir, 'RECT2D_%s.fits' % (sci_img.target_name))
         sens_fname = os.path.join(output_dir, 'SENSITIVITY_%s.fits' % (grism))
+        corrected_2d_fname = os.path.join(output_dir, 'CORRECTED2D_%s_%s.fits' % (sci_img.target_name, sci_img.date))
         final_2d_fname = os.path.join(output_dir, 'red2D_%s_%s.fits' % (sci_img.target_name, sci_img.date))
 
         # Combine Bias Frames matched for CCD setup
@@ -293,7 +295,8 @@ def main(raw_path=None, options_fname=None, verbose=False):
             try:
                 _, bias_msg = combine_bias_frames(bias_frames, output=master_bias_fname,
                                                   kappa=options['bias']['kappa'], overwrite=True)
-                log.commit(bias_msg+'\n')
+                log.commit(bias_msg)
+                log.add_linebreak()
                 status['master_bias'] = master_bias_fname
             except:
                 log.error("Median combination of bias frames failed!")
@@ -314,7 +317,8 @@ def main(raw_path=None, options_fname=None, verbose=False):
                                               output=comb_flat_fname,
                                               kappa=options['flat']['kappa'],
                                               overwrite=True)
-            log.commit(flat_msg+'\n')
+            log.commit(flat_msg)
+            log.add_linebreak()
             status['flat_combined'] = comb_flat_fname
         except ValueError as err:
             log.commit(str(err)+'\n')
@@ -334,7 +338,8 @@ def main(raw_path=None, options_fname=None, verbose=False):
                                                   order=options['flat']['order'], sigma=options['flat']['sigma'],
                                                   plot=options['flat']['plot'], show=options['flat']['show'],
                                                   overwrite=True)
-            log.commit(norm_msg+'\n')
+            log.commit(norm_msg)
+            log.add_linebreak()
             status['flat_normalized'] = norm_flat_fname
         except:
             log.error("Normalization of flat frames failed!")
@@ -342,25 +347,58 @@ def main(raw_path=None, options_fname=None, verbose=False):
             print("Unexpected error:", sys.exc_info()[0])
             raise
 
-        # Rectify:
+        # Identify lines in arc frame:
+        arc_fname, = sci_img.match_files(arc_images, grism=True, slit=True, filter=True, get_closest_time=True)
         if identify_interactive and identify_all:
             # run interactive GUI
             # poly_order, pixtable, msg = create_pixtable(...)
             pass
         else:
-            order_wl = status[saved_pixtab_fname]
-            pixtable = status[grism_name+'_pixtab']
+            # -- or use previous line identifications
+            pixtable = status[grism+'_pixtab']
+            order_wl = status[pixtable]
+
+        # Sensitivity Function:
+        # output: sens_fname
+        flux_std_files = sci_img.match_files(database['SPEC_FLUX-STD'], grism=True, slit=True, filter=True, get_closest_time=True)
+        if len(flux_std_files) == 0:
+            log.warn("No spectroscopic standard star was found in the dataset!")
+            log.warn("The reduced spectra will not be flux calibrated")
+        else:
+            std_fname = flux_std_files[0]
+            log.write("Spectroscopic Flux Standard: %s" % std_fname)
+            try:
+                output_msg = calculate_sensitivy(std_fname, arc_fname, )
+
+        # Bias correction, Flat correction, Cosmic Ray Rejection
+        try:
+            output_msg = raw_correction(sci_img.data, sci_img.header, master_bias_fname, norm_flat_fname,
+                                        output=corrected_2d_fname,
+                                        crr=options['scired']['crr'], niter=options['scired']['niter'],
+                                        verbose=True, overwrite=True)
+            log.commit(output_msg)
+        except:
+            log.error("Initial correction went wrong!")
+            log.fatal_error()
+            print("Unexpected error:", sys.exc_info()[0])
+            raise
+
 
         # Call rectify
         # -- update logging in rectify!!
-        arc_fname, = sci_img.match_files(arc_images, grism=True, slit=True, filter=True, get_closest_time=True)
-        rectify(sci_img.filename, arc_fname, pixtable, output_fname=rect2d_fname,
-                dispaxis=sci_img.dispaxis, **options['rectify'])
+        try:
+            print("Working on arc file: %s" % arc_fname)
+            print("Working on sci image: %s" % sci_img.filename)
+            rect_msg = rectify(sci_img.filename, arc_fname, pixtable, output=rect2d_fname, fig_dir=output_dir,
+                               dispaxis=sci_img.dispaxis, order_wl=order_wl, **options['rectify'])
+            log.commit(rect_msg)
+        except:
+            log.error("2D rectification failed!")
+            log.fatal_error()
+            print("Unexpected error:", sys.exc_info()[0])
+            raise
 
-        # Sensitivity Function:
-        std_fname, = sci_img.match_files(database['SPEC_FLUX-STD'], grism=True, slit=True, filter=True, get_closest_time=True)
-        log.write("Spectroscopic Flux Standard: %s" % std_fname)
-        # -- steps in response function
+
 
         # Science Reduction:
         # pixtab_fname comes from identify_GUI
