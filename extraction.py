@@ -570,5 +570,6 @@ def auto_extract(fname, output, dispaxis=1, *, N=None, pdf_fname=None, mask=None
 
     hdu.writeto(output, overwrite=True, output_verify='silentfix')
     msg.append("          - Writing fits table: %s" % output)
+    msg.append("")
     output_msg = "\n".join(msg)
     return output_msg

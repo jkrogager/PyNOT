@@ -14,7 +14,7 @@ import alfosc
 import data_organizer as do
 from calibs import combine_bias_frames, combine_flat_frames, normalize_spectral_flat
 from wavecal import create_pixtable, rectify
-from scired import raw_correction
+from scired import raw_correction, auto_fit_background
 
 code_dir = os.path.dirname(os.path.abspath(__file__))
 calib_dir = os.path.join(code_dir, 'calib/')
@@ -275,6 +275,7 @@ def main(raw_path=None, options_fname=None, verbose=False):
         comb_flat_fname = os.path.join(output_dir, 'FLAT_COMBINED_%s_%s.fits' % (grism, sci_img.slit))
         norm_flat_fname = os.path.join(output_dir, 'NORM_FLAT_%s_%s.fits' % (grism, sci_img.slit))
         rect2d_fname = os.path.join(output_dir, 'RECT2D_%s.fits' % (sci_img.target_name))
+        bgsub2d_fname = os.path.join(output_dir, 'BGSUB2D_%s.fits' % (sci_img.target_name))
         sens_fname = os.path.join(output_dir, 'SENSITIVITY_%s.fits' % (grism))
         corrected_2d_fname = os.path.join(output_dir, 'CORRECTED2D_%s_%s.fits' % (sci_img.target_name, sci_img.date))
         final_2d_fname = os.path.join(output_dir, 'red2D_%s_%s.fits' % (sci_img.target_name, sci_img.date))
@@ -363,7 +364,8 @@ def main(raw_path=None, options_fname=None, verbose=False):
             order_wl = status[pixtable]
 
 
-        # Sensitivity Function:
+        # Response Function:
+        # -- Note that sensitivity function and response function are used interchangeably throughout!
         # output: sens_fname
         flux_std_files = sci_img.match_files(database['SPEC_FLUX-STD'], grism=True, slit=True, filter=True, get_closest_time=True)
         if len(flux_std_files) == 0:
@@ -373,12 +375,14 @@ def main(raw_path=None, options_fname=None, verbose=False):
             std_fname = flux_std_files[0]
             log.write("Spectroscopic Flux Standard: %s" % std_fname)
             try:
-                output_msg = calculate_sensitivy(std_fname, arc_fname, )
+                output_fname1D, response_msg = calculate_response(std_fname, arc_fname, )
+                status['RESPONSE'] = output_fname1D
             except:
                 log.error("Calculation of sensitivity function failed!")
                 log.fatal_error()
                 print("Unexpected error:", sys.exc_info()[0])
                 raise
+
 
         # Bias correction, Flat correction, Cosmic Ray Rejection
         try:
@@ -406,7 +410,9 @@ def main(raw_path=None, options_fname=None, verbose=False):
             raise
 
 
-
+        # Automatic Background Subtraction:
+        try:
+            bg_msg = auto_fit_background(rect2d_fname, bgsub2d_fname, axis=1, order_bg=order_bg, plot_fname='')
         # Science Reduction:
         # pixtab_fname comes from identify_GUI
         # pixtab_path = os.path.join(output_dir, pixtab_fname)

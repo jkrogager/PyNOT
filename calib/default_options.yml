@@ -36,8 +36,9 @@ rectify:
   plot:   True              # Make diagnostic plots?
 
 scired:
-  crr:     True       # Perform cosmic ray rejection?
-  niter:   4          # Number of iterations for cosmic ray rejection
+  order_bg: 3
+  crr:      True       # Perform cosmic ray rejection?
+  niter:    4          # Number of iterations for cosmic ray rejection
 
 extract:
   interactive:  True        # Extract the 1D spectrum using a graphical user interface?

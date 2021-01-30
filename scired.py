@@ -38,17 +38,13 @@ __credits__ = ["Jens-Kristian Krogager"]
 
 import numpy as np
 import matplotlib.pyplot as plt
-import astropy.io.fits as pf
+from astropy.io import fits
 from scipy.ndimage import median_filter
 from numpy.polynomial import Chebyshev
 import os
-from os.path import isfile
-from argparse import ArgumentParser
 import warnings
 
 from astroscrappy import detect_cosmics
-
-from extraction import extract_and_calibrate
 
 code_dir = os.path.dirname(os.path.abspath(__file__))
 v_file = os.path.join(code_dir, 'VERSION')
@@ -67,23 +63,19 @@ def mad(img):
     For a Gaussian distribution:
         sigma ≈ 1.4826 * MAD
     """
-    return np.median(np.abs(img - np.median(img)))
+    return np.nanmedian(np.abs(img - np.nanmedian(img)))
 
 
-def auto_fit_background(data, axis=2, order=3, width=20, plot=True, plot_fname=''):
-    """Fit background in 2D spectral data.
-    The background is fitted along the spatial columns/rows
-    by a Chebyshev polynomium.
+def fit_background_image(data, order_bg=3, width=20):
+    """
+    Fit background in 2D spectral data. The background is fitted along the spatial rows by a Chebyshev polynomium.
 
     Parameters
     ==========
-    data : np.array (N, M)
-        Spectral 2D data array
+    data : np.array(M, N)
+        Data array holding the input image
 
-    axis : integer  [default=1]
-        Dispersion axis, 1: horizontal spectra, 2: vertical spectra
-
-    order : integer  [default=3]
+    order_bg : integer  [default=3]
         Order of the Chebyshev polynomium to fit the background
 
     width : integer  [default=20]
@@ -91,22 +83,16 @@ def auto_fit_background(data, axis=2, order=3, width=20, plot=True, plot_fname='
 
     Returns
     =======
-    bg2D : np.array (N, M)
+    bg2D : np.array(M, N)
         Background model of the 2D frame, same shape as input data.
     """
-    if axis == 1:
-        # transpose the horizontal spectra to make them vertical
-        # since it's faster to fit rows than columns
-        data = data.T
-
     x = np.arange(data.shape[1])
     SPSF = np.median(data, 0)
     trace_center = np.argmax(SPSF)
-    width = 20
     x1 = trace_center - width
     x2 = trace_center + width
     obj = (x >= x1) * (x <= x2)
-    mask = (x >= 20) * ~obj
+    mask = (x >= 5) * ~obj
 
     bg2D = np.zeros_like(data)
     for i, row in enumerate(data):
@@ -114,31 +100,102 @@ def auto_fit_background(data, axis=2, order=3, width=20, plot=True, plot_fname='
         med_row = median_filter(row, 15)
         noise = mad(row)*1.4826
         this_mask = mask * (np.abs(row - med_row) < 10*noise)
-        bg = Chebyshev.fit(x[this_mask], row[this_mask], order)
-        bg2D[i] = bg(x)
+        bg_model = Chebyshev.fit(x[this_mask], row[this_mask], order_bg)
+        bg2D[i] = bg_model(x)
 
-    if plot:
+    return bg2D
+
+
+def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, width=20, plot_fname=''):
+    """
+    Fit background in 2D spectral data. The background is fitted along the spatial rows by a Chebyshev polynomium.
+
+    Parameters
+    ==========
+    data_fname : string
+        Filename of the FITS image to process
+
+    output_fname : string
+        Filename of the output FITS image containing the background subtracted image
+        as well as the background model in a separate extension.
+
+    dispaxis : integer  [default=1]
+        Dispersion axis, 1: horizontal spectra, 2: vertical spectra
+        The function does not rotate the final image, only the intermediate image
+        since it's faster to operate on rows than on columns.
+
+    order_bg : integer  [default=3]
+        Order of the Chebyshev polynomium to fit the background
+
+    width : integer  [default=20]
+        Half width in pixels of the trace to mask out
+
+    plot_fname : string  [default='']
+        Filename of diagnostic plots. If nothing is given, do not plot.
+
+    Returns
+    =======
+    output_fname : string
+        Background model of the 2D frame, same shape as input data.
+
+    output_msg : string
+        Log of messages from the function call
+    """
+    msg = list()
+    data = fits.getdata(data_fname)
+    hdr = fits.getheader(data_fname)
+    if 'DISPAXIS' in hdr:
+        dispaxis = hdr['DISPAXIS']
+
+    if dispaxis == 1:
+        # transpose the horizontal spectra to make them vertical
+        # since it's faster to fit rows than columns
+        data = data.T
+    msg.append("          - Running task: background subtraction")
+    msg.append("          - Loaded input image: %s" % data_fname)
+
+    msg.append("          - Fitting background along the spatial axis with polynomium of order: i" % order_bg)
+    msg.append("          - Automatic masking of outlying pixels and object trace")
+    bg2D = fit_background_image(data, order_bg=order_bg, width=width)
+
+    if plot_fname:
         fig2D = plt.figure()
         ax1_2d = fig2D.add_subplot(121)
         ax2_2d = fig2D.add_subplot(122)
         noise = mad(data)
-        v1 = np.median(data) - 3*noise
-        v2 = np.median(data) + 3*noise
+        v1 = np.median(data) - 5*noise
+        v2 = np.median(data) + 5*noise
         ax1_2d.imshow(data, origin='lower', vmin=v1, vmax=v2)
-        ax1_2d.set_title("Raw Data")
-        ax2_2d.imshow(bg2D, origin='lower', vmin=v1, vmax=v2)
-        ax2_2d.set_title("Background Model")
+        ax1_2d.set_title("Input Image")
+        ax2_2d.imshow(data-bg2D, origin='lower', vmin=v1, vmax=v2)
+        ax2_2d.set_title("Background Subtracted")
         ax1_2d.set_xlabel("Spatial Axis  [pixels]")
         ax2_2d.set_xlabel("Spatial Axis  [pixels]")
         ax1_2d.set_ylabel("Dispersion Axis  [pixels]")
+        fig2D.tight_layout()
         fig2D.savefig(plot_fname)
         fig2D.close()
+        msg.append("          - Saved diagnostic figure: %s" % plot_fname)
 
-    if axis == 1:
-        # Rotate the model back to horizontal orientation:
+    data = data - bg2D
+    if dispaxis == 1:
+        # Rotate the model and data back to horizontal orientation:
+        data = data.T
         bg2D = bg2D.T
 
-    return bg2D
+    with fits.open(data_fname) as hdu:
+        hdu[0].data = data
+        sky_hdr = fits.Header()
+        sky_hdr['AUTHOR'] = 'PyNOT version %s' % __version__
+        sky_hdr['ORDER'] = (order_bg, "Polynomial order along spatial rows")
+        sky_ext = fits.ImageHDU(bg2D, header=sky_hdr, name='SKY')
+        hdu.append(sky_ext)
+        hdu.writeto(output_fname)
+
+    msg.append("          - Saved background subtracted image: %s" % output_fname)
+    msg.append("")
+    output_msg = "\n".join(msg)
+    return output_msg
 
 
 def raw_correction(sci_raw, hdr, bias_fname, flat_fname, output='', crr=True, niter=4, verbose=True, overwrite=True):
@@ -183,9 +240,9 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname, output='', crr=True, ni
     """
     msg = list
     msg.append("          - Running task: bias and flat field correction")
-    mbias = pf.getdata(bias_fname)
+    mbias = fits.getdata(bias_fname)
     msg.append("          - Loaded BIAS image: %s" % bias_fname)
-    mflat = pf.getdata(flat_fname)
+    mflat = fits.getdata(flat_fname)
     msg.append("          - Loaded FLAT field image: %s" % flat_fname)
 
     sci = (sci_raw - mbias)/mflat
@@ -226,15 +283,16 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname, output='', crr=True, ni
     else:
         mask = np.zeros_like(sci)
         msg.append("          - Empty pixel mask created")
-    mask_hdr = pf.Header()
+    mask_hdr = fits.Header()
     mask_hdr.add_comment("4 = Cosmic Ray Hit")
     hdr['DATAMIN'] = np.nanmin(sci)
     hdr['DATAMAX'] = np.nanmax(sci)
+    hdr['EXTNAME'] = 'DATA'
 
-    sci_ext = pf.PrimaryHDU(sci, header=hdr)
-    err_ext = pf.ImageHDU(err, header=hdr, name='ERR')
-    mask_ext = pf.ImageHDU(mask, header=mask_hdr, name='MASK')
-    output_HDU = pf.HDUList([sci_ext, err_ext, mask_ext])
+    sci_ext = fits.PrimaryHDU(sci, header=hdr)
+    err_ext = fits.ImageHDU(err, header=hdr, name='ERR')
+    mask_ext = fits.ImageHDU(mask, header=mask_hdr, name='MASK')
+    output_HDU = fits.HDUList([sci_ext, err_ext, mask_ext])
 
     if output:
         if output[-5:] != '.fits':
