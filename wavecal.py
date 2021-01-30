@@ -459,6 +459,7 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
         object_name = hdr['OBJECT']
         output = 'RECT2D_%s.fits' % (object_name)
 
+    hdr_corr['DISPAXIS'] = 1
     hdu = fits.PrimaryHDU(data=img2D_corr, header=hdr_corr)
     hdu.writeto(output, overwrite=overwrite)
     msg.append("          - Saving rectified 2D image to file: %s" % output)

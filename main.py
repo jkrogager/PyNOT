@@ -262,15 +262,16 @@ def main(raw_path=None, options_fname=None, verbose=False):
             print("Unexpected error:", sys.exc_info()[0])
             raise
 
-    for sci_img in object_images[27:28]:                                       # <-- FIX BEFORE RELEASE
+    for sci_img in object_images[:1]:                                       # <-- FULL LOOP BEFORE RELEASE
         raw_base = os.path.basename(sci_img.filename).split('.')[0][2:]
         output_dir = sci_img.target_name + '_' + raw_base
         if not os.path.exists(output_dir):
             os.mkdir(output_dir)
             log.write("Created output directory: %s" % output_dir)
 
-        master_bias_fname = os.path.join(output_dir, 'MASTER_BIAS.fits')
+        # Prepare output filenames:
         grism = alfosc.grism_translate[sci_img.grism]
+        master_bias_fname = os.path.join(output_dir, 'MASTER_BIAS.fits')
         comb_flat_fname = os.path.join(output_dir, 'FLAT_COMBINED_%s_%s.fits' % (grism, sci_img.slit))
         norm_flat_fname = os.path.join(output_dir, 'NORM_FLAT_%s_%s.fits' % (grism, sci_img.slit))
         rect2d_fname = os.path.join(output_dir, 'RECT2D_%s.fits' % (sci_img.target_name))
@@ -278,7 +279,8 @@ def main(raw_path=None, options_fname=None, verbose=False):
         corrected_2d_fname = os.path.join(output_dir, 'CORRECTED2D_%s_%s.fits' % (sci_img.target_name, sci_img.date))
         final_2d_fname = os.path.join(output_dir, 'red2D_%s_%s.fits' % (sci_img.target_name, sci_img.date))
 
-        # Combine Bias Frames matched for CCD setup
+
+        # Combine Bias Frames matched for CCD setup:
         bias_frames = sci_img.match_files(database['BIAS'])
         if len(bias_frames) < 3:
             log.warn("Must have at least 3 bias frames to combine, not %i" % len(bias_frames))
@@ -305,7 +307,7 @@ def main(raw_path=None, options_fname=None, verbose=False):
                 raise
 
 
-        # Combine Flat Frames matched for CCD setup, grism, slit and filter
+        # Combine Flat Frames matched for CCD setup, grism, slit and filter:
         flat_frames = sci_img.match_files(database['SPEC_FLAT'], grism=True, slit=True, filter=True)
         if len(flat_frames) == 0:
             log.error("No flat frames provided!")
@@ -330,6 +332,7 @@ def main(raw_path=None, options_fname=None, verbose=False):
             print("Unexpected error:", sys.exc_info()[0])
             raise
 
+
         # Normalize the spectral flat field:
         try:
             _, norm_msg = normalize_spectral_flat(comb_flat_fname, output=norm_flat_fname,
@@ -347,6 +350,7 @@ def main(raw_path=None, options_fname=None, verbose=False):
             print("Unexpected error:", sys.exc_info()[0])
             raise
 
+
         # Identify lines in arc frame:
         arc_fname, = sci_img.match_files(arc_images, grism=True, slit=True, filter=True, get_closest_time=True)
         if identify_interactive and identify_all:
@@ -357,6 +361,7 @@ def main(raw_path=None, options_fname=None, verbose=False):
             # -- or use previous line identifications
             pixtable = status[grism+'_pixtab']
             order_wl = status[pixtable]
+
 
         # Sensitivity Function:
         # output: sens_fname
@@ -369,6 +374,11 @@ def main(raw_path=None, options_fname=None, verbose=False):
             log.write("Spectroscopic Flux Standard: %s" % std_fname)
             try:
                 output_msg = calculate_sensitivy(std_fname, arc_fname, )
+            except:
+                log.error("Calculation of sensitivity function failed!")
+                log.fatal_error()
+                print("Unexpected error:", sys.exc_info()[0])
+                raise
 
         # Bias correction, Flat correction, Cosmic Ray Rejection
         try:
@@ -385,10 +395,7 @@ def main(raw_path=None, options_fname=None, verbose=False):
 
 
         # Call rectify
-        # -- update logging in rectify!!
         try:
-            print("Working on arc file: %s" % arc_fname)
-            print("Working on sci image: %s" % sci_img.filename)
             rect_msg = rectify(sci_img.filename, arc_fname, pixtable, output=rect2d_fname, fig_dir=output_dir,
                                dispaxis=sci_img.dispaxis, order_wl=order_wl, **options['rectify'])
             log.commit(rect_msg)

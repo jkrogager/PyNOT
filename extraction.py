@@ -1,19 +1,59 @@
-# -*- coding: UTF-8 -*-
+# coding/PyNOT/multi_extract.py
 import numpy as np
-try:
-    import pyfits as pf
-except:
-    import astropy.io.fits as pf
+from astropy.io import fits
 from matplotlib.backends import backend_pdf
 import matplotlib.pyplot as plt
-from scipy.optimize import leastsq
-from scipy.ndimage import gaussian_filter1d, median_filter
+from scipy.ndimage import median_filter
+from scipy.signal import find_peaks
 from numpy.polynomial import Chebyshev
-import os
-from os.path import exists
 import warnings
 
-import alfosc
+from lmfit import Parameters, minimize
+
+
+def get_FWHM(y, x=None):
+    """
+    Measure the FWHM of the profile given as `y`.
+    If `x` is given, then report the FWHM in terms of data units
+    defined by the `x` array. Otherwise, report pixel units.
+
+    Parameters
+    ----------
+    y : np.ndarray, shape (N)
+        Input profile whose FWHM should be determined.
+
+    x : np.ndarray, shape (N)  [default = None]
+        Input data units, must be same shape as `y`.
+
+    Returns
+    -------
+    fwhm : float
+        FWHM of `y` in units of pixels.
+        If `x` is given, the FWHM is returned in data units
+        corresponding to `x`.
+    """
+    if x is None:
+        x = np.arange(len(y))
+
+    half = max(y)/2.0
+    signs = np.sign(np.add(y, -half))
+    zero_crossings = (signs[0:-2] != signs[1:-1])
+    zero_crossings_i = np.where(zero_crossings)[0]
+
+    if np.sum(zero_crossings) > 2:
+        raise ValueError('Invalid profile! More than 2 crossings detected.')
+    elif np.sum(zero_crossings) < 2:
+        raise ValueError('Invalid profile! Less than 2 crossings detected.')
+    else:
+        pass
+
+    halfmax_x = list()
+    for i in zero_crossings_i:
+        x_i = x[i] + (x[i+1] - x[i]) * ((half - y[i]) / (y[i+1] - y[i]))
+        halfmax_x.append(x_i)
+
+    fwhm = halfmax_x[1] - halfmax_x[0]
+    return fwhm
 
 
 def nan_helper(y):
@@ -62,10 +102,10 @@ def mad(img):
     For a Gaussian distribution:
         sigma ≈ 1.4826 * MAD
     """
-    return np.median(np.abs(img - np.median(img)))
+    return np.nanmedian(np.abs(img - np.nanmedian(img)))
 
 
-def NNmoffat(x, alpha, beta, mu, logamp):
+def NNmoffat(x, mu, alpha, beta, logamp):
     """
     One-dimensional non-negative Moffat profile.
 
@@ -80,940 +120,455 @@ def gaussian(x, mu, sigma, amp):
     return amp * np.exp(-0.5*(x-mu)**2/sigma**2)
 
 
-def modNN_gaussian(x, mu, sigma, logamp):
+def NN_gaussian(x, mu, sigma, logamp):
     """ One-dimensional modified non-negative Gaussian profile."""
     amp = 10**logamp
-    return amp * np.exp(-0.5*(x-mu)**4/sigma**2)
+    return amp * np.exp(-0.5*(x-mu)**2/sigma**2)
 
 
-def moffat_model(pars, x):
-    a, b, alpha, beta, mu, amp = pars
-    bg = a*x + b
-    spsf = NNmoffat(x, alpha, beta, mu, amp)
-    return bg + spsf
+def trace_model(pars, x, N, model_name='moffat'):
+    model = np.zeros_like(x)
+    if model_name == 'gaussian':
+        for i in range(N):
+            p = [pars['mu_%i' % i],
+                 pars['sig_%i' % i],
+                 pars['logamp_%i' % i]]
+            model += NN_gaussian(x, *p)
+    elif model_name == 'moffat':
+        for i in range(N):
+            p = [pars['mu_%i' % i],
+                 pars['a_%i' % i],
+                 pars['b_%i' % i],
+                 pars['logamp_%i' % i]]
+            model += NNmoffat(x, *p)
+    model += pars['bg']
+    return model
 
 
-def gaussian_model(pars, x):
-    bg, mu, sigma, logamp = pars
-    spsf = modNN_gaussian(x, mu, sigma, logamp)
-    return bg + spsf
+def model_residuals(pars, x, y, N, model_name='moffat'):
+    return y - trace_model(pars, x, N, model_name=model_name)
 
 
-def residuals(pars, x, y):
-    spsf = moffat_model(pars, x)
-    return y - spsf
+def prep_parameters(peaks, prominence, size=np.inf, model_name='moffat'):
+    values = zip(peaks, prominence)
+    pars = Parameters()
+    pars.add('bg', value=0.)
+    if model_name == 'gaussian':
+        for i, (x0, amp) in enumerate(values):
+            pars.add('mu_%i' % i, value=float(x0), min=0., max=size)
+            pars.add('sig_%i' % i, value=2., min=0., max=20.)
+            pars.add('logamp_%i' % i, value=np.log10(amp))
+    elif model_name == 'moffat':
+        for i, (x0, amp) in enumerate(values):
+            pars.add('mu_%i' % i, value=float(x0), min=0., max=size)
+            pars.add('a_%i' % i, value=2., min=0., max=20.)
+            pars.add('b_%i' % i, value=1., min=0., max=20.)
+            pars.add('logamp_%i' % i, value=np.log10(amp))
+    return pars
 
 
-def residuals_gauss(pars, x, y):
-    spsf = gaussian_model(pars, x)
-    return y - spsf
+def median_filter_data(x, kappa=5., window=51):
+    med_x = median_filter(x, window)
+    MAD = 1.5*np.nanmedian(np.abs(x - med_x))
+    if MAD == 0:
+        MAD = np.nanstd(x - med_x)
+    mask = np.abs(x - med_x) < kappa*MAD
+    return (med_x, mask)
 
 
-def extract_and_calibrate(input_fname, arc_frame, bin_size=30, xmin=100, xmax=-100,
-                          do_opt_extract=True, interact=True, background=True,
-                          center_order=3, FWHM0=10, trimy=[None, None], trimx=[None, None],
-                          wl_order=4, aper_cen=None, show=False, sensitivity=None):
-    """Perform automatic localization of the trace if possible, otherwise use fixed
-    aperture to extract the 1D spectrum. The code optimizes the background subtraction
-    by estimating the background in an adjacent aperture.
-    The spectrum is then wavelength calibrated using an associated *arc_frame*.
-    Lastly, the 1D and 2D spectra are flux calibrated using a fixed sensitivity
-    function.
+def fit_trace(img2D, x, y, model_name='moffat', dx=50, ymin=None, ymax=None, xmin=None, xmax=None):
     """
-    hdr = pf.getheader(input_fname)
-    img2D = pf.getdata(input_fname)
-    try:
-        err2D = pf.getdata(input_fname, 1)
-    except:
-        if hdr['CCDNAME'] == 'CCD14':
-            hdr['GAIN'] = 0.16
-        g = hdr['GAIN']
-        r = hdr['RDNOISE']
-        err2D = np.sqrt(img2D*g + r**2)/g
-    try:
-        mask2D = pf.getdata(input_fname, 2)
-    except:
-        mask2D = np.zeros_like(img2D)
+    Perform automatic localization of the trace if possible, otherwise use fixed
+    aperture to extract the 1D spectrum.
+    The spectra are assumed to be horizontal. Check orientation before passing img2D!
+    When fitting the trace, reject pixels in a column below `ymin` and above `ymax`.
+    """
+    msg = list()
+    if not xmin:
+        xmin = 0
+    if not xmax:
+        xmax = len(x)
+    if xmax < 0:
+        xmax = len(x) + xmax
+    if not ymin:
+        ymin = 0
+    if not ymax:
+        ymax = len(y)
+    if ymax < 0:
+        ymax = len(y) + ymax
 
-    grism = alfosc.grism_translate[hdr['ALGRNM']]
+    spsf = np.median(img2D[:, xmin:xmax], axis=1)
+    spsf = spsf - np.median(spsf)
+    spsf[spsf < 0] = 0.
+    spsf[:ymin] = 0.
+    spsf[ymax:] = 0.
 
-    # Open PDF file for writing diagnostics:
-    if exists("diagnostics") is False:
-        os.mkdir("diagnostics")
-    pdf_filename = "diagnostics/" + hdr['OBJECT'] + '_details.pdf'
-    pdf = backend_pdf.PdfPages(pdf_filename)
+    # Detect peaks:
+    kappa = 10.
+    noise = mad(img2D)*1.48/np.sqrt(img2D.shape[0])
+    peaks, properties = find_peaks(spsf, prominence=kappa*noise, width=3)
+    prominences = properties['prominences']
+    msg.append("          - Automatically identifying objects in the image...")
 
-    x = np.arange(img2D.shape[1])
-    y = np.arange(img2D.shape[0])
-
-    y_points = list()
-    p_points = list()
-    fwhm_points = list()
-    plt.close('all')
-
-    SPSF0 = np.mean(img2D, 0)
-    x0 = len(SPSF0)/2                 # Peak location
-    peak_height = np.max(SPSF0)       # Peak height
-    f0 = np.median(SPSF0)             # Background level
-    fit_result = leastsq(residuals, [0., f0, 2., 5., x0, np.log10(peak_height)],
-                         args=(x[xmin:xmax], SPSF0[xmin:xmax]), full_output=True)
-    popt, pcov, info, _, ier = fit_result
-
-    if ier <= 4 and do_opt_extract is True and pcov is not None:
-        # solution was found:
-        V = np.var(SPSF0[xmin:xmax] - info['fvec'])
-        perr = np.sqrt(pcov.diagonal()*V)
-        significance = popt/perr
-        if significance[-2] > 10. and significance[-1] > 10.:
-            # print " Trace detected!"
-            alpha = popt[2]
-            beta = popt[3]
-            FWHM0 = alpha*2*np.sqrt(2**(1./beta)-1.)
-            do_opt_extract = True
-        else:
-            print("\n [WARNING] - No trace detected!")
-            do_opt_extract = False
-
+    N_obj = len(peaks)
+    if N_obj == 0:
+        raise ValueError(" [ERROR]  - No object found in image!")
+    elif N_obj == 1:
+        fwhm = get_FWHM(spsf)
+        msg.append("          - Found %i object in slit" % N_obj)
+        msg.append("          - FWHM of spectral trace: %.1f" % fwhm)
     else:
-        print("\n [WARNING] - No trace detected!")
-        do_opt_extract = False
+        fwhm = None
+        msg.append("          - Found %i objects in slit" % N_obj)
 
-    if do_opt_extract is False:
-        plt.close('all')
-        plt.plot(SPSF0)
-        if interact is True:
-            central_marking = plt.ginput(1, -1)
-            aper_cen, y0 = central_marking[0]
-        else:
-            if aper_cen is None:
-                aper_cen = len(x)/2
-        plt.axvline(aper_cen, color='r')
-        plt.axvline(aper_cen + 1.5*FWHM0, color='r', ls=':')
-        plt.axvline(aper_cen - 1.5*FWHM0, color='r', ls=':')
+    # Fit trace with N objects:
+    msg.append("          - Fitting the spectral trace with a %s profile" % model_name.title())
+    trace_parameters = list()
+    x_binned = np.arange(0., img2D.shape[1], dx, dtype=np.float64)
+    for num in range(0, img2D.shape[1], dx):
+        pars = prep_parameters(peaks, prominences, size=img2D.shape[0], model_name=model_name)
+        col = np.nanmean(img2D[:, num:num+dx], axis=1)
+        col_mask = np.ones_like(col, dtype=bool)
+        col_mask[:ymin] = 0.
+        col_mask[ymax:] = 0.
+        try:
+            popt = minimize(model_residuals, pars, args=(y[col_mask], col[col_mask], N_obj),
+                            kws={'model_name': model_name})
+            for par_val in popt.params.values():
+                if par_val.stderr is None:
+                    par_val.stderr = 100.
+            trace_parameters.append(popt.params)
+        except ValueError:
+            for par_val in pars.values():
+                par_val.stderr = 100.
+            trace_parameters.append(pars)
+    msg.append("          - Fitted %i points along the spectral trace" % len(trace_parameters))
+    output_msg = "\n".join(msg)
+    return (x_binned, N_obj, trace_parameters, fwhm, output_msg)
 
-    for ymin in np.arange(0, img2D.shape[0], bin_size):
-        SPSF = np.median(img2D[ymin:ymin+bin_size, :], 0)
-        SPSF = gaussian_filter1d(SPSF, FWHM0/2.35)
-        x0 = len(SPSF)/2                     # Peak location
-        y0 = np.log10(np.nanmax(SPSF))       # Peak height
-        f0 = np.median(SPSF)                 # Background level
-        fit_result = leastsq(residuals, [0., f0, 1., 5., x0, y0],
-                             args=(x[xmin:xmax], SPSF[xmin:xmax]), full_output=True)
-        popt, pcov, info, _, ier = fit_result
 
-        if ier <= 4 and pcov is not None:
-            # solution was found:
-            V = np.var(SPSF[xmin:xmax] - info['fvec'])
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                perr = np.sqrt(pcov.diagonal()*V)
-            significance = popt/perr
-            # if significance[-2] > 3. and significance[-1] > 4:
-            if np.mean(significance) > 3.:
-                y_points.append(np.mean(y[ymin:ymin+bin_size]))
-                p_points.append(popt)
-                alpha = popt[2]
-                beta = popt[3]
-                FWHM = alpha*2*np.sqrt(2**(1./beta)-1.)
-                fwhm_points.append(FWHM)
+def create_2d_profile(img2D, model_name='moffat', dx=50, width_scale=2, xmin=None, xmax=None, ymin=None, ymax=None, center_order=3, width_order=1):
+    """
+    img2D : np.array(M, N)
+        Input image with dispersion along x-axis!
 
-            else:
-                pass
-        else:
-            pass
+    model_name : {'moffat' or 'gaussian' or 'tophat'}
+        Model type for the spectral PSF
 
-    fig_trace = plt.figure()
-    ax1 = fig_trace.add_subplot(4, 1, 1)
-    ax2 = fig_trace.add_subplot(4, 1, 2)
-    ax3 = fig_trace.add_subplot(4, 1, 3)
-    ax4 = fig_trace.add_subplot(4, 1, 4)
-    for i, p in enumerate(p_points):
-        ax1.plot(y_points[i], p[2], 'k.')
-        ax2.plot(y_points[i], p[3], 'k.')
-        ax3.plot(y_points[i], p[4], 'k.')
-        ax4.plot(y_points[i], p[5], 'k.')
+    dx : int  [default=5]
+        Fit the trace for every dx column
 
-    ax1.set_ylabel("Moffat $\\alpha$")
-    ax2.set_ylabel("Moffat $\\beta$")
-    ax3.set_ylabel("Trace center")
-    ax4.set_ylabel("Trace amplitude")
+    width_scale : int  [default=2]
+        The scaling factor of the FWHM used for the width of the tophat profile:
+        By default the flux is summed within 2*FWHM on either side of the centroid
 
-    ax1.set_title("Spectral Trace Localization")
-    ax4.set_xlabel("Dispersion Axis  (pixels)")
+    xmin, xmax : int  [default=None]
+        Minimum and maximum extent to fit along the dispersion axis
 
-    y_points = np.array(y_points)
+    ymin, ymax : int  [default=None]
+        Minimum and maximum extent to fit along the spatial axis
 
-    # --- Sigma-clip *alpha*:
-    alphas = np.array([p[2] for p in p_points])
-    filter_size = bin_size - 1 + bin_size % 2
-    a0 = median_filter(alphas, filter_size)
-    sig0 = 1.4826*mad(alphas - a0)
-    outliers = (np.abs(alphas - a0) > 4*sig0)
-    # Fit the good values with polynomium:
-    # fit_alpha = Chebyshev.fit(y_points[~outliers], alphas[~outliers], 0)
+    center_order : int  [default=3]
+        Order of Chebyshev polynomium for the trace position
 
-    # Use median of the good values:
-    def fit_alpha(y):
-        return 0.*y + np.median(alphas[~outliers])
-    ax1.plot(y, fit_alpha(y), alpha=0.8)
-    ax1.plot(y_points[outliers], alphas[outliers], color='crimson', ls='', marker='.')
-    ax1.set_ylim(np.median(alphas)-5*sig0, np.median(alphas)+5*sig0)
+    width_order : int [ default=1]
+        Order of Chebyshev polynomium for the trace width
 
-    # --- Sigma-clip *beta*:
-    betas = np.array([p[3] for p in p_points])
-    # filter_size = bin_size - 1 + bin_size % 2
-    filter_size = 9
-    b0 = median_filter(betas, filter_size)
-    sig0 = 1.4826*mad(betas - b0)
-    outliers = np.abs(betas - b0) > 5*sig0
-    # Fit the good values with polynomium:
-    # fit_beta = Chebyshev.fit(y_points[~outliers], betas[~outliers], 0)
+    Returns
+    -------
+    trace_models_2d : list(np.array(M, N))
+        List of trace models, one for each object identified in the image
 
-    # Use median of the good values:
-    def fit_beta(y):
-        return 0.*y + np.median(betas[~outliers])
-    ax2.plot(y, fit_beta(y), alpha=0.8)
-    ax2.plot(y_points[outliers], betas[outliers], color='crimson', ls='', marker='.')
-    ax2.set_ylim(np.median(betas)-5*sig0, np.median(betas)+5*sig0)
+    trace_info : list
+        List of information dictionary for each trace:
+        The fitted position and width as well as the fit mask and the fitted values
+    """
+    msg = list()
+    img2D = img2D.astype(np.float64)
+    x = np.arange(img2D.shape[1], dtype=np.float64)
+    y = np.arange(img2D.shape[0], dtype=np.float64)
 
-    # --- Sigma-clip the trace centers:  [mu]
-    centers = np.array([p[4] for p in p_points])
-    # filter_size = bin_size - 1 + bin_size % 2
-    filter_size = 9
-    cen0 = median_filter(centers, filter_size)
-    sig0 = 1.4826*mad(centers - cen0)
-    outliers = np.abs(centers - cen0) > 10*sig0
-    fit_cen = Chebyshev.fit(y_points[~outliers], centers[~outliers], center_order)
-    ax3.plot(y, fit_cen(y), alpha=0.8, label="Chebyshev $\\mathcal{O}=%i$" % center_order)
-    ax3.plot(y_points[outliers], centers[outliers], color='crimson', ls='', marker='.')
+    if not xmin:
+        xmin = 0
+    if not xmax:
+        xmax = len(x)
+    if xmax < 0:
+        xmax = len(x) + xmax
+    if not ymin:
+        ymin = 0
+    if not ymax:
+        ymax = len(y)
+    if ymax < 0:
+        ymax = len(y) + ymax
 
-    # --- Sigma-clip *amplitude*:
-    amps = np.array([p[5] for p in p_points])
-    # filter_size = bin_size - 1 + bin_size % 2
-    filter_size = 9
-    amp0 = median_filter(amps, filter_size)
-    sig0 = 1.4826*mad(amps - amp0)
-    outliers = np.abs(amps - amp0) > 5*sig0
-    fit_amp = Chebyshev.fit(y_points[~outliers], amps[~outliers], 3)
-    ax4.plot(y, fit_amp(y), alpha=0.8)
-    ax4.plot(y_points[outliers], amps[outliers], color='crimson', ls='', marker='.')
-
-    pdf.savefig(fig_trace)
-
-    #
-    # --- Make 2D extraction profile and background apertures
-    profile_2d = np.zeros_like(img2D)
-    bg1 = np.zeros_like(img2D)
-    bg2 = np.zeros_like(img2D)
-    if do_opt_extract:
-        pars_array = zip(fit_alpha(y), fit_beta(y), fit_cen(y), fit_amp(y))
-        for i, pars in enumerate(pars_array):
-            xlow = pars[2] - 2*FWHM0
-            xhigh = pars[2] + 2*FWHM0
-            aperture = (x >= xlow) * (x <= xhigh)
-            profile_1d = NNmoffat(x, *pars) * aperture
-            profile_2d[i] = profile_1d/profile_1d.sum()
-            bg1_1d = 1. * ((x >= xlow-FWHM0) * (x <= xlow))
-            bg2_1d = 1. * ((x >= xhigh) * (x <= xhigh+FWHM0))
-            bg1[i] = bg1_1d/bg1_1d.sum()
-            bg2[i] = bg2_1d/bg2_1d.sum()
-        # Save trace parameters:
-        trace_file_dat = open(hdr['OBJECT']+'_trace.dat', 'w')
-        trace_file_dat.write("#pixel  alpha  beta  center  amplitude\n")
-        trace_file_fit = open(hdr['OBJECT']+'_trace.fit', 'w')
-        trace_file_fit.write("#pixel  alpha  beta  center  amplitude\n")
-        trace_data = np.column_stack([y_points, alphas, betas, centers, amps])
-        trace_fit = np.column_stack([y, fit_alpha(y), fit_beta(y), fit_cen(y), fit_amp(y)])
-        np.savetxt(trace_file_dat, trace_data, fmt="%5i  %.2f  %.2f  %.2f  %.2f")
-        np.savetxt(trace_file_fit, trace_fit, fmt="%5i  %.2f  %.2f  %.2f  %.2f")
-        trace_file_dat.close()
-        trace_file_fit.close()
+    if model_name == 'tophat':
+        # Fit the centroid using a Moffat profile, but the discard the with for the profile calculation
+        fit_values = fit_trace(img2D, x, y, model_name='moffat', dx=dx, ymin=ymin, ymax=ymax, xmin=xmin, xmax=xmax)
+        fwhm = fit_values[3]
+        if fwhm is None:
+            raise ValueError("FWHM of the spectral trace could not be determined! Maybe more than one object in slit...")
     else:
-        for i in range(len(y)):
-            xlow = aper_cen - 1.5*FWHM0
-            xhigh = aper_cen + 1.5*FWHM0
-            profile_1d = 1. * ((x >= xlow) * (x <= xhigh))
-            profile_2d[i] = profile_1d/profile_1d.sum()
-            bg1_1d = 1. * ((x >= xlow-FWHM0) * (x <= xlow))
-            bg2_1d = 1. * ((x >= xhigh) * (x <= xhigh+FWHM0))
-            bg1[i] = bg1_1d/bg1_1d.sum()
-            bg2[i] = bg2_1d/bg2_1d.sum()
+        fit_values = fit_trace(img2D, x, y, model_name=model_name, dx=dx, ymin=ymin, ymax=ymax, xmin=xmin, xmax=xmax)
+    x_binned, N_obj, trace_parameters, fwhm, fit_msg = fit_values
+    msg.append(fit_msg)
 
-    #
-    # --- Show aperture on top of 2D spectrum
-    fig2D = plt.figure()
-    ax1_2d = fig2D.add_subplot(1, 2, 1)
-    ax1_2d.set_title("2D spectrum")
-    img_noise = mad(img2D)
-    ax1_2d.imshow(img2D, vmin=-6*img_noise, vmax=6*img_noise, origin='lower')
-    if do_opt_extract:
-        plt.plot(centers[~outliers], y_points[~outliers],
-                 marker='o', alpha=0.5, color='RoyalBlue')
-        plt.plot(centers[outliers], y_points[outliers],
-                 marker='o', ls='', mec='k', color='none', alpha=0.5)
-        plt.plot(fit_cen(y)-2.*FWHM0, y, 'k-', alpha=0.5, lw=1.0)
-        plt.plot(fit_cen(y)+2.*FWHM0, y, 'k-', alpha=0.5, lw=1.0)
+    msg.append("          - Creating 2D spectral profile from fitted parameters")
+    msg.append("          - Profile type: %s" % model_name)
+    msg.append("          - Interpolating centroid using Chebyshev polynomium of degree: %i" % center_order)
+    msg.append("          - Interpolating profile width using Chebyshev polynomium of degree: %i" % width_order)
+    trace_models_2d = list()
+    trace_info = list()
+    domain = [0, img2D.shape[1]]
+    for n in range(N_obj):
+        msg.append("          - Working on profile number %i" % (n+1))
+        info_dict = dict()
+        info_dict['x_binned'] = x_binned
+        # Median filter
+        mu = np.array([p['mu_%i' % n] for p in trace_parameters])
+        mu_err = np.array([p['mu_%i' % n].stderr for p in trace_parameters])
+        mu_err[mu_err == 0] = 100.
+        w_mu = 1./mu_err**2
+        mu_med, mask_mu = median_filter_data(mu, 3., 11)
+        mask_mu &= (x_binned > xmin) & (x_binned < xmax)
+        mu_fit = Chebyshev.fit(x_binned[mask_mu], mu[mask_mu], deg=center_order, domain=domain, w=w_mu[mask_mu])
+        info_dict['mu'] = mu
+        info_dict['mask_mu'] = mask_mu
+        info_dict['fit_mu'] = mu_fit(x)
+
+        # Fit polynomium:
+        trace2D = np.zeros_like(img2D)
+        trace2D = np.zeros_like(img2D)
+        if model_name == 'gaussian':
+            # Median filter
+            sig = np.array([p['sig_%i' % n] for p in trace_parameters])
+            sig_err = np.array([p['sig_%i' % n].stderr for p in trace_parameters])
+            sig_err[sig_err == 0] = 100.
+            w_sig = 1./sig_err**2
+            sig_med, mask_sig = median_filter_data(sig, 3., 21)
+            mask_sig &= (x_binned > xmin) & (x_binned < xmax)
+            sig_fit = Chebyshev.fit(x_binned[mask_sig], sig[mask_sig], deg=width_order, domain=domain, w=w_sig[mask_sig])
+            info_dict['sig'] = sig
+            info_dict['mask_sig'] = mask_sig
+            info_dict['fit_sig'] = sig_fit(x)
+
+            for num, x_i in enumerate(x):
+                P_i = NN_gaussian(y, mu_fit(x_i), sig_fit(x_i), 0.)
+                P_i = P_i/np.sum(P_i)
+                trace2D[:, num] = P_i
+            trace_models_2d.append(trace2D)
+
+        elif model_name == 'moffat':
+            # Median filter
+            a = np.array([p['a_%i' % n] for p in trace_parameters])
+            a_med, mask_a = median_filter_data(a, 3., 21)
+            a_err = np.array([p['a_%i' % n].stderr for p in trace_parameters])
+            a_err[a_err == 0] = 100.
+            w_a = 1./a_err**2
+            b = np.array([p['b_%i' % n] for p in trace_parameters])
+            b_med, mask_b = median_filter_data(b, 3., 21)
+            b_err = np.array([p['b_%i' % n].stderr for p in trace_parameters])
+            b_err[b_err == 0] = 100.
+            w_b = 1./b_err**2
+            mask_a &= (x_binned > xmin) & (x_binned < xmax)
+            mask_b &= (x_binned > xmin) & (x_binned < xmax)
+
+            a_fit = Chebyshev.fit(x_binned[mask_a], a[mask_a], deg=width_order, domain=domain, w=w_a[mask_a])
+            b_fit = Chebyshev.fit(x_binned[mask_b], b[mask_b], deg=width_order, domain=domain, w=w_b[mask_b])
+            info_dict['a'] = a
+            info_dict['mask_a'] = mask_a
+            info_dict['fit_a'] = a_fit(x)
+            info_dict['b'] = b
+            info_dict['mask_b'] = mask_b
+            info_dict['fit_b'] = b_fit(x)
+
+            for num, x_i in enumerate(x):
+                P_i = NNmoffat(y, mu_fit(x_i), a_fit(x_i), b_fit(x_i), 0.)
+                P_i = P_i/np.sum(P_i)
+                trace2D[:, num] = P_i
+            trace_models_2d.append(trace2D)
+
+        elif model_name == 'tophat':
+            for num, x_i in enumerate(x):
+                center = mu_fit(x_i)
+                lower = int(center - width_scale*fwhm)
+                upper = int(center + width_scale*fwhm)
+                trace2D[lower:upper+1, num] = 1 / (upper - lower + 1)
+            trace_models_2d.append(trace2D)
+            info_dict['fwhm'] = fwhm
+        trace_info.append(info_dict)
+
+    output_msg = "\n".join(msg)
+    return (trace_models_2d, trace_info, output_msg)
+
+
+def plot_diagnostics(pdf, spec1D, err1D, info_dict, width_scale=2):
+    """
+    Create a diagnostic plot of the
+    """
+    figsize = (8.3, 11.7)
+    if 'sig' in info_dict:
+        pars = ['mu', 'sig']
+    elif 'fwhm' in info_dict:
+        # TopHat profile:
+        pars = ['mu']
     else:
-        plt.plot(centers, y_points, marker='o', ls='', mec='k', color='none', alpha=0.5)
-        lower_aper = y*0 + aper_cen-1.5*FWHM0
-        upper_aper = y*0 + aper_cen+1.5*FWHM0
-        plt.plot(lower_aper, y, 'k-', alpha=0.5, lw=1.0)
-        plt.plot(upper_aper, y, 'k-', alpha=0.5, lw=1.0)
+        pars = ['mu', 'a', 'b']
 
-    ax2_2d = fig2D.add_subplot(1, 2, 2)
-    ax2_2d.set_title("Extraction Profile")
-    ax2_2d.imshow(profile_2d, origin='lower')
+    fig, axes = plt.subplots(nrows=len(pars)+1, ncols=1, figsize=figsize)
+    x = np.arange(len(info_dict['fit_mu']))
+    for par, ax in zip(pars, axes):
+        mask = info_dict['mask_'+par]
+        ax.plot(info_dict['x_binned'][mask], info_dict[par][mask], 'k+')
+        ax.plot(info_dict['x_binned'][~mask], info_dict[par][~mask], marker='.', ls='', color='0.6')
+        ax.plot(x, info_dict['fit_'+par], color='RoyalBlue', lw=1.5, alpha=0.9)
+        med = np.nanmedian(info_dict[par][mask])
+        std = 1.5*mad(info_dict[par][mask])
+        ymin = med-5*std
+        ymax = med+5*std
+        if 'fwhm' in info_dict:
+            lower = info_dict['fit_'+par] - width_scale*info_dict['fwhm']
+            upper = info_dict['fit_'+par] + width_scale*info_dict['fwhm']
+            ax.fill_between(x, lower, upper, color='RoyalBlue', alpha=0.2)
+            ymin = np.min(lower) - width_scale*info_dict['fwhm']/2
+            ymax = np.max(upper) + width_scale*info_dict['fwhm']/2
+        ax.set_ylim(ymin, ymax)
 
-    ax2_2d.set_xlabel("Spatial Direction")
-    ax1_2d.set_xlabel("Spatial Direction")
-    ax1_2d.set_ylabel("Spectral Direction")
+        if par == 'mu':
+            ax.set_ylabel("Centroid")
+        elif par == 'sig':
+            ax.set_ylabel("$\\sigma$")
+        elif par == 'a':
+            ax.set_ylabel("$\\alpha$")
+        elif par == 'b':
+            ax.set_ylabel("$\\beta$")
 
-    pdf.savefig(fig2D)
-
-    # --- Extract 1D spectrum
-    x1, x2 = trimx
-    y1, y2 = trimy
-    P = profile_2d
-    V = err2D**2
-    M = np.ones_like(mask2D)
-    M[mask2D > 0] == 0
-    if do_opt_extract:
-        spec1D = np.sum(M*P*img2D/V, 1)/np.sum(M*P**2/V, 1)
-        err1D = np.sqrt(np.sum(M*P, 1)/np.sum(M*P**2/V, 1))
-    else:
-        spec1D = np.sum(M*P*img2D/V, 1)/np.sum(M*P**2/V, 1)
-        err1D = np.sqrt(np.sum(M*P, 1)/np.sum(M*P**2/V, 1))
-
-    err1D = fix_nans(err1D)
-
-    # # Extract 1D sky spectrum around the aperture:
-    # bg1_1d = np.sum(M*bg1*img2D, 1)/np.sum(M*bg1**2, 1)
-    # bg2_1d = np.sum(M*bg2*img2D, 1)/np.sum(M*bg2**2, 1)
-    # bg_1d = 0.5*(bg1_1d + bg2_1d)
-    #
-    # # And refine the background subtraction:
-    # if background:
-    #     spec1D = spec1D - bg_1d
-
-    #
-    # --- Arc1D extraction:
-    hdr_arc = pf.getheader(arc_frame)
-
-    # - Check that the science- and arc frames were observed with the same grating:
-    error_msg = 'Grisms for arc-frame and science frame do not not match!'
-    assert hdr['ALGRNM'] == hdr_arc['ALGRNM'], AssertionError(error_msg)
-
-    arc2D = pf.getdata(arc_frame)
-    arc2D = arc2D[y1:y2, x1:x2]
-    if do_opt_extract:
-        arc1D = np.sum(P*arc2D, 1)/np.sum(P**2, 1)
-    else:
-        arc1D = np.sum(P*arc2D, 1)
-
-    fig_arc = plt.figure()
-    ax_arc = fig_arc.add_subplot(111)
-    ax_arc.set_title("1D arc spectrum, filename: %s" % arc_frame)
-    ax_arc.plot(y, arc1D, lw=1.)
-    ax_arc.set_xlabel("Pixels")
-    ax_arc.set_ylabel("Counts")
-    ax_arc.set_ylim(ymax=1.15*np.max(arc1D))
-
-    dy = 10
-    pix_table = np.loadtxt(alfosc.path + "/calib/%s_pixeltable.dat" % grism)
-    ybin = hdr['DETYBIN']
-    xbin = hdr['DETXBIN']
-    pix_table[:, 0] /= ybin
-    wl_vac = list()
-    pixels = list()
-    pixels_err = list()
-
-    # - Fit Wavelength Solution:
-    if y1 is None:
-        y1 = 0
-
-    for pix, l_vac in pix_table:
-        pix = pix - y1
-        ylow = int(pix - dy)
-        yhigh = int(pix + dy)
-        f0 = np.min(arc1D[ylow:yhigh])
-        fmax = np.max(arc1D[ylow:yhigh])
-        peak_height = np.log10(fmax - f0)
-        mu_init = ylow + np.argmax(arc1D[ylow:yhigh])
-        fit_result = leastsq(residuals_gauss, [f0, mu_init, 2., peak_height],
-                             args=(y[ylow:yhigh], arc1D[ylow:yhigh]),
-                             full_output=True)
-        popt, pcov, info, _, ier = fit_result
-        if ier <= 4 and pcov is not None:
-            pixels.append(popt[1])
-            wl_vac.append(l_vac)
-            fit_var = np.var(arc1D[ylow:yhigh] - info['fvec'])
-            perr = np.sqrt(fit_var * pcov.diagonal())
-            pixels_err.append(perr[1])
-            ax_arc.axvline(popt[1], 0.9, 0.97, color='r', lw=1.5)
-            ax_arc.plot(y[ylow:yhigh], gaussian_model(popt, y[ylow:yhigh]),
-                        color='crimson', lw='0.5')
-
-    wl_vac = np.array(wl_vac)
-    pixels = np.array(pixels)
-    pixel_to_wl = Chebyshev.fit(pixels, wl_vac, wl_order)
-    wl_to_pixel = Chebyshev.fit(wl_vac, pixels, wl_order)
-
-    pdf.savefig(fig_arc)
-
-    fig = plt.figure()
-    ax1 = fig.add_subplot(211)
-    ax2 = fig.add_subplot(212)
-    ax1.errorbar(wl_vac, pixels, pixels_err, color='k', ls='', marker='.')
-    ax1.plot(pixel_to_wl(y), y, 'crimson',
-             label="Chebyshev polynomial, $\\mathcal{O}=%i$" % wl_order)
-
-    wl_rms = np.std(pixels - wl_to_pixel(wl_vac))
-    ax2.errorbar(wl_vac, pixels - wl_to_pixel(wl_vac), pixels_err, color='k', ls='', marker='.')
-    ax2.axhline(0., ls='--', color='k', lw=0.5)
-
-    ax1.set_xlim(pixel_to_wl(y).min(), pixel_to_wl(y).max())
-    ax2.set_xlim(pixel_to_wl(y).min(), pixel_to_wl(y).max())
-
-    ax1.set_title("Wavelength Solution:  RMS = %.2f pixels" % wl_rms)
-    ax1.set_ylabel(u"Pixel")
-    ax2.set_ylabel(u"Residual")
-    ax2.set_xlabel(u"Vacuum Wavelength (Å)")
-    ax1.legend()
-
+    axes[-1].plot(spec1D, color='k', lw=1.0, alpha=0.9, label='Flux')
+    axes[-1].plot(err1D, color='crimson', lw=0.7, alpha=0.8, label='Error')
+    ymin = 0.
+    good = spec1D > 2*err1D
+    if np.sum(good) == 0:
+        good = spec1D > 0
+    ymax = np.nanmax(spec1D[good])
+    axes[-1].set_ylim(ymin, ymax)
+    axes[-1].set_ylabel("Flux")
+    axes[-1].set_xlabel("Dispersion Axis  [pixels]")
+    axes[-1].legend()
+    fig.tight_layout()
     pdf.savefig(fig)
 
-    #
-    # --- Linearize wavelength solution:
-    wl0 = pixel_to_wl(y)
-    wl = np.linspace(wl0.min(), wl0.max(), len(y))
-    dl = np.diff(wl)[0]
-    hdr1d = hdr.copy()
-    hdr['CD1_1'] = dl
-    hdr['CDELT1'] = dl
-    hdr['CRVAL1'] = wl.min()
-    hdr1d['CD1_1'] = dl
-    hdr1d['CDELT1'] = dl
-    hdr1d['CRVAL1'] = wl.min()
-    if np.diff(wl0)[0] < 0:
-        spec1D = np.interp(wl, wl0[::-1], spec1D[::-1])
-        err1D = np.interp(wl, wl0[::-1], err1D[::-1])
-    else:
-        spec1D = np.interp(wl, wl0, spec1D)
-        err1D = np.interp(wl, wl0, err1D)
-
-    #
-    # --- Flux calibrate:
-    # Load Extinction Table:
-    wl_ext, A0 = np.loadtxt(alfosc.path + '/calib/lapalma.ext', unpack=True)
-    ext = np.interp(wl, wl_ext, A0)
-
-    # Load Sensitivity Function:
-    if sensitivity:
-        sens_file = sensitivity
-        S = pf.getdata(sens_file)
-        S_hdr = pf.getheader(sens_file)
-        wl_S = S_hdr['CD1_1']*np.arange(len(S)) + S_hdr['CRVAL1']
-        sens_int = np.interp(wl, wl_S, S)
-        # - Check that the science frame and sensitivity were observed with the same grating:
-        error_msg = 'Grisms for science frame and sensitivity function do not not match!'
-        assert hdr['ALGRNM'] == S_hdr['ALGRNM'], AssertionError(error_msg)
-    else:
-        sens_file = alfosc.path + '/calib/%s_sens.fits' % grism
-        S = pf.getdata(sens_file)
-        S_hdr = pf.getheader(sens_file)
-        wl_S = S_hdr['CD1_1']*np.arange(len(S)) + S_hdr['CRVAL1']
-        sens_int = np.interp(wl, wl_S, S)
-
-    airm = hdr['AIRMASS']
-    t = hdr['EXPTIME']
-    ext_correction = 10**(0.4*airm * ext)
-
-    flux_calibration = ext_correction / 10**(0.4*sens_int)
-    flux1D = spec1D / t / dl * flux_calibration
-    err1D = err1D / t / dl * flux_calibration
-
-    flux_calib2D = np.resize(flux_calibration, img2D.T.shape)
-    flux_calib2D = flux_calib2D.T
-    flux2D = img2D[::-1] / t / dl * flux_calib2D
-    err2D = err2D[::-1] / t / dl * flux_calib2D
-
-    fig1D = plt.figure()
-    ax1D = fig1D.add_subplot(111)
-    ax1D.set_title("Final extracted 1D spectrum")
-    ax1D.plot(wl, flux1D, lw=1.)
-    ax1D.plot(wl, err1D, lw=1.)
-    ax1D.set_xlabel(u"Wavelength (Å)")
-    ax1D.set_ylabel(r"Flux  (${\rm erg\ cm^{-2}\ s^{-1}\ \AA^{-1}}$)")
-    if np.nansum((flux1D/err1D) > 5.) > 0:
-        flux_max = np.nanmax(flux1D[(flux1D/err1D) > 5.])
-    else:
-        flux_max = 10.*np.nanmedian(err1D)
-    ax1D.set_ylim(-np.nanmedian(err1D), 1.5*flux_max)
-    ax1D.set_xlim(wl.min(), wl.max())
-    ax1D.axhline(0., ls=':', color='k', lw=1.0)
-    hdr1d['BUNIT'] = 'erg/cm2/s/A'
-    hdr1d['CUNIT1'] = 'Angstrom'
-    hdr1d['EXTNAME'] = 'FLUX'
-
-    hdr['EXTNAME'] = 'FLUX'
-    hdr['BUNIT'] = 'erg/cm2/s/A'
-    hdr['CUNIT1'] = 'Angstrom'
-    hdr['CUNIT2'] = 'Arcsec'
-    hdr['CD2_2'] = 0.19 * xbin
-    hdr['CDELT2'] = 0.19 * xbin
-    hdr['CRVAL2'] = -img2D.shape[1]/2*(0.19*xbin)
-
-    pdf.savefig(fig1D)
-    pdf.close()
-
-    # --- Prepare output HDULists:
-    ext0_1d = pf.PrimaryHDU(flux1D, header=hdr1d)
-    ext1_1d = pf.ImageHDU(err1D, header=hdr1d, name='err')
-    HDU1D = pf.HDUList([ext0_1d, ext1_1d])
-    output_fname1D = hdr['OBJECT'] + '_final1D.fits'
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        HDU1D.writeto(output_fname1D, clobber=True)
-    print("\n  Saved calibrated 1D spectrum to file:  %s" % output_fname1D)
-
-    ext0_2d = pf.PrimaryHDU(flux2D.T, header=hdr)
-    ext1_2d = pf.ImageHDU(err2D.T, header=hdr, name='err')
-    HDU2D = pf.HDUList([ext0_2d, ext1_2d])
-    output_fname2D = hdr['OBJECT'] + '_final2D.fits'
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        HDU2D.writeto(output_fname2D, clobber=True)
-    print("\n  Saved calibrated 2D spectrum to file:  %s" % output_fname2D)
-    print("")
-
-    print("  Details from extraction are saved to file:  %s" % pdf_filename)
-
-    if show:
-        plt.show()
-    else:
-        plt.close('all')
 
 
-######################################################################################
-# --- EXTRACT ONLY ---
-######################################################################################
+def auto_extract_img(img2D, err2D, *, N=None, pdf_fname=None, mask=None, model_name='moffat', dx=50, width_scale=2, xmin=None, xmax=None, ymin=None, ymax=None, center_order=3, width_order=1):
+    assert err2D.shape == img2D.shape, "input image and error image do not match in shape"
+    if N == 0:
+        raise ValueError("Invalid input: N must be an integer larger than or equal to 1, not %r" % N)
 
-
-def extract(input_fname, arc_frame, output='', bin_size=30, xmin=100, xmax=-100,
-            do_opt_extract=True, interact=True, background=True,
-            center_order=3, FWHM0=10, trimy=[None, None], trimx=[None, None],
-            wl_order=4, aper_cen=None, show=False):
-    """Perform automatic localization of the trace if possible, otherwise use fixed
-    aperture to extract the 1D spectrum. The code optimizes the background subtraction
-    by estimating the background in an adjacent aperture.
-    The spectrum is then wavelength calibrated using an associated *arc_frame*.
-    """
-    hdr = pf.getheader(input_fname)
-    img2D = pf.getdata(input_fname)
-    try:
-        err2D = pf.getdata(input_fname, 1)
-    except:
-        if hdr['CCDNAME'] == 'CCD14':
-            hdr['GAIN'] = 0.16
-        g = hdr['GAIN']
-        r = hdr['RDNOISE']
-        err2D = np.sqrt(img2D*g + r**2)/g
-        err_NaN = np.isnan(err2D)
-        err2D[err_NaN] = r/g
-    try:
-        mask2D = pf.getdata(input_fname, 2)
-    except:
-        mask2D = np.zeros_like(img2D)
-
-    grism = alfosc.grism_translate[hdr['ALGRNM']]
-
-    # Open PDF file for writing diagnostics:
-    if exists("diagnostics") is False:
-        os.mkdir("diagnostics")
-    pdf_filename = "diagnostics/" + hdr['OBJECT'] + '_details.pdf'
-    pdf = backend_pdf.PdfPages(pdf_filename)
-
-    x = np.arange(img2D.shape[1])
-    y = np.arange(img2D.shape[0])
-
-    y_points = list()
-    p_points = list()
-    fwhm_points = list()
-    plt.close('all')
-
-    SPSF0 = np.median(img2D, 0)
-    x0 = len(SPSF0)/2                 # Peak location
-    peak_height = np.max(SPSF0)       # Peak height
-    f0 = np.median(SPSF0)             # Background level
-    fit_result = leastsq(residuals, [0., f0, 2., 5., x0, np.log10(peak_height)],
-                         args=(x[xmin:xmax], SPSF0[xmin:xmax]), full_output=True)
-    popt, pcov, info, _, ier = fit_result
-
-    if ier <= 4 and pcov is not None:
-        # solution was found:
-        V = np.var(SPSF0[xmin:xmax] - info['fvec'])
-        perr = np.sqrt(pcov.diagonal()*V)
-        significance = popt/perr
-        if significance[-2] > 10. and significance[-1] > 10.:
-            # print " Trace detected!"
-            alpha = popt[2]
-            beta = popt[3]
-            if do_opt_extract:
-                FWHM0 = alpha*2*np.sqrt(2**(1./beta)-1.)
+    M = np.ones_like(img2D)
+    if mask is not None:
+        if mask.shape == img2D.shape:
+            M[mask > 0] == 0
         else:
-            print("\n [WARNING] - No trace detected!")
-            do_opt_extract = False
+            raise ValueError("The provided mask does not match the input image shape")
 
-    else:
-        print("\n [WARNING] - No trace detected!")
-        do_opt_extract = False
+    msg = list()
+    var2D = err2D**2
+    var2D[var2D == 0.] = np.median(var2D)*100
+    var2D[np.isnan(var2D)] = np.median(var2D)*100
 
-    if do_opt_extract is False:
-        plt.close('all')
-        plt.plot(SPSF0)
-        if interact is True:
-            central_marking = plt.ginput(1, -1)
-            aper_cen, y0 = central_marking[0]
-        else:
-            if aper_cen is None:
-                index_max = np.argmax(SPSF0[20:-20])
-                aper_cen = 20 + x[index_max]
-        plt.axvline(aper_cen, color='r')
-        plt.axvline(aper_cen + 1.5*FWHM0, color='r', ls=':')
-        plt.axvline(aper_cen - 1.5*FWHM0, color='r', ls=':')
+    # Optimal Extraction:
+    profile_values = create_2d_profile(img2D, model_name=model_name, dx=dx, width_scale=width_scale,
+                                       xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax,
+                                       center_order=center_order, width_order=width_order)
+    trace_models_2d, trace_info, profile_msg = profile_values
+    msg.append(profile_msg)
 
-    for ymin in np.arange(0, img2D.shape[0], bin_size):
-        SPSF = np.median(img2D[ymin:ymin+bin_size, :], 0)
-        SPSF = gaussian_filter1d(SPSF, FWHM0/2.35)
-        x0 = len(SPSF)/2                     # Peak location
-        y0 = np.log10(np.nanmax(SPSF))       # Peak height
-        f0 = np.median(SPSF)                 # Background level
-        fit_result = leastsq(residuals, [0., f0, 1., 5., x0, y0],
-                             args=(x[xmin:xmax], SPSF[xmin:xmax]), full_output=True)
-        popt, pcov, info, _, ier = fit_result
-
-        if ier <= 4 and pcov is not None:
-            # solution was found:
-            V = np.var(SPSF[xmin:xmax] - info['fvec'])
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                perr = np.sqrt(pcov.diagonal()*V)
-            significance = popt/perr
-            # if significance[-2] > 3. and significance[-1] > 4:
-            if np.mean(significance) > 3.:
-                y_points.append(np.mean(y[ymin:ymin+bin_size]))
-                p_points.append(popt)
-                alpha = popt[2]
-                beta = popt[3]
-                FWHM = alpha*2*np.sqrt(2**(1./beta)-1.)
-                fwhm_points.append(FWHM)
-
+    msg.append("          - Performing optimal extraction")
+    if N is not None:
+        N_obj = len(trace_models_2d)
+        if N_obj != N:
+            if N == 1:
+                err_msg = "Expected 1 spectrum but found %i" % N_obj
             else:
-                pass
-        else:
-            pass
+                err_msg = "Expected %i spectra but found %i" % (N, N_obj)
+            raise ValueError(err_msg)
 
-    fig_trace = plt.figure()
-    ax1 = fig_trace.add_subplot(4, 1, 1)
-    ax2 = fig_trace.add_subplot(4, 1, 2)
-    ax3 = fig_trace.add_subplot(4, 1, 3)
-    ax4 = fig_trace.add_subplot(4, 1, 4)
-    for i, p in enumerate(p_points):
-        ax1.plot(y_points[i], p[2], 'k.')
-        ax2.plot(y_points[i], p[3], 'k.')
-        ax3.plot(y_points[i], p[4], 'k.')
-        ax4.plot(y_points[i], p[5], 'k.')
+    if pdf_fname:
+        pdf = backend_pdf.PdfPages(pdf_fname)
 
-    ax1.set_ylabel("Moffat $\\alpha$")
-    ax2.set_ylabel("Moffat $\\beta$")
-    ax3.set_ylabel("Trace center")
-    ax4.set_ylabel("Trace amplitude")
+    spectra = list()
+    for P, info_dict in zip(trace_models_2d, trace_info):
+        spec1D = np.sum(M*P*img2D/var2D, axis=0) / np.sum(M*P**2/var2D, axis=0)
+        var1D = np.sum(M*P, axis=0) / np.sum(M*P**2/var2D, axis=0)
+        err1D = np.sqrt(var1D)
+        err1D = fix_nans(err1D)
+        spectra.append([spec1D, err1D])
 
-    ax1.set_title("Spectral Trace Localization")
-    ax4.set_xlabel("Dispersion Axis  (pixels)")
+        if pdf_fname:
+            plot_diagnostics(pdf, spec1D, err1D, info_dict, width_scale)
 
-    y_points = np.array(y_points)
-
-    # --- Sigma-clip *alpha*:
-    alphas = np.array([p[2] for p in p_points])
-    filter_size = bin_size - 1 + bin_size % 2
-    a0 = median_filter(alphas, filter_size)
-    sig0 = 1.4826*mad(alphas - a0)
-    outliers = (np.abs(alphas - a0) > 4*sig0)
-    # Fit the good values with polynomium:
-    # fit_alpha = Chebyshev.fit(y_points[~outliers], alphas[~outliers], 0)
-
-    # Use median of the good values:
-    def fit_alpha(y):
-        return 0.*y + np.median(alphas[~outliers])
-    ax1.plot(y, fit_alpha(y), alpha=0.8)
-    ax1.plot(y_points[outliers], alphas[outliers], color='crimson', ls='', marker='.')
-    ax1.set_ylim(np.median(alphas)-5*sig0, np.median(alphas)+5*sig0)
-
-    # --- Sigma-clip *beta*:
-    betas = np.array([p[3] for p in p_points])
-    # filter_size = bin_size - 1 + bin_size % 2
-    filter_size = 9
-    b0 = median_filter(betas, filter_size)
-    sig0 = 1.4826*mad(betas - b0)
-    outliers = np.abs(betas - b0) > 5*sig0
-    # Fit the good values with polynomium:
-    # fit_beta = Chebyshev.fit(y_points[~outliers], betas[~outliers], 0)
-
-    # Use median of the good values:
-    def fit_beta(y):
-        return 0.*y + np.median(betas[~outliers])
-    ax2.plot(y, fit_beta(y), alpha=0.8)
-    ax2.plot(y_points[outliers], betas[outliers], color='crimson', ls='', marker='.')
-    ax2.set_ylim(np.median(betas)-5*sig0, np.median(betas)+5*sig0)
-
-    # --- Sigma-clip the trace centers:  [mu]
-    centers = np.array([p[4] for p in p_points])
-    # filter_size = bin_size - 1 + bin_size % 2
-    filter_size = 9
-    cen0 = median_filter(centers, filter_size)
-    sig0 = 1.4826*mad(centers - cen0)
-    outliers = np.abs(centers - cen0) > 10*sig0
-    fit_cen = Chebyshev.fit(y_points[~outliers], centers[~outliers], center_order)
-    ax3.plot(y, fit_cen(y), alpha=0.8, label="Chebyshev $\\mathcal{O}=%i$" % center_order)
-    ax3.plot(y_points[outliers], centers[outliers], color='crimson', ls='', marker='.')
-
-    # --- Sigma-clip *amplitude*:
-    amps = np.array([p[5] for p in p_points])
-    # filter_size = bin_size - 1 + bin_size % 2
-    filter_size = 9
-    amp0 = median_filter(amps, filter_size)
-    sig0 = 1.4826*mad(amps - amp0)
-    outliers = np.abs(amps - amp0) > 5*sig0
-    fit_amp = Chebyshev.fit(y_points[~outliers], amps[~outliers], 3)
-    ax4.plot(y, fit_amp(y), alpha=0.8)
-    ax4.plot(y_points[outliers], amps[outliers], color='crimson', ls='', marker='.')
-
-    pdf.savefig(fig_trace)
-
-    #
-    # --- Make 2D extraction profile and background apertures
-    profile_2d = np.zeros_like(img2D, dtype=float)
-    bg1 = np.zeros_like(img2D, dtype=float)
-    bg2 = np.zeros_like(img2D, dtype=float)
-    if do_opt_extract:
-        pars_array = zip(fit_alpha(y), fit_beta(y), fit_cen(y), fit_amp(y))
-        for i, pars in enumerate(pars_array):
-            xlow = pars[2] - 2*FWHM0
-            xhigh = pars[2] + 2*FWHM0
-            aperture = (x >= xlow) * (x <= xhigh)
-            profile_1d = NNmoffat(x, *pars) * aperture
-            profile_2d[i] = profile_1d/profile_1d.sum()
-            bg1_1d = 1. * ((x >= xlow-FWHM0) * (x <= xlow))
-            bg2_1d = 1. * ((x >= xhigh) * (x <= xhigh+FWHM0))
-            bg1[i] = bg1_1d/bg1_1d.sum()
-            bg2[i] = bg2_1d/bg2_1d.sum()
-        # Save trace parameters:
-        trace_file_dat = open(hdr['OBJECT']+'_trace.dat', 'w')
-        trace_file_dat.write("#pixel  alpha  beta  center  amplitude\n")
-        trace_file_fit = open(hdr['OBJECT']+'_trace.fit', 'w')
-        trace_file_fit.write("#pixel  alpha  beta  center  amplitude\n")
-        trace_data = np.column_stack([y_points, alphas, betas, centers, amps])
-        trace_fit = np.column_stack([y, fit_alpha(y), fit_beta(y), fit_cen(y), fit_amp(y)])
-        np.savetxt(trace_file_dat, trace_data, fmt="%5i  %.2f  %.2f  %.2f  %.2f")
-        np.savetxt(trace_file_fit, trace_fit, fmt="%5i  %.2f  %.2f  %.2f  %.2f")
-        trace_file_dat.close()
-        trace_file_fit.close()
-    else:
-        for i in range(len(y)):
-            # aper_cen = fit_cen(y)[i]
-            xlow = aper_cen - 1.5*FWHM0
-            xhigh = aper_cen + 1.5*FWHM0
-            profile_1d = 1. * ((x >= xlow) * (x <= xhigh))
-            profile_2d[i] = profile_1d/profile_1d.sum()
-            bg1_1d = 1. * ((x >= xlow-FWHM0) * (x <= xlow))
-            bg2_1d = 1. * ((x >= xhigh) * (x <= xhigh+FWHM0))
-            bg1[i] = bg1_1d/bg1_1d.sum()
-            bg2[i] = bg2_1d/bg2_1d.sum()
-
-    #
-    # --- Show aperture on top of 2D spectrum
-    fig2D = plt.figure()
-    ax1_2d = fig2D.add_subplot(1, 2, 1)
-    ax1_2d.set_title("2D spectrum")
-    img_noise = mad(img2D)
-    v0 = np.median(img2D)
-    ax1_2d.imshow(img2D, vmin=v0-6*img_noise, vmax=v0+6*img_noise, origin='lower')
-    if do_opt_extract:
-        plt.plot(centers[~outliers], y_points[~outliers],
-                 marker='o', alpha=0.5, color='RoyalBlue')
-        plt.plot(centers[outliers], y_points[outliers],
-                 marker='o', ls='', mec='k', color='none', alpha=0.5)
-        plt.plot(fit_cen(y)-2.*FWHM0, y, 'k-', alpha=0.5, lw=1.0)
-        plt.plot(fit_cen(y)+2.*FWHM0, y, 'k-', alpha=0.5, lw=1.0)
-    else:
-        plt.plot(centers, y_points, marker='o', ls='', mec='k', color='none', alpha=0.5)
-        lower_aper = y*0 + aper_cen-1.5*FWHM0
-        upper_aper = y*0 + aper_cen+1.5*FWHM0
-        plt.plot(lower_aper, y, 'k-', alpha=0.5, lw=1.0)
-        plt.plot(upper_aper, y, 'k-', alpha=0.5, lw=1.0)
-
-    ax2_2d = fig2D.add_subplot(1, 2, 2)
-    ax2_2d.set_title("Extraction Profile")
-    ax2_2d.imshow(profile_2d, origin='lower')
-
-    ax2_2d.set_xlabel("Spatial Direction")
-    ax1_2d.set_xlabel("Spatial Direction")
-    ax1_2d.set_ylabel("Spectral Direction")
-
-    pdf.savefig(fig2D)
-
-    # Prepare data arrays:
-    x1, x2 = trimx
-    y1, y2 = trimy
-    P = profile_2d
-    V = err2D**2
-    M = np.ones_like(mask2D)
-    M[mask2D > 0] == 0
-
-    # Make refined sky spectrum around the aperture:
-    bg1_1d = np.sum(M*bg1*img2D, 1)
-    bg2_1d = np.sum(M*bg2*img2D, 1)
-    bg_1d = 0.5*(bg1_1d + bg2_1d)
-    B = np.resize(bg_1d, img2D.T.shape)
-    B = B.T
-
-    # And refine the background subtraction:
-    if background:
-        data2D = img2D - B
-    else:
-        data2D = img2D
-
-    # --- Extract 1D spectrum
-    spec1D = np.sum(M*P*data2D, 1)/np.sum(M*P**2, 1)
-    err1D = np.sqrt(np.sum(M*P, 1)/np.sum(M*P**2/V, 1))
-    err1D = fix_nans(err1D)
-
-    #
-    # --- Arc1D extraction:
-    hdr_arc = pf.getheader(arc_frame)
-
-    # - Check that the science- and arc frames were observed with the same grating:
-    error_msg = 'Grisms for arc-frame and science frame do not not match!'
-    assert hdr['ALGRNM'] == hdr_arc['ALGRNM'], AssertionError(error_msg)
-
-    arc2D = pf.getdata(arc_frame)
-    arc2D = arc2D[y1:y2, x1:x2]
-    # if do_opt_extract:
-    arc1D = np.sum(P*arc2D, 1)/np.sum(P**2, 1)
-
-    fig_arc = plt.figure()
-    ax_arc = fig_arc.add_subplot(111)
-    ax_arc.set_title("1D arc spectrum, filename: %s" % arc_frame)
-    ax_arc.plot(y, arc1D, lw=1.)
-    ax_arc.set_xlabel("Pixels")
-    ax_arc.set_ylabel("Counts")
-    ax_arc.set_ylim(ymax=1.15*np.max(arc1D))
-
-    dy = 10
-    pix_table = np.loadtxt(alfosc.path + "/calib/%s_pixeltable.dat" % grism)
-    ybin = hdr['DETYBIN']
-    pix_table[:, 0] /= ybin
-    wl_vac = list()
-    pixels = list()
-    pixels_err = list()
-
-    # - Fit Wavelength Solution:
-    if y1 is None:
-        y1 = 0
-
-    for pix, l_vac in pix_table:
-        pix = pix - y1
-        ylow = int(pix - dy)
-        yhigh = int(pix + dy)
-        f0 = np.min(arc1D[ylow:yhigh])
-        fmax = np.max(arc1D[ylow:yhigh])
-        peak_height = np.log10(fmax - f0)
-        mu_init = ylow + np.argmax(arc1D[ylow:yhigh])
-        fit_result = leastsq(residuals_gauss, [f0, mu_init, 2., peak_height],
-                             args=(y[ylow:yhigh], arc1D[ylow:yhigh]),
-                             full_output=True)
-        popt, pcov, info, _, ier = fit_result
-        if ier <= 4 and pcov is not None:
-            pixels.append(popt[1])
-            wl_vac.append(l_vac)
-            fit_var = np.var(arc1D[ylow:yhigh] - info['fvec'])
-            perr = np.sqrt(fit_var * pcov.diagonal())
-            pixels_err.append(perr[1])
-            ax_arc.axvline(popt[1], 0.9, 0.97, color='r', lw=1.5)
-            ax_arc.plot(y[ylow:yhigh], gaussian_model(popt, y[ylow:yhigh]),
-                        color='crimson', lw='0.5')
-
-    wl_vac = np.array(wl_vac)
-    pixels = np.array(pixels)
-    pixel_to_wl = Chebyshev.fit(pixels, wl_vac, wl_order)
-    wl_to_pixel = Chebyshev.fit(wl_vac, pixels, wl_order)
-
-    pdf.savefig(fig_arc)
-
-    fig = plt.figure()
-    ax1 = fig.add_subplot(211)
-    ax2 = fig.add_subplot(212)
-    ax1.errorbar(wl_vac, pixels, pixels_err, color='k', ls='', marker='.')
-    ax1.plot(pixel_to_wl(y), y, 'crimson',
-             label="Chebyshev polynomial, $\\mathcal{O}=%i$" % wl_order)
-
-    wl_rms = np.std(pixels - wl_to_pixel(wl_vac))
-    ax2.errorbar(wl_vac, pixels - wl_to_pixel(wl_vac), pixels_err, color='k', ls='', marker='.')
-    ax2.axhline(0., ls='--', color='k', lw=0.5)
-
-    ax1.set_xlim(pixel_to_wl(y).min(), pixel_to_wl(y).max())
-    ax2.set_xlim(pixel_to_wl(y).min(), pixel_to_wl(y).max())
-
-    ax1.set_title("Wavelength Solution:  RMS = %.2f pixels" % wl_rms)
-    ax1.set_ylabel(u"Pixel")
-    ax2.set_ylabel(u"Residual")
-    ax2.set_xlabel(u"Vacuum Wavelength (Å)")
-    ax1.legend()
-
-    pdf.savefig(fig)
-
-    #
-    # --- Linearize wavelength solution:
-    wl0 = pixel_to_wl(y)
-    wl = np.linspace(wl0.min(), wl0.max(), len(y))
-    dl = np.diff(wl)[0]
-    hdr1d = hdr.copy()
-    hdr['CD1_1'] = dl
-    hdr['CDELT1'] = dl
-    hdr['CRVAL1'] = wl.min()
-    hdr1d['CD1_1'] = dl
-    hdr1d['CDELT1'] = dl
-    hdr1d['CRVAL1'] = wl.min()
-    if np.diff(wl0)[0] < 0:
-        spec1D = np.interp(wl, wl0[::-1], spec1D[::-1])
-        err1D = np.interp(wl, wl0[::-1], err1D[::-1])
-    else:
-        spec1D = np.interp(wl, wl0, spec1D)
-        err1D = np.interp(wl, wl0, err1D)
-
-    # --- Prepare output HDULists:
-    ext0_1d = pf.PrimaryHDU(spec1D, header=hdr1d)
-    ext1_1d = pf.ImageHDU(err1D, header=hdr1d, name='err')
-    HDU1D = pf.HDUList([ext0_1d, ext1_1d])
-    if output:
-        if output[-4:] == '.fits':
-            output_fname1D = output
-        else:
-            output_fname1D = output + '.fits'
-    else:
-        output_fname1D = hdr['OBJECT'] + '_spec1D.fits'
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        HDU1D.writeto(output_fname1D, clobber=True)
-    print("\n  Saved 1D extracted spectrum to file:  %s" % output_fname1D)
-
-    print("  Details from extraction are saved to file:  %s" % pdf_filename)
-
-    if show:
-        plt.show()
-    else:
+    if pdf_fname:
+        msg.append("          - Saved diagnostic figures: %s" % pdf_fname)
+        pdf.close()
         plt.close('all')
-    pdf.close()
 
-    return wl, spec1D, err1D
+    output_msg = "\n".join(msg)
+    return spectra, output_msg
+
+
+def auto_extract(fname, output, dispaxis=1, *, N=None, pdf_fname=None, mask=None, model_name='moffat', dx=50, width_scale=2, xmin=None, xmax=None, ymin=None, ymax=None, center_order=3, width_order=1):
+    """Automatically extract object spectra in the given file. Dispersion along the x-axis is assumed!"""
+    msg = list()
+    img2D = fits.getdata(fname)
+    hdr = fits.getheader(fname)
+    if 'DISPAXIS' in hdr:
+        dispaxis = hdr['DISPAXIS']
+
+    msg.append("          - Loaded image data: %s" % fname)
+    try:
+        err2D = fits.getdata(fname, 'ERR')
+        msg.append("          - Loaded error image extension")
+    except:
+        noise = 1.5*mad(img2D)
+        err2D = np.ones_like(img2D) * noise
+        msg.append("[WARNING] - No error image detected!")
+        msg.append("[WARNING] - Generating one from image statistics:")
+        msg.append("[WARNING] - Median=%.2e  Sigma=%.2e" % (np.nanmedian(img2D), noise))
+
+    if dispaxis == 2:
+        img2D = img2D.T
+        err2D = err2D.T
+
+    spectra, ext_msg = auto_extract_img(img2D, err2D, N=N, pdf_fname=pdf_fname, mask=mask,
+                                        model_name=model_name, dx=dx, width_scale=width_scale,
+                                        xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax,
+                                        center_order=center_order, width_order=width_order)
+    msg.append(ext_msg)
+
+    hdu = fits.HDUList()
+    hdr['COMMENT'] = 'PyNOT automatically extracted spectrum'
+    hdr['COMMENT'] = 'Each spectrum in its own extension'
+    if 'CDELT1' in hdr:
+        cdelt = hdr['CDELT1']
+        crval = hdr['CRVAL1']
+        crpix = hdr['CRPIX1']
+        wl = (np.arange(hdr['NAXIS1']) - (crpix - 1))*cdelt + crval
+    else:
+        wl = np.arange(len(spectra[0][0]))
+    for num, (flux, err) in enumerate(spectra):
+        col_wl = fits.Column(name='WAVE', array=wl, format='D')
+        col_flux = fits.Column(name='FLUX', array=flux, format='D')
+        col_err = fits.Column(name='ERR', array=err, format='D')
+        tab = fits.BinTableHDU.from_columns([col_wl, col_flux, col_err], header=hdr)
+        tab.name = 'OBJ%i' % (num+1)
+        hdu.append(tab)
+
+    keywords_base = ['NAXIS%i', 'CDELT%i', 'CRPIX%i', 'CRVAL%i']
+    keywords_to_remove = sum([[key % num for key in keywords_base] for num in [1, 2]], [])
+    keywords_to_remove += ['CD1_1', 'CD2_1', 'CD1_2', 'CD2_2']
+    for key in keywords_to_remove:
+        hdr.remove(key, ignore_missing=True)
+
+    hdu.writeto(output, overwrite=True, output_verify='silentfix')
+    msg.append("          - Writing fits table: %s" % output)
+    output_msg = "\n".join(msg)
+    return output_msg
