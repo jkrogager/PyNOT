@@ -24,10 +24,15 @@ import warnings
 import PyNOT
 import alfosc
 from extraction import extract
+from alfosc import get_alfosc_header
+
+code_dir = os.path.dirname(os.path.abspath(__file__))
+v_file = os.path.join(code_dir, 'VERSION')
+with open(v_file) as version_file:
+    __version__ = version_file.read().strip()
 
 
-def sensitivity(raw_frame, arc_frame, output='', bias='', flat='', trimx=[None, None],
-                trimy=[None, None], order=8):
+def sensitivity(raw_frame, arc_frame, bias_fname, flat_fname, output='', pdf_filename='', order=8):
     """
     Extract and wavelength calibrate the standard star spectrum.
     Calculate the sensitivity function and fit the median filtered sensitivity
@@ -35,79 +40,61 @@ def sensitivity(raw_frame, arc_frame, output='', bias='', flat='', trimx=[None, 
 
     Parameters
     ==========
+    raw_frame : string
+        File name for the standard star frame
 
-        raw_frame : string
-            File name for the standard star frame
+    arc_frame : string
+        File name for the associated arc frame
 
-        arc_frame : string
-            File name for the associated arc frame
+    bias_fname : string
+        Master bias file name to subtract bias level.
+        If nothing is given, no bias level correction is performed.
 
-        output : string [default='']
-            Output file name for the sensitivity function.
+    flat_fname : string
+        Normalized flat file name.
+        If nothing is given, no spectral flat field correction is performed.
 
-        bias : string [default='']
-            Master bias file name to subtract bias level.
-            If nothing is given, no bias level correction is performed.
+    output : string  [default='']
+        Output file name for the sensitivity function.
+        If none, autogenerate from OBJECT name
 
-        flat : string [default='']
-            Normalized flat file name.
-            If nothing is given, no spectral flat field correction is performed.
+    pdf_fname : string  [default='']
+        Output filename for diagnostic plots.
+        If none, autogenerate from OBJECT name
 
-        trimx : list (2,)
-            Lower and upper bounds, data outside the range will be trimmed
-
-        trimy : list (2,)
-            Lower and upper bounds, data outside the range will be trimmed
-
-        order : integer [default=8]
-            Order of the Chebyshev polynomium to fit the sensitivity
+    order : integer  [default=8]
+        Order of the Chebyshev polynomium to fit the sensitivity
 
     Returns
     =======
+    output : string
+        Filename of resulting sensitivity function
 
-        wl : np.array
-            Wavelength of the sensitivity function.
-        sens : np.array
-            Sensitivity function
+    output_msg : string
+        Log of the function call
     """
+    msg = list
+    msg.append("          - Running task: bias and flat field correction")
+    mbias = pf.getdata(bias_fname)
+    msg.append("          - Loaded BIAS image: %s" % bias_fname)
+    mflat = pf.getdata(flat_fname)
+    msg.append("          - Loaded FLAT field image: %s" % flat_fname)
 
-    HDU = pf.open(raw_frame)
-    if len(HDU) > 1:
-        hdr = HDU[0].header
-        for key in HDU[1].header.keys():
-            hdr[key] = HDU[1].header[key]
-    else:
-        hdr = pf.getheader(raw_frame)
+    hdr = get_alfosc_header(raw_frame)
     raw2D = pf.getdata(raw_frame)
-
-    if isfile(bias):
-        mbias = pf.getdata(bias)
-    else:
-        mbias = np.zeros_like(raw2D)
-        print " WARNING - No master bias file provided!"
-
-    if isfile(flat):
-        mflat = pf.getdata(flat)
-        flat_hdr = pf.getheader(flat)
-        error_msg = 'Grisms for science frame and spectral flat field do not not match!'
-        assert hdr['ALGRNM'] == flat_hdr['ALGRNM'], AssertionError(error_msg)
-    else:
-        mflat = np.ones_like(raw2D)
-        print " WARNING - No master flat file provided!"
-
-    # Open PDF file for writing diagnostics:
-    if exists("diagnostics") is False:
-        os.mkdir("diagnostics")
-    pdf_filename = "diagnostics/" + hdr['OBJECT'] + '_sens_details.pdf'
-    pdf = backend_pdf.PdfPages(pdf_filename)
-
-    x1, x2 = trimx
-    y1, y2 = trimy
-    std = (raw2D[y1:y2, x1:x2] - mbias[y1:y2, x1:x2])/mflat[y1:y2, x1:x2]
 
     # Update gain for the new CCD, wrong gain written in header from the instrument
     if hdr['CCDNAME'] == 'CCD14':
         hdr['GAIN'] = 0.16
+    std = (raw2D - mbias)/mflat
+
+    hdr.add_comment('PyNOT version %s' % __version__)
+    hdr.add_comment("BIAS subtract: %s" % bias_fname)
+    hdr.add_comment("FLAT correction: %s" % flat_fname)
+
+    if not pdf_filename:
+        pdf_filename = 'sens_diagnostic_' + hdr['OBJECT'] + '.pdf'
+    pdf = backend_pdf.PdfPages(pdf_filename)
 
     # Save the updated, bias subtracted and flat-fielded frame
     with warnings.catch_warnings():
@@ -116,25 +103,18 @@ def sensitivity(raw_frame, arc_frame, output='', bias='', flat='', trimx=[None, 
 
     # Extract 1-dimensional spectrum and subtract background
     wl, ext1d, err1d = extract('std_tmp.fits', arc_frame, do_opt_extract=False, interact=False,
-                               background=True, trimx=trimx, trimy=trimy, FWHM0=30)
+                               background=True, FWHM0=30)
     os.system("rm std_tmp.fits")
 
     # Check if the star name is in the header:
-    if hdr['OBJECT'].lower() in alfosc.standard_stars:
-        star = hdr['OBJECT'].lower()
-    elif hdr['OBJECT'].upper() in alfosc.standard_star_names.keys():
-        star = alfosc.standard_star_names[hdr['OBJECT'].upper()]
-
+    if hdr['TCSTGT'] in alfosc.standard_stars:
+        star = hdr['TCSTGT']
     else:
-        print ""
-        print "  No valid star name found in the header!  OBJECT =  %s" % hdr['OBJECT']
-        print "  Check if the star is listed in the directory 'calib/std'."
-        print ""
-        print "  Otherwise, choose one of the following:"
-        print alfosc.standard_stars
-        print ""
-        star = raw_input(" Star name: ")
-        print ""
+        print("")
+        print("  No valid star name found in the header!  TCS Target Name =  %s" % hdr['TCSTGT'])
+        print("  Check if the star is listed in the directory 'calib/std'.")
+        print("")
+
 
     # Plot the extracted spectrum
     fig1 = plt.figure()
@@ -203,6 +183,7 @@ def sensitivity(raw_frame, arc_frame, output='', bias='', flat='', trimx=[None, 
     ax2.plot(wl, sens, color='crimson', lw=1)
     pdf.savefig(fig2)
     pdf.close()
+    print("  Details from extraction are saved to file:  %s" % pdf_filename)
 
     # --- Prepare output HDULists:
     dl = np.diff(wl)[0]
@@ -223,9 +204,8 @@ def sensitivity(raw_frame, arc_frame, output='', bias='', flat='', trimx=[None, 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         HDU1D.writeto(output_fname1D, clobber=True)
-    print "\n  Saved 1D extracted spectrum to file:  %s" % output_fname1D
-    print "  Details from extraction are saved to file:  %s" % pdf_filename
-    print ""
+    print("\n  Saved 1D extracted spectrum to file:  %s" % output_fname1D)
+    print("")
 
     return wl, sens
 
