@@ -15,6 +15,7 @@ import data_organizer as do
 from calibs import combine_bias_frames, combine_flat_frames, normalize_spectral_flat
 from wavecal import create_pixtable, rectify
 from scired import raw_correction, auto_fit_background
+from response import calculate_response
 
 code_dir = os.path.dirname(os.path.abspath(__file__))
 calib_dir = os.path.join(code_dir, 'calib/')
@@ -276,9 +277,9 @@ def main(raw_path=None, options_fname=None, verbose=False):
         norm_flat_fname = os.path.join(output_dir, 'NORM_FLAT_%s_%s.fits' % (grism, sci_img.slit))
         rect2d_fname = os.path.join(output_dir, 'RECT2D_%s.fits' % (sci_img.target_name))
         bgsub2d_fname = os.path.join(output_dir, 'BGSUB2D_%s.fits' % (sci_img.target_name))
-        sens_fname = os.path.join(output_dir, 'SENSITIVITY_%s.fits' % (grism))
-        corrected_2d_fname = os.path.join(output_dir, 'CORRECTED2D_%s_%s.fits' % (sci_img.target_name, sci_img.date))
-        final_2d_fname = os.path.join(output_dir, 'red2D_%s_%s.fits' % (sci_img.target_name, sci_img.date))
+        response_pdf = os.path.join(output_dir, 'RESPONSE_%s.pdf' % (grism))
+        corrected_2d_fname = os.path.join(output_dir, 'CORRECTED2D_%s.fits' % (sci_img.target_name))
+        final_2d_fname = os.path.join(output_dir, 'red2D_%s.fits' % (sci_img.target_name))
 
 
         # Combine Bias Frames matched for CCD setup:
@@ -365,23 +366,41 @@ def main(raw_path=None, options_fname=None, verbose=False):
 
 
         # Response Function:
-        # -- Note that sensitivity function and response function are used interchangeably throughout!
-        # output: sens_fname
         flux_std_files = sci_img.match_files(database['SPEC_FLUX-STD'], grism=True, slit=True, filter=True, get_closest_time=True)
         if len(flux_std_files) == 0:
             log.warn("No spectroscopic standard star was found in the dataset!")
             log.warn("The reduced spectra will not be flux calibrated")
+            status['RESPONSE'] = None
+
         else:
             std_fname = flux_std_files[0]
-            log.write("Spectroscopic Flux Standard: %s" % std_fname)
-            try:
-                output_fname1D, response_msg = calculate_response(std_fname, arc_fname, )
-                status['RESPONSE'] = output_fname1D
-            except:
-                log.error("Calculation of sensitivity function failed!")
-                log.fatal_error()
-                print("Unexpected error:", sys.exc_info()[0])
-                raise
+            std_base = os.path.basename(std_fname).split('.')[0][2:]
+            response_fname = os.path.join(output_dir, 'response_%s_%s.fits' % (std_base, grism))
+            if os.path.exists(response_fname):
+                log.write("Response function already exists: %s" % response_fname)
+                status['RESPONSE'] = response_fname
+            else:
+                std_fname = flux_std_files[0]
+                log.write("Spectroscopic Flux Standard: %s" % std_fname)
+                try:
+                    response_fname, response_msg = calculate_response(std_fname, arc_fname=arc_fname,
+                                                                      pixtable_fname=pixtable,
+                                                                      bias_fname=master_bias_fname,
+                                                                      flat_fname=norm_flat_fname,
+                                                                      output=response_fname,
+                                                                      output_dir=output_dir, pdf_fname=response_pdf,
+                                                                      order=options['response']['order'],
+                                                                      interactive=options['response']['interactive'],
+                                                                      dispaxis=sci_img.dispaxis, order_wl=order_wl,
+                                                                      order_bg=options['scired']['order_bg'],
+                                                                      rectify_options=options['rectify'])
+                    status['RESPONSE'] = response_fname
+                    log.commit(response_msg)
+                except:
+                    log.error("Calculation of response function failed!")
+                    log.fatal_error()
+                    print("Unexpected error:", sys.exc_info()[0])
+                    raise
 
 
         # Bias correction, Flat correction, Cosmic Ray Rejection
@@ -392,7 +411,21 @@ def main(raw_path=None, options_fname=None, verbose=False):
                                         verbose=True, overwrite=True)
             log.commit(output_msg)
         except:
-            log.error("Initial correction went wrong!")
+            log.error("Bias and flat field correction failed!")
+            log.fatal_error()
+            print("Unexpected error:", sys.exc_info()[0])
+            raise
+
+
+        # Automatic Background Subtraction:
+        bgsub_pdf_name = os.path.join(output_dir, 'bgsub2D.pdf')
+        try:
+            bg_msg = auto_fit_background(corrected_2d_fname, bgsub2d_fname, dispaxis=2,
+                                         kappa=10, fwhm_scale=4, xmin=20,
+                                         order_bg=options['scired']['order_bg'], plot_fname=bgsub_pdf_name)
+            log.commit(bg_msg)
+        except:
+            log.error("Automatic background subtraction failed!")
             log.fatal_error()
             print("Unexpected error:", sys.exc_info()[0])
             raise
@@ -400,7 +433,7 @@ def main(raw_path=None, options_fname=None, verbose=False):
 
         # Call rectify
         try:
-            rect_msg = rectify(sci_img.filename, arc_fname, pixtable, output=rect2d_fname, fig_dir=output_dir,
+            rect_msg = rectify(bgsub2d_fname, arc_fname, pixtable, output=rect2d_fname, fig_dir=output_dir,
                                dispaxis=sci_img.dispaxis, order_wl=order_wl, **options['rectify'])
             log.commit(rect_msg)
         except:
@@ -409,13 +442,9 @@ def main(raw_path=None, options_fname=None, verbose=False):
             print("Unexpected error:", sys.exc_info()[0])
             raise
 
+        # Apply Response Function:
+        # -- write function...
 
-        # Automatic Background Subtraction:
-        try:
-            bg_msg = auto_fit_background(rect2d_fname, bgsub2d_fname, axis=1, order_bg=order_bg, plot_fname='')
-        # Science Reduction:
-        # pixtab_fname comes from identify_GUI
-        # pixtab_path = os.path.join(output_dir, pixtab_fname)
         log.exit()
         break
 

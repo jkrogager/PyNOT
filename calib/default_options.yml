@@ -53,4 +53,5 @@ extract:
   order_width:  1           # Polynomial order used to fit the width of the spectral trace
 
 response:
+  order:        8
   interactive: False

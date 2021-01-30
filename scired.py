@@ -40,6 +40,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from astropy.io import fits
 from scipy.ndimage import median_filter
+from scipy.signal import find_peaks
 from numpy.polynomial import Chebyshev
 import os
 import warnings
@@ -66,7 +67,7 @@ def mad(img):
     return np.nanmedian(np.abs(img - np.nanmedian(img)))
 
 
-def fit_background_image(data, order_bg=3, width=20):
+def fit_background_image(data, order_bg=3, xmin=0, xmax=None, kappa=10, fwhm_scale=3):
     """
     Fit background in 2D spectral data. The background is fitted along the spatial rows by a Chebyshev polynomium.
 
@@ -87,12 +88,20 @@ def fit_background_image(data, order_bg=3, width=20):
         Background model of the 2D frame, same shape as input data.
     """
     x = np.arange(data.shape[1])
-    SPSF = np.median(data, 0)
-    trace_center = np.argmax(SPSF)
-    x1 = trace_center - width
-    x2 = trace_center + width
-    obj = (x >= x1) * (x <= x2)
-    mask = (x >= 5) * ~obj
+    if xmax is None:
+        xmax = len(x)
+    if xmax < 0:
+        xmax = len(x) + xmax
+    SPSF = np.nanmedian(data, 0)
+    noise = 1.5*mad(SPSF)
+    peaks, properties = find_peaks(SPSF, prominence=kappa*noise, width=3)
+    mask = (x >= xmin) & (x <= xmax)
+    for num, center in enumerate(peaks):
+        width = properties['widths'][num]
+        x1 = center - width*fwhm_scale
+        x2 = center + width*fwhm_scale
+        obj = (x >= x1) * (x <= x2)
+        mask &= ~obj
 
     bg2D = np.zeros_like(data)
     for i, row in enumerate(data):
@@ -106,7 +115,7 @@ def fit_background_image(data, order_bg=3, width=20):
     return bg2D
 
 
-def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, width=20, plot_fname=''):
+def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, kappa=10, fwhm_scale=3, xmin=0, xmax=None, plot_fname=''):
     """
     Fit background in 2D spectral data. The background is fitted along the spatial rows by a Chebyshev polynomium.
 
@@ -154,9 +163,9 @@ def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, width=
     msg.append("          - Running task: background subtraction")
     msg.append("          - Loaded input image: %s" % data_fname)
 
-    msg.append("          - Fitting background along the spatial axis with polynomium of order: i" % order_bg)
+    msg.append("          - Fitting background along the spatial axis with polynomium of order: %i" % order_bg)
     msg.append("          - Automatic masking of outlying pixels and object trace")
-    bg2D = fit_background_image(data, order_bg=order_bg, width=width)
+    bg2D = fit_background_image(data, order_bg=order_bg, kappa=kappa, fwhm_scale=fwhm_scale, xmin=xmin, xmax=xmax)
 
     if plot_fname:
         fig2D = plt.figure()
@@ -174,7 +183,7 @@ def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, width=
         ax1_2d.set_ylabel("Dispersion Axis  [pixels]")
         fig2D.tight_layout()
         fig2D.savefig(plot_fname)
-        fig2D.close()
+        plt.close()
         msg.append("          - Saved diagnostic figure: %s" % plot_fname)
 
     data = data - bg2D
@@ -190,7 +199,7 @@ def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, width=
         sky_hdr['ORDER'] = (order_bg, "Polynomial order along spatial rows")
         sky_ext = fits.ImageHDU(bg2D, header=sky_hdr, name='SKY')
         hdu.append(sky_ext)
-        hdu.writeto(output_fname)
+        hdu.writeto(output_fname, overwrite=True)
 
     msg.append("          - Saved background subtracted image: %s" % output_fname)
     msg.append("")
@@ -238,11 +247,12 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname, output='', crr=True, ni
     -------
 
     """
-    msg = list
+    msg = list()
     msg.append("          - Running task: bias and flat field correction")
     mbias = fits.getdata(bias_fname)
     msg.append("          - Loaded BIAS image: %s" % bias_fname)
     mflat = fits.getdata(flat_fname)
+    mflat[mflat == 0] = 1
     msg.append("          - Loaded FLAT field image: %s" % flat_fname)
 
     sci = (sci_raw - mbias)/mflat
@@ -268,8 +278,7 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname, output='', crr=True, ni
         msg.append("")
         msg.append("          - Running task: Cosmic Ray Rejection")
         msg.append("          - Cosmic Ray Rejection using Astroscrappy (based on van Dokkum 2001)")
-        mask, sci = detect_cosmics(sci, gain=hdr['GAIN'], readnoise=hdr['RDNOISE'],
-                                   niter=niter, verbose=verbose)
+        mask, sci = detect_cosmics(sci, gain=hdr['GAIN'], readnoise=hdr['RDNOISE'], niter=niter)
         # Add comment to FITS header:
         hdr.add_comment("Cosmic Ray Rejection using Astroscrappy (based on van Dokkum 2001)")
         # expand mask to neighbouring pixels:

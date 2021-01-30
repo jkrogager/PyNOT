@@ -1,5 +1,5 @@
 
-import multi_extract as me
+import extraction as me
 
 ## Single object
 #fname = 'SCI_2D_crr_ALAb170110.fits'
@@ -7,14 +7,15 @@ import multi_extract as me
 #print(msg)
 #print()
 
-# Two objects:
-fname = 'GQ_raw.fits'
-msg = me.auto_extract(fname, 'output/double_1D.fits', pdf_fname='output/double_trace.pdf', width_order=0)
-print(msg)
+## Two objects:
+#fname = 'GQ_raw.fits'
+#msg = me.auto_extract(fname, 'output/double_1D.fits', pdf_fname='output/double_trace.pdf', order_width=0)
+#print(msg)
 
 # Flux Standard:
-fname = '/Users/krogager/coding/PyNOT/test/fluxstd_raw.fits'
+fname = 'std_bgsub2D_SP1446+259.fits'
 msg = me.auto_extract(fname, 'output/std_1D.fits', N=1, model_name='tophat',
-                      pdf_fname='output/std_trace.pdf', dx=10, width_order=5)
+                      pdf_fname='output/std_trace.pdf', dx=10,
+                      width_scale=2, order_center=3, xmin=10, ymin=5, ymax=-5)
 print(msg)
 

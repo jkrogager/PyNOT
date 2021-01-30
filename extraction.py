@@ -97,10 +97,8 @@ def fix_nans(y):
 
 
 def mad(img):
-    """Calculate Median Absolute Deviation from the median
-    This is a robust variance estimator.
-    For a Gaussian distribution:
-        sigma ≈ 1.4826 * MAD
+    """Calculate Median Absolute Deviation from the median. This is a robust variance estimator.
+    For a Gaussian distribution: sigma ≈ 1.4826 * MAD
     """
     return np.nanmedian(np.abs(img - np.nanmedian(img)))
 
@@ -197,15 +195,14 @@ def fit_trace(img2D, x, y, model_name='moffat', dx=50, ymin=None, ymax=None, xmi
     if ymax < 0:
         ymax = len(y) + ymax
 
-    spsf = np.median(img2D[:, xmin:xmax], axis=1)
-    spsf = spsf - np.median(spsf)
-    spsf[spsf < 0] = 0.
+    spsf = np.nanmedian(img2D[:, xmin:xmax], axis=1)
+    spsf = spsf - np.nanmedian(spsf)
     spsf[:ymin] = 0.
     spsf[ymax:] = 0.
 
     # Detect peaks:
     kappa = 10.
-    noise = mad(img2D)*1.48/np.sqrt(img2D.shape[0])
+    noise = mad(spsf)*1.48
     peaks, properties = find_peaks(spsf, prominence=kappa*noise, width=3)
     prominences = properties['prominences']
     msg.append("          - Automatically identifying objects in the image...")

@@ -382,7 +382,7 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
     msg.append("          - Running task: Rectify 2D and Wavelength Calibrate")
     arc2D = fits.getdata(arc_fname)
     img2D = fits.getdata(img_fname)
-    hdr = get_alfosc_header(img_fname)
+    hdr = fits.getheader(img_fname)
     msg.append("          - Loaded image: %s" % img_fname)
     msg.append("          - Loaded reference arc image: %s" % arc_fname)
 
@@ -435,9 +435,9 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
     msg.append("          - Residuals of arc line positions relative to fitted 2D grid:")
     fit_residuals = format_table2D_residuals(pixtab2d, fit_table2d, ref_table)
 
-    msg.append("  Wavelength    Standars Deviation of Line Positions")
+    msg.append("              Wavelength    Standars Deviation of Line Positions")
     for l0, line_residual in fit_residuals:
-        msg.append("  %10.3f    %.3f" % (l0, line_residual))
+        msg.append("              %10.3f    %.3f" % (l0, line_residual))
 
     msg.append("          - Interpolating input image onto rectified wavelength solution")
     img2D_corr, wl, hdr_corr = apply_transform(img2D, pix_in, fit_table2d, ref_table,
