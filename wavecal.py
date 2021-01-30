@@ -3,7 +3,6 @@ Wavelength Calibration and 2D Transformation
 """
 
 __author__ = "Jens-Kristian Krogager"
-__version__ = '1.0'
 
 import os
 import sys
@@ -20,16 +19,14 @@ import warnings
 from PyQt5.QtWidgets import QApplication
 
 from identify_gui import GraphicInterface, create_pixel_array
+from alfosc import get_alfosc_header
 
 
-def get_alfosc_header(fname):
-    with fits.open(fname) as hdu:
-        primhdr = hdu[0].header
-        imghdr = hdu[1].header
-        primhdr.update(imghdr)
-    if primhdr['INSTRUME'] != 'ALFOSC_FASU':
-        print("[WARNING] - FITS file not originating from NOT/ALFOSC!")
-    return primhdr
+code_dir = os.path.dirname(os.path.abspath(__file__))
+v_file = os.path.join(code_dir, 'VERSION')
+with open(v_file) as version_file:
+    __version__ = version_file.read().strip()
+
 
 # -- Function to call from PyNOT.main
 def create_pixtable(arc_image, grism_name, pixtable_name, linelist_fname, order_wl=4):
@@ -109,7 +106,7 @@ def modNN_gaussian(x, bg, mu, sigma, logamp):
     return bg + amp * np.exp(-0.5*(x-mu)**4/sigma**2)
 
 def fit_gaussian_center(x, y):
-    bg = np.median(y)
+    bg = np.nanmedian(y)
     logamp = np.log10(np.nanmax(y)-bg)
     sig = 1.5
     max_index = np.argmax(y)
@@ -129,9 +126,19 @@ def fit_gaussian_center(x, y):
 def fit_lines(x, arc1D, ref_table, dx=20):
     pixels = list()
     for pix, l_vac in ref_table:
-        xlow = int(pix - dx)
-        xhigh = int(pix + dx)
-        pix_cen, cov = fit_gaussian_center(x[xlow:xhigh], arc1D[xlow:xhigh])
+        xlow = pix - dx
+        xhigh = pix + dx
+        cutout = (x > xlow) & (x < xhigh)
+        try:
+            pix_cen, cov = fit_gaussian_center(x[cutout], arc1D[cutout])
+        except:
+            print("Something went wrong in Line Fitting. Here's the input:")
+            print("pix: %r  wl: %r" % (pix, l_vac))
+            print("x:", x[cutout])
+            print("y:", arc1D[cutout])
+            print("lower: %i  upper:%i" % (xlow, xhigh))
+            raise
+
         if cov is not None:
             pixels.append(pix_cen)
         else:
@@ -165,10 +172,9 @@ def median_filter_data(x, kappa=5., window=51):
     mask : array, shape N  [bool]
         Boolean array of accepted pixels.
         Any reject pixels will have a value of `False`.
-
     """
     med_x = median_filter(x, window)
-    MAD = np.median(np.abs(x - med_x))
+    MAD = np.nanmedian(np.abs(x - med_x))
     mask = np.abs(x - med_x) < kappa*MAD
     return (med_x, mask)
 
@@ -228,7 +234,15 @@ def fit_2dwave_solution(pixtab2d, deg=5):
         med_col, mask = median_filter_data(points)
 
         # Fit Cheb. poly to each filtered column
-        cheb_polyfit = Chebyshev.fit(col[mask], points[mask], deg=deg, domain=(col.min(), col.max()))
+        try:
+            cheb_polyfit = Chebyshev.fit(col[mask], points[mask], deg=deg, domain=(col.min(), col.max()))
+        except:
+            print("Something went wrong in Chebyshev polynomial fitting. Here's the input:")
+            print("x:", col[mask])
+            print("y:", points[mask])
+            print("degree:", deg)
+            print("domain: %r  %r" % (col.min(), col.max()))
+            raise
 
         # Insert back into the fit_table
         fit_col = cheb_polyfit(col)
@@ -330,30 +344,55 @@ def apply_transform(img2D, pix, fit_table2d, ref_table, header={}, wl_order=4, l
 
 # ============== PLOTTING =====================================================
 
-def plot_2d_pixtable(arc2D_sub, pixtab2d):
+def plot_2d_pixtable(arc2D_sub, pix, pixtab2d, fit_table2d, filename=''):
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    mad = np.median(np.abs(arc2D_sub - np.median(arc2D_sub)))
-    ax.imshow(arc2D_sub, vmin=-mad, vmax=100*mad, cmap=plt.cm.magma_r)
+    mad = np.nanmedian(np.abs(arc2D_sub - np.nanmedian(arc2D_sub)))
+    ax.imshow(arc2D_sub, origin='lower', extent=(pix.min(), pix.max(), 1, arc2D_sub.shape[0]),
+              vmin=-3*mad, vmax=10*mad, cmap=plt.cm.gray_r, aspect='auto')
     for i in np.arange(0, pixtab2d.shape[0], 5):
         row = pixtab2d[i]
-        plt.plot(row, np.ones_like(row)*i, ls='', color='Blue', marker='.', alpha=0.3)
-    plt.show()
+        ax.plot(row, np.ones_like(row)*(i+1), ls='', color='Blue', marker='.', alpha=0.3)
+    for col in fit_table2d.T:
+        ax.plot(col, np.arange(arc2D_sub.shape[0]), lw=1, color='r', alpha=0.5)
+    ax.set_xlim(pix.min(), pix.max())
+    ax.set_ylim(1, arc2D_sub.shape[0])
+    if filename:
+        fig.savefig(filename)
 
+
+# FORMAT RESIDUALS:
+
+def format_table2D_residuals(pixtab2d, fit_table2d, ref_table):
+    """Calculate the residuals of each arc line position along the spatial curvature"""
+    resid_log = list()
+    wavelengths = ref_table[:, 1]
+    resid2D = pixtab2d - fit_table2d
+    for wl, col in zip(wavelengths, resid2D.T):
+        line_resid = np.std(col)
+        resid_log.append([wl, line_resid])
+    return resid_log
 
 # ============== MAIN ===========================================================
 
-def rectify(img_fname, arc_fname, pixtable_fname, output_fname='', order_bg=5, order_2d=5, order_wl=4, log=False, N_out=None,
-            kind='linear', fill_value='extrapolate', binning=1, dispaxis=2, fit_window=20):
+def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_bg=5, order_2d=5, order_wl=4, log=False, N_out=None,
+            kind='linear', fill_value='extrapolate', binning=1, dispaxis=2, fit_window=20, plot=True, overwrite=True, verbose=False):
 
+    msg = list()
+    msg.append("          - Running task: Rectify 2D and Wavelength Calibrate")
     arc2D = fits.getdata(arc_fname)
     img2D = fits.getdata(img_fname)
     hdr = get_alfosc_header(img_fname)
+    msg.append("          - Loaded image: %s" % img_fname)
+    msg.append("          - Loaded reference arc image: %s" % arc_fname)
+
     ref_table = np.loadtxt(pixtable_fname)
+    msg.append("          - Loaded reference pixel table: %s" % pixtable_fname)
     if 'DISPAXIS' in hdr.keys():
         dispaxis = hdr['DISPAXIS']
 
     if dispaxis == 2:
+        msg.append("          - Rotating frame to have dispersion along x-axis")
         # Reorient image to have dispersion along x-axis:
         img2D = img2D.T
         arc2D = arc2D.T
@@ -374,32 +413,57 @@ def rectify(img_fname, arc_fname, pixtable_fname, output_fname='', order_bg=5, o
             binning = hdr['DETXBIN']
 
     ilow, ihigh = detect_borders(arc2D)
+    msg.append("          - Image shape: (%i, %i)" % arc2D.shape)
+    msg.append("          - Detecting arc line borders: %i -- %i" % (ilow, ihigh))
     # Trim images:
     arc2D = arc2D[ilow:ihigh, :]
     img2D = img2D[ilow:ihigh, :]
 
+    msg.append("          - Subtracting arc line continuum background")
+    msg.append("          - Polynomial order of 1D background: %i" % order_bg)
     arc2D_sub, _ = subtract_arc_background(arc2D, deg=order_bg)
 
+    msg.append("          - Fitting arc line positions within %i pixels" % fit_window)
+    msg.append("          - Number of lines to fit: %i" % ref_table.shape[0])
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        pixtab2d = create_2d_pixtab(arc2D_sub, pix_in, ref_table, dx=fit_window, binning=binning)
+        pixtab2d = create_2d_pixtab(arc2D_sub, pix_in, ref_table, dx=fit_window)
 
+    msg.append("          - Constructing 2D wavelength grid with polynomial order: %i" % order_2d)
     fit_table2d = fit_2dwave_solution(pixtab2d, deg=order_2d)
 
+    msg.append("          - Residuals of arc line positions relative to fitted 2D grid:")
+    fit_residuals = format_table2D_residuals(pixtab2d, fit_table2d, ref_table)
+
+    msg.append("  Wavelength    Standars Deviation of Line Positions")
+    for l0, line_residual in fit_residuals:
+        msg.append("  %10.3f    %.3f" % (l0, line_residual))
+
+    msg.append("          - Interpolating input image onto rectified wavelength solution")
     img2D_corr, wl, hdr_corr = apply_transform(img2D, pix_in, fit_table2d, ref_table,
                                                header=hdr, wl_order=order_wl,
                                                log=log, N_out=N_out, kind=kind,
                                                fill_value=fill_value)
 
-    if output_fname:
-        hdu = fits.PrimaryHDU(data=img2D_corr, header=hdr_corr)
-        hdu.writeto(output_fname)
-    return img2D_corr, wl, hdr_corr
+    hdr.add_comment('PyNOT version %s' % __version__)
+    if plot:
+        plot_fname = os.path.join(fig_dir, 'PixTable2D.pdf')
+        plot_2d_pixtable(arc2D_sub, pix_in, pixtab2d, fit_table2d, filename=plot_fname)
+        msg.append("          - Plotting fitted arc line positions in 2D frame")
+        msg.append("          - Saving figure to file: %s" % plot_fname)
 
-if __name__ == '__main__':
-    data_path = '/Users/krogager/Projects/NOTschool14/dla-qso/raw/'
-    img_fname = data_path + 'ALxh010194.fits'
-    arc_fname = data_path + 'ALxh010192.fits'
-    pixtable_fname = '/Users/krogager/coding/PyNOT/calib/grism7_pixeltable.dat'
+    if output:
+        if output[-5:] != '.fits':
+            output += '.fits'
+    else:
+        object_name = hdr['OBJECT']
+        output = 'RECT2D_%s.fits' % (object_name)
 
-    # img_corr, wl, hdr = rectify(img_fname, arc_fname, pixtable_fname)
+    hdu = fits.PrimaryHDU(data=img2D_corr, header=hdr_corr)
+    hdu.writeto(output, overwrite=overwrite)
+    msg.append("          - Saving rectified 2D image to file: %s" % output)
+    msg.append("")
+    output_str = "\n".join(msg)
+    if verbose:
+        print(output_str)
+    return output_str
