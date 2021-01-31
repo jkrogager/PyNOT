@@ -14,8 +14,8 @@ from scipy.interpolate import interp1d
 from scipy.ndimage import median_filter
 from scipy.optimize import curve_fit
 from scipy.signal import find_peaks
+import spectres
 import warnings
-
 from PyQt5.QtWidgets import QApplication
 
 from identify_gui import GraphicInterface, create_pixel_array
@@ -204,7 +204,7 @@ def detect_borders(arc2D, kappa=20.):
 
     mask = (N_lines >= np.median(N_lines)).nonzero()
     row_min = np.min(mask)
-    row_max = np.max(mask)
+    row_max = np.max(mask) + 1
     return (row_min, row_max)
 
 
@@ -252,7 +252,7 @@ def fit_2dwave_solution(pixtab2d, deg=5):
     return fit_table2d.T
 
 
-def apply_transform(img2D, pix, fit_table2d, ref_table, header={}, wl_order=4, log=False, N_out=None, kind='cubic', fill_value='extrapolate'):
+def apply_transform(img2D, pix, fit_table2d, ref_table, err2D=None, mask2D=None, header={}, order_wl=4, log=False, N_out=None, kind='cubic', fill_value='extrapolate', interpolate=True):
     """
     Apply 2D wavelength transformation to the input image
 
@@ -270,10 +270,13 @@ def apply_transform(img2D, pix, fit_table2d, ref_table, header={}, wl_order=4, l
         Reference table for the given setup with two columns:
             pixel  and  wavelength in Å
 
+    err2D : array, shape(M, N)
+        Associated error array, must be same shape as `img2D`
+
     header : FITS Header or dict
         The FITS header corresponding to `img2D`, or a dictionary
 
-    wl_order : int
+    order_wl : int
         Polynomial order used for wavelength fit as a function of input pixel
         A Chebyshev polynomium is used to fit the solution for each row in img2D.
 
@@ -291,6 +294,9 @@ def apply_transform(img2D, pix, fit_table2d, ref_table, header={}, wl_order=4, l
     fill_value : string or float
         Keyword argument of scipy.interpolate.interp1d
 
+    interpolate : bool  [default=True]
+        Interpolate the image onto new grid or use sub-pixel shifting
+
     Returns
     -------
     img2D_tr : array, shape(M, N_out)
@@ -302,16 +308,24 @@ def apply_transform(img2D, pix, fit_table2d, ref_table, header={}, wl_order=4, l
     hdr_tr : FITS Header or dict
         Updated FITS Header or dictionary with wavelength information
     """
-
+    msg = list()
     # Define wavelength grid at midpoint:
     if N_out is None:
         N_out = img2D.shape[1]
+    else:
+        if not interpolate:
+            N_out = img2D.shape[1]
+            msg.append("[WARNING] - Interpolation turned off!")
+            msg.append("[WARNING] - N_out was given: %i" % N_out)
+            msg.append("[WARNING] - Cannot change sampling without interpolating")
 
     pix_in = pix
     cen = fit_table2d.shape[0]//2
     ref_wl = ref_table[:, 1]
-    central_solution = Chebyshev.fit(fit_table2d[cen], ref_wl, deg=wl_order, domain=[pix_in.min(), pix_in.max()])
+    central_solution = Chebyshev.fit(fit_table2d[cen], ref_wl, deg=order_wl, domain=[pix_in.min(), pix_in.max()])
     wl_central = central_solution(pix_in)
+    wl_residuals = np.std(ref_wl - central_solution(fit_table2d[cen]))
+    msg.append("          - Residuals of wavelength solution: %.2f Å" % wl_residuals)
     if log:
         wl = np.logspace(np.log10(wl_central.min()), np.log10(wl_central.max()), N_out)
         hdr_tr = header.copy()
@@ -319,7 +333,9 @@ def apply_transform(img2D, pix, fit_table2d, ref_table, header={}, wl_order=4, l
         hdr_tr['CDELT1'] = np.diff(np.log10(wl))[0]
         hdr_tr['CRVAL1'] = np.log10(wl[0])
         hdr_tr['CTYPE1'] = 'LOGLAM  '
-        hdr_tr['CUNIT1'] = 'ANGSTROM'
+        hdr_tr['CUNIT1'] = 'Angstrom'
+        msg.append("          - Creating logarithmically sampled wavelength grid")
+        msg.append("          - Sampling: %.3f  (logÅ/pix)" % np.diff(np.log10(wl))[0])
     else:
         wl = np.linspace(wl_central.min(), wl_central.max(), N_out)
         hdr_tr = header.copy()
@@ -327,19 +343,54 @@ def apply_transform(img2D, pix, fit_table2d, ref_table, header={}, wl_order=4, l
         hdr_tr['CDELT1'] = np.diff(wl)[0]
         hdr_tr['CRVAL1'] = wl[0]
         hdr_tr['CTYPE1'] = 'LINEAR  '
-        hdr_tr['CUNIT1'] = 'ANGSTROM'
+        hdr_tr['CUNIT1'] = 'Angstrom'
+        msg.append("          - Creating linearly sampled wavelength grid")
+        msg.append("          - Sampling: %.3f  (Å/pix)" % np.diff(wl)[0])
 
-    img2D_tr = np.zeros((img2D.shape[0], N_out))
-    for i, row in enumerate(img2D):
-        # - fit the chebyshev polynomium
-        solution_row = Chebyshev.fit(fit_table2d[i], ref_wl, deg=wl_order, domain=[pix_in.min(), pix_in.max()])
-        wl_row = solution_row(pix_in)
+    # Calculate the maximum curvature of the arc lines:
+    max_curvature = table2D_max_curvature(fit_table2d)
+    msg.append("          - Maximum curvature of arc lines: %.3f pixels" % max_curvature)
+    if max_curvature < 0.1:
+        interpolate = False
+        msg.append("          - Maximum curvature less than 1/10 pixel. No need to interpolate the data")
 
-        # - interpolate the data onto the fixed input grid
-        interp_row = interp1d(wl_row, row, kind=kind, fill_value=fill_value)
-        img2D_tr[i] = interp_row(wl)
+    if interpolate:
+        img2D_tr = np.zeros((img2D.shape[0], N_out))
+        err2D_tr = np.zeros((img2D.shape[0], N_out))
+        mask2D_tr = np.zeros((img2D.shape[0], N_out))
+        for i, row in enumerate(img2D):
+            # - fit the chebyshev polynomium
+            solution_row = Chebyshev.fit(fit_table2d[i], ref_wl, deg=order_wl, domain=[pix_in.min(), pix_in.max()])
+            wl_row = solution_row(pix_in)
+            if np.diff(wl_row)[0] < 0:
+                # Wavelengths are decreasing: Flip arrays
+                row = row[::-1]
+                wl_row = wl_row[::-1]
+                flip_array = True
+            else:
+                flip_array = False
 
-    return img2D_tr, wl, hdr_tr
+            # -- interpolate the data onto the fixed wavelength grid
+            if err2D is not None:
+                err_row = err2D[i]
+                if flip_array:
+                    err_row = err_row[::-1]
+                interp_row, interp_err = spectres.spectres(wl, wl_row, row, spec_errs=err_row, verbose=False, fill=0.)
+                err2D_tr[i] = interp_err
+            else:
+                interp_row = spectres.spectres(wl, wl_row, row, verbose=False, fill=0.)
+
+            mask_row = mask2D[i]
+            mask_int = np.interp(wl, wl_row, mask_row)
+            mask2D_tr[i] = np.ceil(mask_int).astype(int)
+            img2D_tr[i] = interp_row
+    else:
+        img2D_tr = img2D
+        err2D_tr = err2D
+        mask2D_tr = mask2D
+    msg.append("")
+    output_msg = "\n".join(msg)
+    return img2D_tr, err2D_tr, mask2D_tr, wl, hdr_tr, output_msg
 
 
 # ============== PLOTTING =====================================================
@@ -362,29 +413,49 @@ def plot_2d_pixtable(arc2D_sub, pix, pixtab2d, fit_table2d, filename=''):
 
 
 # FORMAT RESIDUALS:
+def table2D_max_curvature(fit_table2d):
+    curvatures = list()
+    for col in fit_table2d.T:
+        delta_col = np.max(col) - np.min(col)
+        curvatures.append(delta_col)
+    max_curvature = np.max(curvatures)
+    return max_curvature
+
 
 def format_table2D_residuals(pixtab2d, fit_table2d, ref_table):
     """Calculate the residuals of each arc line position along the spatial curvature"""
     resid_log = list()
     wavelengths = ref_table[:, 1]
     resid2D = pixtab2d - fit_table2d
-    for wl, col in zip(wavelengths, resid2D.T):
-        line_resid = np.std(col)
-        resid_log.append([wl, line_resid])
+    for wl, resid_col, col in zip(wavelengths, resid2D.T, fit_table2d.T):
+        line_resid = np.std(resid_col)
+        delta_col = np.max(col) - np.min(col)
+        resid_log.append([wl, line_resid, delta_col])
     return resid_log
 
 # ============== MAIN ===========================================================
 
-def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_bg=5, order_2d=5, order_wl=4, log=False, N_out=None,
-            kind='linear', fill_value='extrapolate', binning=1, dispaxis=2, fit_window=20, plot=True, overwrite=True, verbose=False):
+def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_bg=5, order_2d=5,
+            order_wl=4, log=False, N_out=None, interpolate=True, kind='linear', fill_value='extrapolate',
+            binning=1, dispaxis=2, fit_window=20, plot=True, overwrite=True, verbose=False):
 
     msg = list()
     msg.append("          - Running task: Rectify 2D and Wavelength Calibrate")
     arc2D = fits.getdata(arc_fname)
     img2D = fits.getdata(img_fname)
-    hdr = fits.getheader(img_fname)
     msg.append("          - Loaded image: %s" % img_fname)
     msg.append("          - Loaded reference arc image: %s" % arc_fname)
+    try:
+        err2D = fits.getdata(img_fname, 'ERR')
+        msg.append("          - Loaded error image")
+    except KeyError:
+        err2D = None
+    try:
+        mask2D = fits.getdata(img_fname, 'MASK')
+        msg.append("          - Loaded mask image")
+    except KeyError:
+        mask2D = np.zeros_like(img2D)
+    hdr = fits.getheader(img_fname)
 
     ref_table = np.loadtxt(pixtable_fname)
     msg.append("          - Loaded reference pixel table: %s" % pixtable_fname)
@@ -394,8 +465,11 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
     if dispaxis == 2:
         msg.append("          - Rotating frame to have dispersion along x-axis")
         # Reorient image to have dispersion along x-axis:
-        img2D = img2D.T
         arc2D = arc2D.T
+        img2D = img2D.T
+        mask2D = mask2D.T
+        if err2D is not None:
+            err2D = err2D.T
         pix_in = create_pixel_array(hdr, dispaxis=2)
 
         if 'DETYBIN' in hdr:
@@ -418,6 +492,8 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
     # Trim images:
     arc2D = arc2D[ilow:ihigh, :]
     img2D = img2D[ilow:ihigh, :]
+    err2D = err2D[ilow:ihigh, :]
+    mask2D = mask2D[ilow:ihigh, :]
 
     msg.append("          - Subtracting arc line continuum background")
     msg.append("          - Polynomial order of 1D background: %i" % order_bg)
@@ -435,16 +511,17 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
     msg.append("          - Residuals of arc line positions relative to fitted 2D grid:")
     fit_residuals = format_table2D_residuals(pixtab2d, fit_table2d, ref_table)
 
-    msg.append("              Wavelength    Standars Deviation of Line Positions")
-    for l0, line_residual in fit_residuals:
-        msg.append("              %10.3f    %.3f" % (l0, line_residual))
+    msg.append("              Wavelength    Arc Residual   Max. Curvature")
+    for l0, line_residual, line_minmax in fit_residuals:
+        msg.append("              %10.3f    %-12.3f   %-14.3f" % (l0, line_residual, line_minmax))
 
     msg.append("          - Interpolating input image onto rectified wavelength solution")
-    img2D_corr, wl, hdr_corr = apply_transform(img2D, pix_in, fit_table2d, ref_table,
-                                               header=hdr, wl_order=order_wl,
-                                               log=log, N_out=N_out, kind=kind,
-                                               fill_value=fill_value)
-
+    transform_output = apply_transform(img2D, pix_in, fit_table2d, ref_table,
+                                       err2D=err2D, mask2D=mask2D, header=hdr, order_wl=order_wl,
+                                       log=log, N_out=N_out, kind=kind,
+                                       fill_value=fill_value, interpolate=interpolate)
+    img2D_corr, err2D_corr, mask2D, wl, hdr_corr, trans_msg = transform_output
+    msg.append(trans_msg)
     hdr.add_comment('PyNOT version %s' % __version__)
     if plot:
         plot_fname = os.path.join(fig_dir, 'PixTable2D.pdf')
@@ -460,8 +537,20 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
         output = 'RECT2D_%s.fits' % (object_name)
 
     hdr_corr['DISPAXIS'] = 1
-    hdu = fits.PrimaryHDU(data=img2D_corr, header=hdr_corr)
-    hdu.writeto(output, overwrite=overwrite)
+    hdr_corr['EXTNAME'] = 'DATA'
+    with fits.open(img_fname) as hdu:
+        hdu[0].data = img2D_corr
+        hdu[0].header = hdr_corr
+        if err2D_corr is not None:
+            hdu['ERR'].data = err2D_corr
+        if 'MASK' in hdu:
+            hdu['MASK'].data = mask2D
+        else:
+            mask_hdr = fits.Header()
+            mask_hdr.add_comment("4 = Cosmic Ray Hit")
+            mask_ext = fits.ImageHDU(mask2D, header=mask_hdr, name='MASK')
+            hdu.append(mask_ext)
+        hdu.writeto(output, overwrite=overwrite)
     msg.append("          - Saving rectified 2D image to file: %s" % output)
     msg.append("")
     output_str = "\n".join(msg)

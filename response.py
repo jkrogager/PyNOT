@@ -73,7 +73,7 @@ def flux_calibrate():
     flux_calib2D = flux_calib2D.T
     flux2D = img2D[::-1] / t / dl * flux_calib2D
     err2D = err2D[::-1] / t / dl * flux_calib2D
-    
+
 
 
 def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat_fname, output='',
