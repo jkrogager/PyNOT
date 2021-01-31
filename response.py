@@ -21,7 +21,7 @@ import warnings
 import alfosc
 from extraction import auto_extract
 from alfosc import get_alfosc_header
-from scired import auto_fit_background, my_formatter, mad
+from scired import auto_fit_background, my_formatter, mad, raw_correction
 from wavecal import rectify
 
 
@@ -66,8 +66,7 @@ def flux_calibrate(input_fname, *, output, response):
     ext_correction = 10**(0.4*airm * ext)
 
     flux_calibration = ext_correction / 10**(0.4*sens_int)
-    flux_calib2D = np.resize(flux_calibration, img2D.T.shape)
-    flux_calib2D = flux_calib2D.T
+    flux_calib2D = np.resize(flux_calibration, img2D.shape)
     flux2D = img2D / t / cdelt * flux_calib2D
     err2D = err2D / t / cdelt * flux_calib2D
 
@@ -151,27 +150,10 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
         Log of the function call
     """
     msg = list()
-    mbias = fits.getdata(bias_fname)
-    msg.append("          - Loaded BIAS image: %s" % bias_fname)
-    mflat = fits.getdata(flat_fname)
-    mflat[mflat == 0] = 1
-    msg.append("          - Loaded FLAT field image: %s" % flat_fname)
 
     hdr = get_alfosc_header(raw_fname)
     raw2D = fits.getdata(raw_fname)
     msg.append("          - Loaded flux standard image: %s" % raw_fname)
-
-    # Update gain for the new CCD, wrong gain written in header from the instrument
-    if hdr['CCDNAME'] == 'CCD14':
-        hdr['GAIN'] = 0.16
-    std = (raw2D - mbias)/mflat
-    hdr['DATAMIN'] = np.nanmin(std)
-    hdr['DATAMAX'] = np.nanmax(std)
-    hdr['EXTNAME'] = 'DATA'
-
-    hdr.add_comment('PyNOT version %s' % __version__)
-    hdr.add_comment("BIAS subtract: %s" % bias_fname)
-    hdr.add_comment("FLAT correction: %s" % flat_fname)
 
     # Setup the filenames:
     grism = alfosc.grism_translate[hdr['ALGRNM']]
@@ -192,11 +174,14 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
     if output:
         response_output = output
 
-    # Save the updated, bias subtracted and flat-fielded frame
-    fits.writeto(std_tmp_fname, std, header=hdr, overwrite=True)
-    msg.append("          - Subtracted bias and flat field corrected input image")
-    msg.append("          - Saved corrected 2D image: %s" % std_tmp_fname)
-
+    try:
+        output_msg = raw_correction(raw2D, hdr, bias_fname, flat_fname,
+                                    output=std_tmp_fname, overwrite=True, overscan=50)
+        msg.append(output_msg)
+    except:
+        msg.append("Unexpected error: %r" % sys.exc_info()[0])
+        output_msg = "\n".join(msg)
+        raise Exception(output_msg)
 
     # Rectify 2D image and wavelength calibrate:
     try:

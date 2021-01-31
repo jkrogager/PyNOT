@@ -1,4 +1,5 @@
 import glob
+import numpy as np
 from os.path import basename, dirname, abspath
 from astropy.io import fits
 
@@ -68,3 +69,21 @@ def get_alfosc_header(fname):
     if primhdr['INSTRUME'] != 'ALFOSC_FASU':
         print("[WARNING] - FITS file not originating from NOT/ALFOSC!")
     return primhdr
+
+def create_pixel_array(hdr, dispaxis):
+    """Load reference array from header using CRVAL, CDELT, CRPIX along dispersion axis"""
+    if dispaxis not in [1, 2]:
+        raise ValueError("Dispersion Axis must be 1 (X-axis) or 2 (Y-axis)!")
+    p = hdr['CRVAL%i' % dispaxis]
+    s = hdr['CDELT%i' % dispaxis]
+    r = hdr['CRPIX%i' % dispaxis]
+    N = hdr['NAXIS%i' % dispaxis]
+    # -- If data are from NOT then check for binning and rescale CRPIX:
+    binning = 1
+    if 'DETXBIN' in hdr:
+        if dispaxis == 1:
+            binning = hdr['DETXBIN']
+        else:
+            binning = hdr['DETYBIN']
+    pix_array = p + s*(np.arange(N) - (r/binning - 1))
+    return pix_array

@@ -46,6 +46,7 @@ import os
 import warnings
 
 from astroscrappy import detect_cosmics
+from alfosc import create_pixel_array
 
 code_dir = os.path.dirname(os.path.abspath(__file__))
 v_file = os.path.join(code_dir, 'VERSION')
@@ -65,6 +66,24 @@ def mad(img):
         sigma ≈ 1.4826 * MAD
     """
     return np.nanmedian(np.abs(img - np.nanmedian(img)))
+
+
+def trim_overscan(img, hdr, overscan=50):
+    # Trim overscan
+    X = create_pixel_array(hdr, 1)
+    Y = create_pixel_array(hdr, 2)
+    img_region_x = (X >= overscan) & (X <= 2148-overscan)
+    xlimits = img_region_x.nonzero()[0]
+    img_region_y = (Y <= 2102-overscan)
+    ylimits = img_region_y.nonzero()[0]
+    x1 = min(xlimits)
+    x2 = max(xlimits)+1
+    y1 = min(ylimits)
+    y2 = max(ylimits)+1
+    img_trim = img[y1:y2, x1:x2]
+    hdr['CRPIX1'] += x1
+    hdr['CRPIX2'] += y1
+    return img_trim, hdr
 
 
 def fit_background_image(data, order_bg=3, xmin=0, xmax=None, kappa=10, fwhm_scale=3):
@@ -196,8 +215,8 @@ def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, kappa=
         hdu[0].data = data
         sky_hdr = fits.Header()
         sky_hdr['BUNIT'] = 'count'
-        copy_keywords = ['CRPIX1', 'CRVAL1', 'CRDELT1', 'CTYPE1', 'CUNIT1']
-        copy_keywords += ['CRPIX2', 'CRVAL2', 'CRDELT2']
+        copy_keywords = ['CRPIX1', 'CRVAL1', 'CDELT1', 'CTYPE1', 'CUNIT1']
+        copy_keywords += ['CRPIX2', 'CRVAL2', 'CDELT2']
         sky_hdr['CTYPE2'] = 'LINEAR'
         sky_hdr['CUNIT2'] = 'Pixel'
         for key in copy_keywords:
@@ -278,7 +297,7 @@ def correct_cosmics(input_fname, output_fname, niter=4, gain=None, readnoise=Non
     return output_msg
 
 
-def raw_correction(sci_raw, hdr, bias_fname, flat_fname, output='', crr=True, niter=4, verbose=True, overwrite=True):
+def raw_correction(sci_raw, hdr, bias_fname, flat_fname, output='', overscan=50, overwrite=True):
     """
     Perform bias subtraction, flat field correction, and cosmic ray rejection
 
@@ -302,21 +321,17 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname, output='', crr=True, ni
         If not given, the output filename will be determined from
         OBJECT header keyword.
 
-    crr : boolean  [default=True]
-        Perform cosmic ray rejection using astroscrappy (based on van Dokkum 2001)
-
-    niter : integer  [default=4]
-        Number of iterations for cosmic ray rejection
-
-    verbose : boolean  [default=True]
-        If True, print status messages.
+    overscan : int  [default=50]
+        Number of pixels in overscan at the edge of the CCD.
+        The overscan region will be trimmed.
 
     overwrite : boolean  [default=True]
         Overwrite existing output file if True.
 
     Returns
     -------
-
+    output_msg : string
+        Log of status messages
     """
     msg = list()
     mbias = fits.getdata(bias_fname)
@@ -326,6 +341,9 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname, output='', crr=True, ni
     msg.append("          - Loaded FLAT field image: %s" % flat_fname)
 
     sci = (sci_raw - mbias)/mflat
+
+    # Trim overscan
+    sci, hdr = trim_overscan(sci, hdr, overscan=overscan)
 
     # Calculate error image:
     if hdr['CCDNAME'] == 'CCD14':
@@ -356,13 +374,6 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname, output='', crr=True, ni
     err_ext = fits.ImageHDU(err, header=hdr, name='ERR')
     mask_ext = fits.ImageHDU(mask, header=mask_hdr, name='MASK')
     output_HDU = fits.HDUList([sci_ext, err_ext, mask_ext])
-
-    if output:
-        if output[-5:] != '.fits':
-            output += '.fits'
-    else:
-        output = "skysub2D_%s.fits" % hdr['OBJECT']
-
     output_HDU.writeto(output, overwrite=overwrite)
     msg.append("          - Successfully corrected the image.")
     msg.append("          - Saving output: %s" % output)

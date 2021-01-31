@@ -18,9 +18,9 @@ import spectres
 import warnings
 from PyQt5.QtWidgets import QApplication
 
-from identify_gui import GraphicInterface, create_pixel_array
-from alfosc import get_alfosc_header
-
+from identify_gui import GraphicInterface
+from alfosc import get_alfosc_header, create_pixel_array
+from scired import trim_overscan
 
 code_dir = os.path.dirname(os.path.abspath(__file__))
 v_file = os.path.join(code_dir, 'VERSION')
@@ -437,10 +437,12 @@ def format_table2D_residuals(pixtab2d, fit_table2d, ref_table):
 
 def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_bg=5, order_2d=5,
             order_wl=4, log=False, N_out=None, interpolate=True, kind='linear', fill_value='extrapolate',
-            binning=1, dispaxis=2, fit_window=20, plot=True, overwrite=True, verbose=False):
+            binning=1, dispaxis=2, fit_window=20, plot=True, overwrite=True, verbose=False, overscan=50):
 
     msg = list()
     arc2D = fits.getdata(arc_fname)
+    arc_hdr = get_alfosc_header(arc_fname)
+    arc2D, arc_hdr = trim_overscan(arc2D, arc_hdr, overscan=overscan)
     img2D = fits.getdata(img_fname)
     msg.append("          - Loaded image: %s" % img_fname)
     msg.append("          - Loaded reference arc image: %s" % arc_fname)
@@ -544,16 +546,16 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
         if err2D_corr is not None:
             hdu['ERR'].data = err2D_corr
             err_hdr = hdu['ERR'].header
-            copy_keywords = ['CRPIX1', 'CRVAL1', 'CRDELT1', 'CTYPE1', 'CUNIT1']
-            copy_keywords += ['CRPIX2', 'CRVAL2', 'CRDELT2', 'CTYPE2', 'CUNIT2']
+            copy_keywords = ['CRPIX1', 'CRVAL1', 'CDELT1', 'CTYPE1', 'CUNIT1']
+            copy_keywords += ['CRPIX2', 'CRVAL2', 'CDELT2', 'CTYPE2', 'CUNIT2']
             for key in copy_keywords:
                 err_hdr[key] = hdr[key]
             hdu['ERR'].header = err_hdr
         if 'MASK' in hdu:
             hdu['MASK'].data = mask2D
             mask_hdr = hdu['MASK'].header
-            copy_keywords = ['CRPIX1', 'CRVAL1', 'CRDELT1', 'CTYPE1', 'CUNIT1']
-            copy_keywords += ['CRPIX2', 'CRVAL2', 'CRDELT2', 'CTYPE2', 'CUNIT2']
+            copy_keywords = ['CRPIX1', 'CRVAL1', 'CDELT1', 'CTYPE1', 'CUNIT1']
+            copy_keywords += ['CRPIX2', 'CRVAL2', 'CDELT2', 'CTYPE2', 'CUNIT2']
             for key in copy_keywords:
                 mask_hdr[key] = hdr[key]
             hdu['MASK'].header = mask_hdr
@@ -562,8 +564,8 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
             mask_hdr.add_comment("2 = Good Pixels")
             mask_hdr.add_comment("1 = Cosmic Ray Hits")
             mask_hdr['AUTHOR'] = 'PyNOT version %s' % __version__
-            copy_keywords = ['CRPIX1', 'CRVAL1', 'CRDELT1', 'CTYPE1', 'CUNIT1']
-            copy_keywords += ['CRPIX2', 'CRVAL2', 'CRDELT2', 'CTYPE2', 'CUNIT2']
+            copy_keywords = ['CRPIX1', 'CRVAL1', 'CDELT1', 'CTYPE1', 'CUNIT1']
+            copy_keywords += ['CRPIX2', 'CRVAL2', 'CDELT2', 'CTYPE2', 'CUNIT2']
             for key in copy_keywords:
                 mask_hdr[key] = hdr[key]
             mask_ext = fits.ImageHDU(mask2D, header=mask_hdr, name='MASK')

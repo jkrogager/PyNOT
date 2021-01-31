@@ -50,11 +50,12 @@ extract:
   width_scale:  2            # If model_name is 'tophat', this scales the width in terms of FWHM below and above the centroid
   xmin:         null         # Exclude pixels above this index for the fitting and object identification [dispersion axis]
   xmax:         null         # Exclude pixels below this index for the fitting and object identification [dispersion axis]
-  ymin:         null         # Exclude pixels above this index for the fitting and object identification [spatial axis]
-  ymax:         null         # Exclude pixels below this index for the fitting and object identification [spatial axis]
+  ymin:         5            # Exclude pixels above this index for the fitting and object identification [spatial axis]
+  ymax:         -5           # Exclude pixels below this index for the fitting and object identification [spatial axis]
   order_center: 3            # Polynomial order used to fit the centroid along the spectral trace
   order_width:  1            # Polynomial order used to fit the width of the spectral trace
 
 response:
-  order:        8
-  interactive: False
+  order:        8            # Polynomial order used to fit the response function as function of wavelength
+  interactive: False         # Not supported yet!
+  force:       False         # Overwrite existing response function?

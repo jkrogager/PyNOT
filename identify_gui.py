@@ -21,6 +21,7 @@ from PyQt5.QtWidgets import *
 from scipy.optimize import curve_fit
 from numpy.polynomial import Chebyshev
 from astropy.io import fits
+from alfosc import create_pixel_array
 
 code_dir = os.path.dirname(os.path.abspath(__file__))
 v_file = os.path.join(code_dir, 'VERSION')
@@ -113,25 +114,6 @@ def load_linelist(fname):
 
     sorted_list = sorted(linelist, key=lambda x: x[0])
     return sorted_list
-
-
-def create_pixel_array(hdr, dispaxis):
-    """Load reference array from header using CRVAL, CDELT, CRPIX along dispersion axis"""
-    if dispaxis not in [1, 2]:
-        raise ValueError("Dispersion Axis must be 1 (X-axis) or 2 (Y-axis)!")
-    p = hdr['CRVAL%i' % dispaxis]
-    s = hdr['CDELT%i' % dispaxis]
-    r = hdr['CRPIX%i' % dispaxis]
-    N = hdr['NAXIS%i' % dispaxis]
-    # -- If data are from NOT then check for binning and rescale CRPIX:
-    binning = 1
-    if 'DETXBIN' in hdr:
-        if dispaxis == 1:
-            binning = hdr['DETXBIN']
-        else:
-            binning = hdr['DETYBIN']
-    pix_array = p + s*(np.arange(N) - (r/binning - 1))
-    return pix_array
 
 
 class GraphicInterface(QMainWindow):

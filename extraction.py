@@ -174,7 +174,7 @@ def median_filter_data(x, kappa=5., window=51):
     return (med_x, mask)
 
 
-def fit_trace(img2D, x, y, model_name='moffat', dx=50, ymin=None, ymax=None, xmin=None, xmax=None):
+def fit_trace(img2D, x, y, model_name='moffat', dx=50, ymin=5, ymax=-5, xmin=None, xmax=None):
     """
     Perform automatic localization of the trace if possible, otherwise use fixed
     aperture to extract the 1D spectrum.
@@ -211,6 +211,7 @@ def fit_trace(img2D, x, y, model_name='moffat', dx=50, ymin=None, ymax=None, xmi
     if N_obj == 0:
         raise ValueError(" [ERROR]  - No object found in image!")
     elif N_obj == 1:
+        spsf[spsf < 0] = 0.
         fwhm = get_FWHM(spsf)
         msg.append("          - Found %i object in slit" % N_obj)
         msg.append("          - FWHM of spectral trace: %.1f" % fwhm)
@@ -512,7 +513,7 @@ def auto_extract_img(img2D, err2D, *, N=None, pdf_fname=None, mask=None, model_n
     return spectra, output_msg
 
 
-def auto_extract(fname, output, dispaxis=1, *, N=None, pdf_fname=None, mask=None, model_name='moffat', dx=50, width_scale=2, xmin=None, xmax=None, ymin=None, ymax=None, order_center=3, order_width=1):
+def auto_extract(fname, output, dispaxis=1, *, N=None, pdf_fname=None, mask=None, model_name='moffat', dx=50, width_scale=2, xmin=None, xmax=None, ymin=None, ymax=None, order_center=3, order_width=1, **kwargs):
     """Automatically extract object spectra in the given file. Dispersion along the x-axis is assumed!"""
     msg = list()
     img2D = fits.getdata(fname)
@@ -530,6 +531,7 @@ def auto_extract(fname, output, dispaxis=1, *, N=None, pdf_fname=None, mask=None
         msg.append("[WARNING] - No error image detected!")
         msg.append("[WARNING] - Generating one from image statistics:")
         msg.append("[WARNING] - Median=%.2e  Sigma=%.2e" % (np.nanmedian(img2D), noise))
+
 
     if dispaxis == 2:
         img2D = img2D.T

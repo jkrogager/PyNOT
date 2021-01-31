@@ -286,7 +286,7 @@ def main(raw_path=None, options_fname=None, verbose=False):
         corrected_2d_fname = os.path.join(output_dir, 'CORRECTED2D_%s.fits' % (sci_img.target_name))
         flux2d_fname = os.path.join(output_dir, 'FLUX2D_%s.fits' % (sci_img.target_name))
         flux1d_fname = os.path.join(output_dir, 'FLUX1D_%s.fits' % (sci_img.target_name))
-        extract_pdf_fname = os.path.join(output_dir, 'extract1D_details.pdf' % (sci_img.target_name))
+        extract_pdf_fname = os.path.join(output_dir, 'extract1D_details.pdf')
 
         # Combine Bias Frames matched for CCD setup:
         bias_frames = sci_img.match_files(database['BIAS'])
@@ -386,7 +386,7 @@ def main(raw_path=None, options_fname=None, verbose=False):
             std_fname = flux_std_files[0]
             std_base = os.path.basename(std_fname).split('.')[0][2:]
             response_fname = os.path.join(output_dir, 'response_%s_%s.fits' % (std_base, grism))
-            if os.path.exists(response_fname):
+            if os.path.exists(response_fname) and not options['response']['force']:
                 log.write("Response function already exists: %s" % response_fname)
                 log.add_linebreak()
                 status['RESPONSE'] = response_fname
@@ -419,8 +419,7 @@ def main(raw_path=None, options_fname=None, verbose=False):
         log.write("Running task: Bias and Flat Field Correction")
         try:
             output_msg = raw_correction(sci_img.data, sci_img.header, master_bias_fname, norm_flat_fname,
-                                        output=corrected_2d_fname,
-                                        verbose=True, overwrite=True)
+                                        output=corrected_2d_fname, overwrite=True, overscan=50)
             log.commit(output_msg)
         except:
             log.error("Bias and flat field correction failed!")
@@ -500,7 +499,7 @@ def main(raw_path=None, options_fname=None, verbose=False):
             try:
                 ext_msg = auto_extract(extract_fname, flux1d_fname, dispaxis=1, pdf_fname=extract_pdf_fname,
                                        **options['extract'])
-                msg.append(ext_msg)
+                log.commit(ext_msg)
             except:
                 log.error("Spectral 1D extraction failed!")
                 log.fatal_error()
