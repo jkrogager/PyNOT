@@ -69,7 +69,6 @@ def combine_bias_frames(bias_frames, output='', kappa=15, overwrite=True):
         The log of the function steps and errors
     """
     msg = list()
-    msg.append("          - Running task: Bias Combination")
 
     bias = list()
     for frame in bias_frames:
@@ -164,7 +163,6 @@ def combine_flat_frames(raw_frames, mbias='', output='', match_slit='',
         The log of the function steps and errors
     """
     msg = list()
-    msg.append("          - Running task: Spectral Flat Combination")
     if mbias and exists(mbias):
         bias = pf.getdata(mbias)
     else:
@@ -312,7 +310,6 @@ def normalize_spectral_flat(fname, output='', fig_dir='', axis=2, lower=0, upper
         else:
             hdr = HDU[ext].header
 
-    msg.append("          - Running task: Spectral Flat Normalization")
     msg.append("          - Input file: %s" % fname)
 
     flat1D = np.mean(flat, axis-1)

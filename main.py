@@ -283,7 +283,7 @@ def main(raw_path=None, options_fname=None, verbose=False):
         bgsub2d_fname = os.path.join(output_dir, 'BGSUB2D_%s.fits' % (sci_img.target_name))
         response_pdf = os.path.join(output_dir, 'RESPONSE_%s.pdf' % (grism))
         corrected_2d_fname = os.path.join(output_dir, 'CORRECTED2D_%s.fits' % (sci_img.target_name))
-        final_2d_fname = os.path.join(output_dir, 'red2D_%s.fits' % (sci_img.target_name))
+        flux2d_fname = os.path.join(output_dir, 'FLUX2D_%s.fits' % (sci_img.target_name))
 
 
         # Combine Bias Frames matched for CCD setup:
@@ -300,6 +300,7 @@ def main(raw_path=None, options_fname=None, verbose=False):
                 log.fatal_error()
                 return
         else:
+            log.write("Running task: Bias Combination")
             try:
                 _, bias_msg = combine_bias_frames(bias_frames, output=master_bias_fname,
                                                   kappa=options['bias']['kappa'], overwrite=True)
@@ -321,6 +322,7 @@ def main(raw_path=None, options_fname=None, verbose=False):
             return
 
         try:
+            log.write("Running task: Spectral Flat Combination")
             _, flat_msg = combine_flat_frames(flat_frames, mbias=master_bias_fname,
                                               output=comb_flat_fname,
                                               kappa=options['flat']['kappa'],
@@ -341,6 +343,7 @@ def main(raw_path=None, options_fname=None, verbose=False):
 
         # Normalize the spectral flat field:
         try:
+            log.write("Running task: Spectral Flat Normalization")
             _, norm_msg = normalize_spectral_flat(comb_flat_fname, output=norm_flat_fname,
                                                   fig_dir=output_dir, axis=sci_img.dispaxis,
                                                   lower=options['flat']['lower'], upper=options['flat']['upper'],
@@ -360,6 +363,7 @@ def main(raw_path=None, options_fname=None, verbose=False):
         # Identify lines in arc frame:
         arc_fname, = sci_img.match_files(arc_images, grism=True, slit=True, filter=True, get_closest_time=True)
         if identify_interactive and identify_all:
+            log.write("Running task: Arc Line Identification")
             # run interactive GUI
             # poly_order, pixtable, msg = create_pixtable(...)
             pass
@@ -386,6 +390,7 @@ def main(raw_path=None, options_fname=None, verbose=False):
                 status['RESPONSE'] = response_fname
             else:
                 std_fname = flux_std_files[0]
+                log.write("Running task: Calculation of Response Function")
                 log.write("Spectroscopic Flux Standard: %s" % std_fname)
                 try:
                     response_fname, response_msg = calculate_response(std_fname, arc_fname=arc_fname,
@@ -408,7 +413,8 @@ def main(raw_path=None, options_fname=None, verbose=False):
                     raise
 
 
-        # Bias correction, Flat correction, Cosmic Ray Rejection
+        # Bias correction, Flat correction
+        log.write("Running task: Bias and Flat Field Correction")
         try:
             output_msg = raw_correction(sci_img.data, sci_img.header, master_bias_fname, norm_flat_fname,
                                         output=corrected_2d_fname,
@@ -422,6 +428,7 @@ def main(raw_path=None, options_fname=None, verbose=False):
 
 
         # Call rectify
+        log.write("Running task: 2D Rectification and Wavelength Calibration")
         try:
             rect_msg = rectify(corrected_2d_fname, arc_fname, pixtable, output=rect2d_fname, fig_dir=output_dir,
                                dispaxis=sci_img.dispaxis, order_wl=order_wl, **options['rectify'])
@@ -435,6 +442,7 @@ def main(raw_path=None, options_fname=None, verbose=False):
 
         # Automatic Background Subtraction:
         bgsub_pdf_name = os.path.join(output_dir, 'bgsub2D.pdf')
+        log.write("Running task: Background Subtraction")
         try:
             bg_msg = auto_fit_background(rect2d_fname, bgsub2d_fname, dispaxis=1,
                                          kappa=10, fwhm_scale=4, xmin=20,
@@ -446,8 +454,10 @@ def main(raw_path=None, options_fname=None, verbose=False):
             print("Unexpected error:", sys.exc_info()[0])
             raise
 
-        # Identify and Correct Cosmic Rays Hits:
+
+        # Correct Cosmic Rays Hits:
         if options['scired']['crr']:
+            log.write("Running task: Cosmic Ray Rejection")
             crr_fname = os.path.join(output_dir, 'CRR_BGSUB2D_%s.fits' % (sci_img.target_name))
             try:
                 crr_msg = correct_cosmics(bgsub2d_fname, crr_fname, niter=options['scired']['niter'],
@@ -462,7 +472,17 @@ def main(raw_path=None, options_fname=None, verbose=False):
             crr_fname = bgsub2d_fname
 
         # Apply Response Function:
-        # -- write function...
+        if status['RESPONSE']:
+            response_fname = status['RESPONSE']
+            try:
+                log.write("Running task: Flux Calibration")
+                flux_msg = flux_calibrate(crr_fname, output=flux2d_fname, response=response_fname)
+                log.commit(flux_msg)
+            except:
+                log.error("Flux calibration failed!")
+                log.fatal_error()
+                print("Unexpected error:", sys.exc_info()[0])
+                raise
 
         log.exit()
         break

@@ -161,7 +161,6 @@ def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, kappa=
         # transpose the horizontal spectra to make them vertical
         # since it's faster to fit rows than columns
         data = data.T
-    msg.append("          - Running task: background subtraction")
     msg.append("          - Loaded input image: %s" % data_fname)
 
     msg.append("          - Fitting background along the spatial axis with polynomium of order: %i" % order_bg)
@@ -210,7 +209,6 @@ def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, kappa=
 
 def correct_cosmics(input_fname, output_fname, niter=4, gain=None, readnoise=None):
     msg = list()
-    msg.append("          - Running task: Cosmic Ray Rejection")
     msg.append("          - Cosmic Ray Rejection using Astroscrappy (based on van Dokkum 2001)")
     sci = fits.getdata(input_fname)
     hdr = fits.getheader(input_fname)
@@ -239,6 +237,9 @@ def correct_cosmics(input_fname, output_fname, niter=4, gain=None, readnoise=Non
             msg.append("          - Read READNOISE from FITS header: %.2f" % readnoise)
 
     crr_mask, sci = detect_cosmics(sci, gain=gain, readnoise=readnoise, niter=niter, pssl=sky_level)
+    # Corrected image is in ELECTRONS!! Convert back to ADUs:
+    sci = sci/gain - sky_level
+
     # Add comment to FITS header:
     hdr.add_comment("Cosmic Ray Rejection using Astroscrappy (based on van Dokkum 2001)")
     # expand mask to neighbouring pixels:
@@ -311,7 +312,6 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname, output='', crr=True, ni
 
     """
     msg = list()
-    msg.append("          - Running task: bias and flat field correction")
     mbias = fits.getdata(bias_fname)
     msg.append("          - Loaded BIAS image: %s" % bias_fname)
     mflat = fits.getdata(flat_fname)

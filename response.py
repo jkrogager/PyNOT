@@ -140,7 +140,6 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
         Log of the function call
     """
     msg = list()
-    msg.append("          - Running task: calculate response function")
     mbias = fits.getdata(bias_fname)
     msg.append("          - Loaded BIAS image: %s" % bias_fname)
     mflat = fits.getdata(flat_fname)

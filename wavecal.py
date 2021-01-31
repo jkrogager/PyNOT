@@ -440,7 +440,6 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
             binning=1, dispaxis=2, fit_window=20, plot=True, overwrite=True, verbose=False):
 
     msg = list()
-    msg.append("          - Running task: Rectify 2D and Wavelength Calibrate")
     arc2D = fits.getdata(arc_fname)
     img2D = fits.getdata(img_fname)
     msg.append("          - Loaded image: %s" % img_fname)
