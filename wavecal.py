@@ -29,7 +29,7 @@ with open(v_file) as version_file:
 
 
 # -- Function to call from PyNOT.main
-def create_pixtable(arc_image, grism_name, pixtable_name, linelist_fname, order_wl=4):
+def create_pixtable(arc_image, grism_name, pixtable_name, linelist_fname, order_wl=4, app=None):
     """
     arc_image : str
         Filename of arc image
@@ -42,8 +42,8 @@ def create_pixtable(arc_image, grism_name, pixtable_name, linelist_fname, order_
     base_name, ext = os.path.splitext(fname)
     output_pixtable = "%s_arcID_%s.tab" % (base_name, grism_name)
     # Launch App:
-    global qapp
-    app = QApplication.instance()
+    # global app
+    # app = QApplication.instance()
     if app is None:
         app = QApplication(sys.argv)
     gui = GraphicInterface(arc_image,

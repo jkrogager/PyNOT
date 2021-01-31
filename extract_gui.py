@@ -31,6 +31,16 @@ from itertools import cycle
 from PyQt5 import QtCore, QtGui, QtWidgets
 import warnings
 
+
+def run_gui(input_fname, output_fname, app=None, **ext_kwargs):
+    # global app
+    if app is None:
+        app = QtWidgets.QApplication(sys.argv)
+    gui = ExtractGUI(input_fname, output_fname=output_fname, dispaxis=1, locked=True, **ext_kwargs)
+    gui.show()
+    app.exec_()
+
+
 def save_fits_spectrum(fname, wl, flux, err, hdr, bg=None, aper=None):
     """Write spectrum to a FITS file with 3 extensions: FLUX, ERR and SKY"""
     # Check if wavelength array increases linearly (to less than 1%):
@@ -632,20 +642,26 @@ class ImageData(object):
             self.data = self.data.T
             self.error = self.error.T
             self.shape = self.data.shape
+            self.wl_unit = self.header['CUNIT2']
         else:
             self.wl = get_wavelength_from_header(self.header, 1)
+            self.wl_unit = self.header['CUNIT1']
         self.x = np.arange(self.data.shape[1], dtype=np.float64)
         self.y = np.arange(self.data.shape[0], dtype=np.float64)
+        self.flux_unit = self.header['BUNIT']
+
 
 
 class Spectrum(object):
-    def __init__(self, wl=None, data=None, error=None, mask=None, hdr={}, bg=None):
+    def __init__(self, wl=None, data=None, error=None, mask=None, hdr={}, bg=None, wl_unit='', flux_unit=''):
         self.wl = wl
         self.data = data
         self.error = error
         self.mask = mask
         self.hdr = hdr
         self.background = bg
+        self.wl_unit = wl_unit
+        self.flux_unit = flux_unit
 
         self.plot_line = None
 
@@ -666,7 +682,7 @@ options_descriptions = {'BACKGROUND_POLY_ORDER': "Polynomial Order of Rows in Ba
 
 
 class ExtractGUI(QtWidgets.QMainWindow):
-    def __init__(self, fname=None, dispaxis=1, parent=None):
+    def __init__(self, fname=None, dispaxis=1, model_name='moffat', dx=50, width_scale=2., xmin=0, xmax=None, ymin=0, ymax=None, order_center=3, order_width=0, parent=None, locked=False, output_fname='', **kwargs):
         QtWidgets.QMainWindow.__init__(self, parent)
         self.setWindowTitle('PyNOT: Extract')
         self._main = QtWidgets.QWidget()
@@ -677,6 +693,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.background = None
         self.last_fit = tuple()
         self.filename_2d = fname
+        self.output_fname = output_fname
         self.dispaxis = 1
         self.settings = default_settings
 
@@ -693,26 +710,32 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.add_btn = QtWidgets.QPushButton("Add Object")
         self.add_btn.clicked.connect(lambda x: self.set_state('add'))
         self.add_btn.setShortcut("ctrl+A")
-        self.add_bg_btn = QtWidgets.QPushButton("Mark Background")
+        self.add_bg_btn = QtWidgets.QPushButton("Select Background")
         self.add_bg_btn.setShortcut("ctrl+B")
         self.add_bg_btn.clicked.connect(lambda x: self.set_state('bg1'))
 
-        self.remove_btn = QtWidgets.QPushButton("Delete")
+        self.remove_btn = QtWidgets.QPushButton("Delete Object")
         self.remove_btn.setShortcut("ctrl+D")
         self.remove_btn.clicked.connect(lambda x: self.set_state('delete'))
         QtWidgets.QShortcut(QtGui.QKeySequence("Escape"), self, activated=self.clear_state)
 
 
         # Limits for profile averaging and fitting:
-        self.xmin_edit = QtWidgets.QLineEdit("0")
-        self.xmax_edit = QtWidgets.QLineEdit("")
+        self.xmin_edit = QtWidgets.QLineEdit("%i" % xmin)
+        if xmax is not None:
+            self.xmax_edit = QtWidgets.QLineEdit("%i" % xmax)
+        else:
+            self.xmax_edit = QtWidgets.QLineEdit("")
         self.xmin_edit.setValidator(QtGui.QIntValidator(0, 1000000))
         self.xmax_edit.setValidator(QtGui.QIntValidator(0, 1000000))
         self.xmin_edit.returnPressed.connect(self.limits_updated)
         self.xmax_edit.returnPressed.connect(self.limits_updated)
 
-        self.ymin_edit = QtWidgets.QLineEdit("0")
-        self.ymax_edit = QtWidgets.QLineEdit("")
+        self.ymin_edit = QtWidgets.QLineEdit("%i" % ymin)
+        if ymax is not None:
+            self.ymax_edit = QtWidgets.QLineEdit("%i" % ymax)
+        else:
+            self.ymax_edit = QtWidgets.QLineEdit("")
         self.ymin_edit.setValidator(QtGui.QIntValidator(0, 1000000))
         self.ymax_edit.setValidator(QtGui.QIntValidator(0, 1000000))
         self.ymin_edit.returnPressed.connect(self.limits_updated)
@@ -721,31 +744,32 @@ class ExtractGUI(QtWidgets.QMainWindow):
         # Fitting Parameters:
         self.model_chooser = QtWidgets.QComboBox()
         self.model_chooser.addItems(["Moffat", "Gaussian", "Tophat"])
+        self.model_chooser.setCurrentText(model_name.title())
         self.model_chooser.currentTextChanged.connect(self.model_change)
 
-        self.bins_edit = QtWidgets.QLineEdit("50")
-        self.bins_edit.setValidator(QtGui.QIntValidator(0, 1000000))
+        self.bins_edit = QtWidgets.QLineEdit("%i" % dx)
+        self.bins_edit.setValidator(QtGui.QIntValidator(0, 9999))
         self.bins_edit.returnPressed.connect(self.fit_trace)
 
         self.med_kappa_edit = QtWidgets.QLineEdit("3")
         self.med_kappa_edit.setValidator(QtGui.QDoubleValidator())
         self.med_kappa_edit.returnPressed.connect(self.median_filter_points)
 
-        self.med_window_edit = QtWidgets.QLineEdit("9")
+        self.med_window_edit = QtWidgets.QLineEdit("11")
         self.med_window_edit.setValidator(QtGui.QIntValidator(3, 1000))
         self.med_window_edit.returnPressed.connect(self.median_filter_points)
 
         self.median_btn = QtWidgets.QPushButton("Median Filter Points")
         self.median_btn.clicked.connect(self.median_filter_points)
 
-        self.c_order_edit = QtWidgets.QLineEdit("3")
+        self.c_order_edit = QtWidgets.QLineEdit("%i" % order_center)
         self.c_order_edit.setValidator(QtGui.QIntValidator(0, 100))
         self.c_order_edit.returnPressed.connect(self.fit_trace)
-        self.w_order_edit = QtWidgets.QLineEdit("1")
+        self.w_order_edit = QtWidgets.QLineEdit("%i" % order_width)
         self.w_order_edit.setValidator(QtGui.QIntValidator(0, 100))
         self.w_order_edit.returnPressed.connect(self.fit_trace)
 
-        self.extract_btn = QtWidgets.QPushButton("Extract")
+        self.extract_btn = QtWidgets.QPushButton("Extract 1D Spectrum")
         self.extract_btn.setShortcut("ctrl+E")
         self.extract_btn.clicked.connect(self.extract)
 
@@ -794,10 +818,12 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.figure_2d.tight_layout()
 
         self.vmin_edit = QtWidgets.QLineEdit("")
+        self.vmin_edit.setAlignment(QtCore.Qt.AlignCenter)
         self.vmax_edit = QtWidgets.QLineEdit("")
+        self.vmax_edit.setAlignment(QtCore.Qt.AlignCenter)
         self.vmin_edit.returnPressed.connect(self.update_2d)
         self.vmax_edit.returnPressed.connect(self.update_2d)
-        self.vminmax_btn = QtWidgets.QPushButton("Update")
+        self.vminmax_btn = QtWidgets.QPushButton("Update Plot")
         self.vminmax_btn.clicked.connect(self.update_2d)
         self.vmin_edit.setValidator(QtGui.QDoubleValidator())
         self.vmax_edit.setValidator(QtGui.QDoubleValidator())
@@ -805,9 +831,9 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.bg_fit_btn.setShortcut("ctrl+shift+f")
         self.bg_fit_btn.clicked.connect(self.fit_background)
         row_imvals = QtWidgets.QHBoxLayout()
-        row_imvals.addWidget(gui_label("v<sub>min</sub>:", color='#111111'))
+        row_imvals.addWidget(gui_label("v<sub>min</sub> =", color='#111111'))
         row_imvals.addWidget(self.vmin_edit)
-        row_imvals.addWidget(gui_label("v<sub>max</sub>:", color='#111111'))
+        row_imvals.addWidget(gui_label("v<sub>max</sub> =", color='#111111'))
         row_imvals.addWidget(self.vmax_edit)
         row_imvals.addWidget(self.vminmax_btn)
         row_imvals.addStretch(1)
@@ -825,6 +851,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.tab_widget.addTab(self.tab2, "Fitting Points")
         self.figure_points = Figure(figsize=(8, 6))
         self.axes_points = self.figure_points.subplots(3, 1)
+        self.axes_points[0].set_title("Profile Parameters along Dispersion Axis", fontsize=11)
         self.canvas_points = FigureCanvas(self.figure_points)
         self.canvas_points.mpl_connect('pick_event', self.pick_points)
         self.figp_mpl_toolbar = NavigationToolbar(self.canvas_points, self)
@@ -851,8 +878,8 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.figure_1d = Figure(figsize=(8, 6))
         self.axis_1d = self.figure_1d.add_subplot(111)
         self.axis_1d.axhline(0., ls=':', color='black', lw=0.5, alpha=0.5)
-        self.axis_1d.set_xlabel("Dispersion axis")
-        self.axis_1d.set_ylabel("Extracted flux")
+        self.axis_1d.set_xlabel("Wavelength", fontsize=11)
+        self.axis_1d.set_ylabel("Flux", fontsize=11)
         self.canvas_1d = FigureCanvas(self.figure_1d)
         self.fig1d_mpl_toolbar = NavigationToolbar(self.canvas_1d, self)
         self.fig1d_mpl_toolbar.setFixedHeight(20)
@@ -873,24 +900,55 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.tab_shortcut3.setKey(QtGui.QKeySequence("Ctrl+3"))
         self.tab_shortcut3.activated.connect(lambda: self.tab_widget.setCurrentIndex(2))
 
+        # == TOP MENU BAR:
+        self.save_btn = QtWidgets.QPushButton("Save")
+        self.save_btn.clicked.connect(self.save_spectrum_1d)
+        self.load_btn = QtWidgets.QPushButton("Load")
+        self.load_btn.clicked.connect(self.load_spectrum)
+        self.options_btn = QtWidgets.QPushButton("Options")
+        self.options_btn.clicked.connect(lambda checked: SettingsWindow(self))
+        if locked:
+            self.close_btn = QtWidgets.QPushButton("Done")
+            self.close_btn.clicked.connect(self.done)
+            self.load_btn.setEnabled(False)
+            self.save_btn.setEnabled(False)
+            self.save_btn.setText("")
+        else:
+            self.close_btn = QtWidgets.QPushButton("Close")
+            self.close_btn.clicked.connect(self.close)
+
+
         # == Layout ===========================================================
-        main_layout = QtWidgets.QHBoxLayout(self._main)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
+        super_layout = QtWidgets.QVBoxLayout(self._main)
+
+        top_menubar = QtWidgets.QHBoxLayout()
+        top_menubar.addWidget(self.close_btn)
+        top_menubar.addWidget(self.save_btn)
+        top_menubar.addWidget(self.load_btn)
+        top_menubar.addWidget(self.options_btn)
+        top_menubar.addStretch(1)
+
+        top_menubar.addWidget(self.extract_btn)
+        top_menubar.addStretch(1)
+
+        top_menubar.addWidget(self.add_btn)
+        top_menubar.addWidget(self.remove_btn)
+        top_menubar.addWidget(self.add_bg_btn)
+
+        main_layout = QtWidgets.QHBoxLayout()
+        main_layout.setSpacing(2)
+        super_layout.setContentsMargins(2, 2, 2, 2)
+        super_layout.setSpacing(0)
+
+        super_layout.addLayout(top_menubar)
+        super_layout.addLayout(main_layout)
 
         # TabWidget Layout:
         main_layout.addWidget(self.tab_widget, 1)
 
         # Right Panel Layout:
         right_panel = QtWidgets.QVBoxLayout()
-
-        button_row = QtWidgets.QHBoxLayout()
-        button_row.addWidget(self.add_btn)
-        button_row.addWidget(self.add_bg_btn)
-        button_row.addStretch(1)
-        button_row.addWidget(self.remove_btn)
-        right_panel.addLayout(button_row)
-
+        right_panel.setContentsMargins(5, 5, 5, 5)
         right_panel.addWidget(self.canvas_spsf)
         right_panel.addWidget(self.spsf_mpl_toolbar)
 
@@ -954,8 +1012,10 @@ class ExtractGUI(QtWidgets.QMainWindow):
 
 
         row_fit = QtWidgets.QHBoxLayout()
+        row_fit.addStretch(1)
         row_fit.addWidget(self.fit_btn)
-        row_fit.addWidget(self.extract_btn)
+        row_fit.addStretch(1)
+        # row_fit.addWidget(self.extract_btn)
         right_panel.addLayout(row_fit)
 
         separatorLine = QtWidgets.QFrame()
@@ -977,6 +1037,11 @@ class ExtractGUI(QtWidgets.QMainWindow):
         if fname:
             self.load_spectrum(fname, dispaxis)
             self.filename_2d = fname
+
+    def done(self):
+        success = self.save_all_extractions(self.output_fname)
+        if success:
+            self.close()
 
     def save_aperture_model(self, index):
         """Save the 2D trace model profile of a given object"""
@@ -1061,16 +1126,18 @@ class ExtractGUI(QtWidgets.QMainWindow):
 
         SaveWindow(parent=self, index=index)
 
-    def save_all_extractions(self):
+    def save_all_extractions(self, fname=''):
         if len(self.data1d) == 0:
             msg = "No 1D spectra have been extracted. Nothing to save..."
             QtWidgets.QMessageBox.critical(None, "Save Error", msg)
-            return
+            return False
 
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        basename = current_dir + '/' + self.image2d.header['OBJECT'] + '_ext.fits'
-        filters = "FITS Files (*.fits *.fit)"
-        fname, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save All Extractions', basename, filters)
+        if not fname:
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            basename = current_dir + '/' + self.image2d.header['OBJECT'] + '_ext.fits'
+            filters = "FITS Files (*.fits *.fit)"
+            fname, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save All Extractions', basename, filters)
+
         if fname:
             hdu = fits.HDUList()
             prim_hdr = fits.Header()
@@ -1078,21 +1145,35 @@ class ExtractGUI(QtWidgets.QMainWindow):
             prim_hdr['OBJECT'] = self.image2d.header['OBJECT']
             prim_hdr['DATE-OBS'] = self.image2d.header['DATE-OBS']
             prim_hdr['EXPTIME'] = self.image2d.header['EXPTIME']
+            prim_hdr['AIRMASS'] = self.image2d.header['AIRMASS']
+            prim_hdr['ALGRNM'] = self.image2d.header['ALGRNM']
+            prim_hdr['ALAPRTNM'] = self.image2d.header['ALAPRTNM']
             prim_hdr['RA'] = self.image2d.header['RA']
             prim_hdr['DEC'] = self.image2d.header['DEC']
             prim_hdr['COMMENT'] = 'PyNOT extracted spectra'
             prim_hdr['COMMENT'] = 'Each spectrum in its own extension'
             prim = fits.PrimaryHDU(header=prim_hdr)
             hdu.append(prim)
+
+            keywords_base = ['CDELT%i', 'CRPIX%i', 'CRVAL%i', 'CTYPE%i', 'CUNIT%i']
+            keywords_to_remove = sum([[key % num for key in keywords_base] for num in [1, 2]], [])
+            keywords_to_remove += ['CD1_1', 'CD2_1', 'CD1_2', 'CD2_2']
+            keywords_to_remove += ['BUNIT', 'DATAMIN', 'DATAMAX']
             for num, spectrum in enumerate(self.data1d):
-                col_wl = fits.Column(name='WAVE', array=spectrum.wl, format='D')
-                col_flux = fits.Column(name='FLUX', array=spectrum.data, format='D')
-                col_err = fits.Column(name='ERR', array=spectrum.error, format='D')
-                col_sky = fits.Column(name='SKY', array=spectrum.background, format='D')
-                tab = fits.BinTableHDU.from_columns([col_wl, col_flux, col_err, col_sky], header=spectrum.hdr)
+                col_wl = fits.Column(name='WAVE', array=spectrum.wl, format='D', unit=spectrum.wl_unit)
+                col_flux = fits.Column(name='FLUX', array=spectrum.data, format='D', unit=spectrum.flux_unit)
+                col_err = fits.Column(name='ERR', array=spectrum.error, format='D', unit=spectrum.flux_unit)
+                col_sky = fits.Column(name='SKY', array=spectrum.background, format='D', unit=spectrum.flux_unit)
+                tab_hdr = spectrum.hdr.copy()
+                for key in keywords_to_remove:
+                    tab_hdr.remove(key, ignore_missing=True)
+                tab = fits.BinTableHDU.from_columns([col_wl, col_flux, col_err, col_sky], header=tab_hdr)
                 tab.name = 'OBJ%i' % (num+1)
                 hdu.append(tab)
             hdu.writeto(fname, overwrite=True, output_verify='silentfix')
+            return True
+        else:
+            return False
 
     def load_spectrum(self, fname=None, dispaxis=1):
         if fname is False:
@@ -1110,10 +1191,15 @@ class ExtractGUI(QtWidgets.QMainWindow):
             self.remove_trace(index)
         if self.background is not None:
             self.background.clear()
+        if len(self.data1d) > 0:
+            for spec in self.data1d:
+                del spec
         self.axis_spsf.clear()
         self.axis_2d.clear()
         self.axis_2d_bg.clear()
+        self.axis_1d.clear()
         self.image2d = ImageData(fname, dispaxis)
+        self.data1d = list()
         self.filename_2d = fname
         self.last_fit = tuple()
         self.background = BackgroundModel(self.axis_spsf, self.image2d.data.shape)
@@ -1123,6 +1209,8 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.update_2d()
         self.update_spsf()
         self.localize_trace()
+        self.axis_1d.set_xlabel("Wavelength  [%s]" % self.image2d.wl_unit)
+        self.axis_1d.set_ylabel("Flux  [%s]" % self.image2d.flux_unit)
 
     def rotate_image(self):
         if len(self.trace_models) > 0:
@@ -1143,7 +1231,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
     def clear_state(self):
         self.state = None
         self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
-        self.axis_spsf.set_title("")
+        self.axis_spsf.set_title("SPSF view", fontsize=10)
         self.canvas_spsf.draw()
 
     def add_new_object(self, center):
@@ -1294,25 +1382,25 @@ class ExtractGUI(QtWidgets.QMainWindow):
 
     def set_state(self, state):
         if state == 'add':
-            self.axis_spsf.set_title("Add New Object: Click on Trace Center")
+            self.axis_spsf.set_title("Add New Object: Click on Trace Center", fontsize=10)
             self.canvas_spsf.draw()
             self.state = state
             self.setCursor(QtGui.QCursor(QtCore.Qt.CrossCursor))
 
         elif state == 'bg1':
-            self.axis_spsf.set_title("Mark Background Range: Click on First Limit")
+            self.axis_spsf.set_title("Mark Background Range: Click on First Limit", fontsize=10)
             self.canvas_spsf.draw()
             self.state = state
             self.setCursor(QtGui.QCursor(QtCore.Qt.CrossCursor))
 
         elif state == 'bg2':
-            self.axis_spsf.set_title("Click on Second Limit")
+            self.axis_spsf.set_title("Click on Second Limit", fontsize=10)
             self.canvas_spsf.draw()
             self.state = state
             self.setCursor(QtGui.QCursor(QtCore.Qt.CrossCursor))
 
         elif state == 'delete':
-            self.axis_spsf.set_title("Pick object or background range to delete", fontsize=11)
+            self.axis_spsf.set_title("Pick object or background range to delete", fontsize=10)
             self.canvas_spsf.draw()
             self.delete_picked_object = True
             self.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
@@ -1404,7 +1492,11 @@ class ExtractGUI(QtWidgets.QMainWindow):
         vmin = np.median(SPSF) - 10.*mad(SPSF)
         vmax = np.max(SPSF) + 10.*mad(SPSF)
         self.axis_spsf.set_ylim(vmin, vmax)
+        self.axis_spsf.set_yticklabels("")
         self.axis_spsf.set_xlim(np.min(self.image2d.y)-2, np.max(self.image2d.y)+2)
+        self.axis_spsf.tick_params(axis='x', which='major', labelsize=8)
+        self.axis_spsf.set_title("SPSF view", fontsize=10)
+        self.canvas_spsf.figure.tight_layout()
         self.canvas_spsf.draw()
 
     def update_2d(self):
@@ -1647,10 +1739,12 @@ class ExtractGUI(QtWidgets.QMainWindow):
                 self.axes_points = self.figure_points.subplots(2, 1)
             else:
                 self.axes_points = [self.figure_points.subplots(1, 1)]
+            self.axes_points[0].set_title("Profile Parameters along Dispersion Axis", fontsize=11)
 
             for model in self.trace_models:
                 parameters = model.get_parnames()
                 for ax, parname in zip(self.axes_points, parameters):
+                    ax.tick_params(axis='both', which='major', labelsize=10)
                     mask = model.get_mask(parname)
                     # -- Plot traced points:
                     l1, = ax.plot(model.x_binned[mask], model.points[parname][mask],
@@ -1671,6 +1765,9 @@ class ExtractGUI(QtWidgets.QMainWindow):
                         model.fit_lines[parname] = lf
                     if not model.fixed:
                         ax.set_ylabel(r"$\%s$" % parname)
+                    if not ax.is_last_row():
+                        ax.set_xticklabels("")
+        self.canvas_points.figure.tight_layout()
         self.canvas_points.draw()
         self.canvas_2d.draw()
 
@@ -1820,7 +1917,8 @@ class ExtractGUI(QtWidgets.QMainWindow):
                 bg1d = np.sum(M*P*bg2d, axis=0) / np.sum(M*P**2, axis=0)
 
             wl = self.image2d.wl
-            spec1d = Spectrum(wl=wl, data=data1d, error=err1d, hdr=self.image2d.header)
+            spec1d = Spectrum(wl=wl, data=data1d, error=err1d, hdr=self.image2d.header,
+                              wl_unit=self.image2d.wl_unit, flux_unit=self.image2d.flux_unit)
             spec1d.background = bg1d
             data1d_list.append(spec1d)
         self.data1d = data1d_list
@@ -1838,13 +1936,13 @@ class ExtractGUI(QtWidgets.QMainWindow):
                     # -- find a way to update the data instead...
             model.plot_1d = self.axis_1d.errorbar(spec1d.wl, spec1d.data, spec1d.error,
                                                   color=model.color, lw=1., elinewidth=0.5)
-            good_pixels = spec1d.data > 2*spec1d.error
+            good_pixels = spec1d.data > 5*spec1d.error
             if np.sum(good_pixels) < 3:
                 data_min = 0.
                 data_max = 2*np.nanmean(spec1d.data[50:-50])
             else:
                 data_min = -3*np.nanmean(spec1d.error[good_pixels])
-                data_max = 1.5*np.nanmax(spec1d.data[good_pixels])
+                data_max = 1.2*np.nanmax(spec1d.data[good_pixels])
             ylims.append([data_min, data_max])
             listItem = self.list_widget.item(num)
             if listItem.checkState() == 2:
@@ -1856,6 +1954,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
         ymin = np.min(ylims)
         ymax = np.max(ylims)
         self.axis_1d.set_ylim(ymin, ymax)
+        self.canvas_1d.figure.tight_layout()
         self.canvas_1d.draw()
         self.tab_widget.setCurrentIndex(2)
 
@@ -2446,6 +2545,8 @@ if __name__ == '__main__':
                         help="Input 2D spectrum")
     parser.add_argument("--axis", type=int, default=1,
                         help="Dispersion axis 1: horizontal, 2: vertical  [default=1]")
+    parser.add_argument("--locked", "-l", action='store_true',
+                        help="Lock interface")
     args = parser.parse_args()
 
     if args.filename == 'test':
@@ -2463,6 +2564,6 @@ if __name__ == '__main__':
 
     # Launch App:
     qapp = QtWidgets.QApplication(sys.argv)
-    app = ExtractGUI(fname, dispaxis=dispaxis)
+    app = ExtractGUI(fname, dispaxis=dispaxis, locked=args.locked, ymin=10, ymax=390, output_fname='tmp1d.fits')
     app.show()
     qapp.exec_()

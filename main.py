@@ -14,9 +14,12 @@ import alfosc
 import data_organizer as do
 from calibs import combine_bias_frames, combine_flat_frames, normalize_spectral_flat
 from extraction import auto_extract
+import extract_gui
 from wavecal import create_pixtable, rectify
 from scired import raw_correction, auto_fit_background, correct_cosmics
 from response import calculate_response, flux_calibrate
+
+from PyQt5.QtWidgets import QApplication
 
 code_dir = os.path.dirname(os.path.abspath(__file__))
 calib_dir = os.path.join(code_dir, 'calib/')
@@ -129,6 +132,9 @@ def get_options(option_fname):
 def main(raw_path=None, options_fname=None, verbose=False):
     log = Report(verbose)
     status = State()
+
+    global app
+    app = QApplication(sys.argv)
 
     # -- Parse Options from YAML
     options = get_options(defaults_fname)
@@ -258,7 +264,8 @@ def main(raw_path=None, options_fname=None, verbose=False):
             linelist_fname = os.path.join(calib_dir, 'HeNe_linelist.dat')
             poly_order, saved_pixtab_fname, msg = create_pixtable(arc_fname, grism_name,
                                                                   pixtab_fname, linelist_fname,
-                                                                  order_wl=options['identify']['order_wl'])
+                                                                  order_wl=options['identify']['order_wl'],
+                                                                  app=app)
             status[saved_pixtab_fname] = poly_order
             status[grism_name+'_pixtab'] = saved_pixtab_fname
             log.commit(msg)
@@ -494,7 +501,16 @@ def main(raw_path=None, options_fname=None, verbose=False):
         log.write("Running task: 1D Extraction")
         extract_fname = status['FLUX2D']
         if options['extract']['interactive']:
-            raise IOError("The interactive extraction mode isn't implemented yet")
+            try:
+                log.write("Starting Graphical User Interface")
+                extract_gui.run_gui(extract_fname, output_fname=flux1d_fname,
+                                    app=app, **options['extract'])
+                log.write("Writing fits table: %s" % flux1d_fname)
+            except:
+                log.error("Interactive 1D extraction failed!")
+                log.fatal_error()
+                print("Unexpected error:", sys.exc_info()[0])
+                raise
         else:
             try:
                 ext_msg = auto_extract(extract_fname, flux1d_fname, dispaxis=1, pdf_fname=extract_pdf_fname,

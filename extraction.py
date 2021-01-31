@@ -553,19 +553,21 @@ def auto_extract(fname, output, dispaxis=1, *, N=None, pdf_fname=None, mask=None
         wl = (np.arange(hdr['NAXIS1']) - (crpix - 1))*cdelt + crval
     else:
         wl = np.arange(len(spectra[0][0]))
+
+
+    keywords_base = ['CDELT%i', 'CRPIX%i', 'CRVAL%i', 'CTYPE%i', 'CUNIT%i']
+    keywords_to_remove = sum([[key % num for key in keywords_base] for num in [1, 2]], [])
+    keywords_to_remove += ['CD1_1', 'CD2_1', 'CD1_2', 'CD2_2']
+    keywords_to_remove += ['BUNIT', 'DATAMIN', 'DATAMAX']
     for num, (flux, err) in enumerate(spectra):
-        col_wl = fits.Column(name='WAVE', array=wl, format='D')
-        col_flux = fits.Column(name='FLUX', array=flux, format='D')
-        col_err = fits.Column(name='ERR', array=err, format='D')
+        col_wl = fits.Column(name='WAVE', array=wl, format='D', unit=hdr['CUNIT1'])
+        col_flux = fits.Column(name='FLUX', array=flux, format='D', unit=hdr['BUNIT'])
+        col_err = fits.Column(name='ERR', array=err, format='D', unit=hdr['BUNIT'])
+        for key in keywords_to_remove:
+            hdr.remove(key, ignore_missing=True)
         tab = fits.BinTableHDU.from_columns([col_wl, col_flux, col_err], header=hdr)
         tab.name = 'OBJ%i' % (num+1)
         hdu.append(tab)
-
-    keywords_base = ['NAXIS%i', 'CDELT%i', 'CRPIX%i', 'CRVAL%i']
-    keywords_to_remove = sum([[key % num for key in keywords_base] for num in [1, 2]], [])
-    keywords_to_remove += ['CD1_1', 'CD2_1', 'CD1_2', 'CD2_2']
-    for key in keywords_to_remove:
-        hdr.remove(key, ignore_missing=True)
 
     hdu.writeto(output, overwrite=True, output_verify='silentfix')
     msg.append("          - Writing fits table: %s" % output)

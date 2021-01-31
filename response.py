@@ -58,14 +58,14 @@ def flux_calibrate(input_fname, *, output, response):
 
     # Load Sensitivity Function:
     resp_tab = fits.getdata(response)
-    sens_int = np.interp(wl, resp_tab['WAVE'], resp_tab['RESPONSE'])
+    resp_int = np.interp(wl, resp_tab['WAVE'], resp_tab['RESPONSE'])
     msg.append("          - Loaded response function: %s" % response)
 
     airm = hdr['AIRMASS']
     t = hdr['EXPTIME']
-    ext_correction = 10**(0.4*airm * ext)
-
-    flux_calibration = ext_correction / 10**(0.4*sens_int)
+    # ext_correction = 10**(0.4*airm * ext)
+    # flux_calibration = ext_correction / 10**(0.4*resp_int)
+    flux_calibration = 10**(0.4*(airm*ext - resp_int))
     flux_calib2D = np.resize(flux_calibration, img2D.shape)
     flux2D = img2D / t / cdelt * flux_calib2D
     err2D = err2D / t / cdelt * flux_calib2D
