@@ -488,6 +488,7 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
     ilow, ihigh = detect_borders(arc2D)
     msg.append("          - Image shape: (%i, %i)" % arc2D.shape)
     msg.append("          - Detecting arc line borders: %i -- %i" % (ilow, ihigh))
+    hdr['CRPIX2'] += ilow
     # Trim images:
     arc2D = arc2D[ilow:ihigh, :]
     img2D = img2D[ilow:ihigh, :]
@@ -542,11 +543,29 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
         hdu[0].header = hdr_corr
         if err2D_corr is not None:
             hdu['ERR'].data = err2D_corr
+            err_hdr = hdu['ERR'].header
+            copy_keywords = ['CRPIX1', 'CRVAL1', 'CRDELT1', 'CTYPE1', 'CUNIT1']
+            copy_keywords += ['CRPIX2', 'CRVAL2', 'CRDELT2', 'CTYPE2', 'CUNIT2']
+            for key in copy_keywords:
+                err_hdr[key] = hdr[key]
+            hdu['ERR'].header = err_hdr
         if 'MASK' in hdu:
             hdu['MASK'].data = mask2D
+            mask_hdr = hdu['MASK'].header
+            copy_keywords = ['CRPIX1', 'CRVAL1', 'CRDELT1', 'CTYPE1', 'CUNIT1']
+            copy_keywords += ['CRPIX2', 'CRVAL2', 'CRDELT2', 'CTYPE2', 'CUNIT2']
+            for key in copy_keywords:
+                mask_hdr[key] = hdr[key]
+            hdu['MASK'].header = mask_hdr
         else:
             mask_hdr = fits.Header()
-            mask_hdr.add_comment("4 = Cosmic Ray Hit")
+            mask_hdr.add_comment("2 = Good Pixels")
+            mask_hdr.add_comment("1 = Cosmic Ray Hits")
+            mask_hdr['AUTHOR'] = 'PyNOT version %s' % __version__
+            copy_keywords = ['CRPIX1', 'CRVAL1', 'CRDELT1', 'CTYPE1', 'CUNIT1']
+            copy_keywords += ['CRPIX2', 'CRVAL2', 'CRDELT2', 'CTYPE2', 'CUNIT2']
+            for key in copy_keywords:
+                mask_hdr[key] = hdr[key]
             mask_ext = fits.ImageHDU(mask2D, header=mask_hdr, name='MASK')
             hdu.append(mask_ext)
         hdu.writeto(output, overwrite=overwrite)

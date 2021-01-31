@@ -38,41 +38,52 @@ def load_spectrum1d(fname):
     return wl, flux
 
 
-def flux_calibrate():
-    # --- Flux calibrate:
+def flux_calibrate(input_fname, *, output, response):
+    """Apply response function to flux calibrate the input spectrum"""
+    msg = list()
+    # Load input data:
+    hdr = fits.getheader(input_fname)
+    img2D = fits.getdata(input_fname)
+    err2D = fits.getdata(input_fname, 'ERR')
+    msg.append("          - Loaded image: %s" % input_fname)
+    cdelt = hdr['CDELT1']
+    crval = hdr['CRVAL1']
+    crpix = hdr['CRPIX1']
+    wl = (np.arange(hdr['NAXIS1']) - (crpix - 1))*cdelt + crval
+
     # Load Extinction Table:
     wl_ext, A0 = np.loadtxt(alfosc.path + '/calib/lapalma.ext', unpack=True)
     ext = np.interp(wl, wl_ext, A0)
+    msg.append("          - Loaded average extinction table for La Palma")
 
     # Load Sensitivity Function:
-    if sensitivity:
-        sens_file = sensitivity
-        S = pf.getdata(sens_file)
-        S_hdr = pf.getheader(sens_file)
-        wl_S = S_hdr['CD1_1']*np.arange(len(S)) + S_hdr['CRVAL1']
-        sens_int = np.interp(wl, wl_S, S)
-        # - Check that the science frame and sensitivity were observed with the same grating:
-        error_msg = 'Grisms for science frame and sensitivity function do not not match!'
-        assert hdr['ALGRNM'] == S_hdr['ALGRNM'], AssertionError(error_msg)
-    else:
-        sens_file = alfosc.path + '/calib/%s_sens.fits' % grism
-        S = pf.getdata(sens_file)
-        S_hdr = pf.getheader(sens_file)
-        wl_S = S_hdr['CD1_1']*np.arange(len(S)) + S_hdr['CRVAL1']
-        sens_int = np.interp(wl, wl_S, S)
+    resp_tab = fits.getdata(response)
+    sens_int = np.interp(wl, resp_tab['WAVE'], resp_tab['RESPONSE'])
+    msg.append("          - Loaded response function: %s" % response)
 
     airm = hdr['AIRMASS']
     t = hdr['EXPTIME']
     ext_correction = 10**(0.4*airm * ext)
 
     flux_calibration = ext_correction / 10**(0.4*sens_int)
-    flux1D = spec1D / t / dl * flux_calibration
-    err1D = err1D / t / dl * flux_calibration
-
     flux_calib2D = np.resize(flux_calibration, img2D.T.shape)
     flux_calib2D = flux_calib2D.T
-    flux2D = img2D[::-1] / t / dl * flux_calib2D
-    err2D = err2D[::-1] / t / dl * flux_calib2D
+    flux2D = img2D / t / cdelt * flux_calib2D
+    err2D = err2D / t / cdelt * flux_calib2D
+
+    with fits.open(input_fname) as hdu:
+        hdu[0].data = flux2D
+        hdu[0].header['BUNIT'] = 'erg/s/cm2/A'
+        hdu[0].header['RESPONSE'] = response
+
+        hdu['ERR'].data = err2D
+        hdu['ERR'].header['BUNIT'] = 'erg/s/cm2/A'
+
+        hdu.writeto(output, overwrite=True)
+    msg.append("          - Saving flux calibrated 2D image: %s" % output)
+    msg.append("")
+    output_msg = "\n".join(msg)
+    return output_msg
 
 
 
@@ -319,11 +330,12 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
     msg.append("          - Plotting the sensitivity function diagnostics:  %s" % pdf_fname)
 
     # --- Prepare FITS output:
-    sens_hdr = fits.Header()
-    sens_hdr['AUTHOR'] = 'PyNOT version %s' % __version__
+    resp_hdr = fits.Header()
+    resp_hdr['GRISM'] = grism
+    resp_hdr['AUTHOR'] = 'PyNOT version %s' % __version__
     col_wl = fits.Column(name='WAVE', array=wl, format='D')
-    col_sens = fits.Column(name='SENS', array=sens, format='D')
-    tab = fits.BinTableHDU.from_columns([col_wl, col_sens], header=sens_hdr)
+    col_resp = fits.Column(name='RESPONSE', array=sens, format='D')
+    tab = fits.BinTableHDU.from_columns([col_wl, col_resp], header=resp_hdr)
     hdu = fits.HDUList()
     hdu.append(tab)
     hdu.writeto(response_output, overwrite=True)

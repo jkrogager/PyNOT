@@ -195,6 +195,13 @@ def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, kappa=
     with fits.open(data_fname) as hdu:
         hdu[0].data = data
         sky_hdr = fits.Header()
+        sky_hdr['BUNIT'] = 'count'
+        copy_keywords = ['CRPIX1', 'CRVAL1', 'CRDELT1', 'CTYPE1', 'CUNIT1']
+        copy_keywords += ['CRPIX2', 'CRVAL2', 'CRDELT2']
+        sky_hdr['CTYPE2'] = 'LINEAR'
+        sky_hdr['CUNIT2'] = 'Pixel'
+        for key in copy_keywords:
+            sky_hdr[key] = hdr[key]
         sky_hdr['AUTHOR'] = 'PyNOT version %s' % __version__
         sky_hdr['ORDER'] = (order_bg, "Polynomial order along spatial rows")
         sky_ext = fits.ImageHDU(bg2D, header=sky_hdr, name='SKY')

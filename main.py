@@ -13,9 +13,10 @@ import yaml
 import alfosc
 import data_organizer as do
 from calibs import combine_bias_frames, combine_flat_frames, normalize_spectral_flat
+from extraction import auto_extract
 from wavecal import create_pixtable, rectify
 from scired import raw_correction, auto_fit_background, correct_cosmics
-from response import calculate_response
+from response import calculate_response, flux_calibrate
 
 code_dir = os.path.dirname(os.path.abspath(__file__))
 calib_dir = os.path.join(code_dir, 'calib/')
@@ -284,7 +285,8 @@ def main(raw_path=None, options_fname=None, verbose=False):
         response_pdf = os.path.join(output_dir, 'RESPONSE_%s.pdf' % (grism))
         corrected_2d_fname = os.path.join(output_dir, 'CORRECTED2D_%s.fits' % (sci_img.target_name))
         flux2d_fname = os.path.join(output_dir, 'FLUX2D_%s.fits' % (sci_img.target_name))
-
+        flux1d_fname = os.path.join(output_dir, 'FLUX1D_%s.fits' % (sci_img.target_name))
+        extract_pdf_fname = os.path.join(output_dir, 'extract1D_details.pdf' % (sci_img.target_name))
 
         # Combine Bias Frames matched for CCD setup:
         bias_frames = sci_img.match_files(database['BIAS'])
@@ -471,15 +473,36 @@ def main(raw_path=None, options_fname=None, verbose=False):
         else:
             crr_fname = bgsub2d_fname
 
+
         # Apply Response Function:
         if status['RESPONSE']:
+            log.write("Running task: Flux Calibration")
             response_fname = status['RESPONSE']
             try:
-                log.write("Running task: Flux Calibration")
                 flux_msg = flux_calibrate(crr_fname, output=flux2d_fname, response=response_fname)
                 log.commit(flux_msg)
+                status['FLUX2D'] = flux2d_fname
             except:
                 log.error("Flux calibration failed!")
+                log.fatal_error()
+                print("Unexpected error:", sys.exc_info()[0])
+                raise
+        else:
+            status['FLUX2D'] = crr_fname
+
+
+        # Extract 1D spectrum:
+        log.write("Running task: 1D Extraction")
+        extract_fname = status['FLUX2D']
+        if options['extract']['interactive']:
+            raise IOError("The interactive extraction mode isn't implemented yet")
+        else:
+            try:
+                ext_msg = auto_extract(extract_fname, flux1d_fname, dispaxis=1, pdf_fname=extract_pdf_fname,
+                                       **options['extract'])
+                msg.append(ext_msg)
+            except:
+                log.error("Spectral 1D extraction failed!")
                 log.fatal_error()
                 print("Unexpected error:", sys.exc_info()[0])
                 raise
