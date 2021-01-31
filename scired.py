@@ -109,8 +109,9 @@ def fit_background_image(data, order_bg=3, xmin=0, xmax=None, kappa=10, fwhm_sca
         med_row = median_filter(row, 15)
         noise = mad(row)*1.4826
         this_mask = mask * (np.abs(row - med_row) < 10*noise)
-        bg_model = Chebyshev.fit(x[this_mask], row[this_mask], order_bg)
-        bg2D[i] = bg_model(x)
+        if np.sum(this_mask) > order_bg+1:
+            bg_model = Chebyshev.fit(x[this_mask], row[this_mask], order_bg, domain=[x.min(), x.max()])
+            bg2D[i] = bg_model(x)
 
     return bg2D
 
@@ -207,6 +208,68 @@ def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, kappa=
     return output_msg
 
 
+def correct_cosmics(input_fname, output_fname, niter=4, gain=None, readnoise=None):
+    msg = list()
+    msg.append("          - Running task: Cosmic Ray Rejection")
+    msg.append("          - Cosmic Ray Rejection using Astroscrappy (based on van Dokkum 2001)")
+    sci = fits.getdata(input_fname)
+    hdr = fits.getheader(input_fname)
+    msg.append("          - Loaded input image: %s" % input_fname)
+    with fits.open(input_fname) as hdu:
+        if 'SKY' in hdu:
+            sky_level = np.median(hdu['SKY'].data)
+            msg.append("          - Image has been sky subtracted. Median sky level: %.1f" % sky_level)
+        else:
+            sky_level = 0.
+
+        if 'MASK' in hdu:
+            mask = hdu['MASK'].data
+        else:
+            mask = np.zeros_like(sci, dtype=int)
+
+    if not gain:
+        gain = hdr['GAIN']
+        msg.append("          - Read GAIN from FITS header: %.2f" % gain)
+    if not readnoise:
+        try:
+            readnoise = hdr['RDNOISE']
+            msg.append("          - Read RDNOISE from FITS header: %.2f" % readnoise)
+        except:
+            readnoise = hdr['READNOISE']
+            msg.append("          - Read READNOISE from FITS header: %.2f" % readnoise)
+
+    crr_mask, sci = detect_cosmics(sci, gain=gain, readnoise=readnoise, niter=niter, pssl=sky_level)
+    # Add comment to FITS header:
+    hdr.add_comment("Cosmic Ray Rejection using Astroscrappy (based on van Dokkum 2001)")
+    # expand mask to neighbouring pixels:
+    msg.append("          - Number of cosmic ray hits identified: %i" % np.sum(mask > 0))
+
+    mask = mask + 1*(crr_mask > 0)
+    with fits.open(input_fname) as hdu:
+        if hdu[0].data is not None:
+            hdu[0].data = sci
+            hdu[0].header = hdr
+        else:
+            hdu[1].data = sci
+            hdu[1].header = hdr
+
+        if 'MASK' in hdu:
+            hdu['MASK'].data = mask
+            hdu['MASK'].header.add_comment("Cosmic Ray Rejection using Astroscrappy (based on van Dokkum 2001)")
+        else:
+            mask_hdr = fits.Header()
+            mask_hdr.add_comment("0 = Good Pixels")
+            mask_hdr.add_comment("1 = Cosmic Ray Hits")
+            mask_hdr.add_comment("Cosmic Ray Rejection using Astroscrappy (based on van Dokkum 2001)")
+            mask_ext = fits.ImageHDU(mask, header=mask_hdr, name='MASK')
+            hdu.append(mask_ext)
+        hdu.writeto(output_fname, overwrite=True)
+    msg.append("          - Saved cosmic ray corrected image: %s" % output_fname)
+    msg.append("")
+    output_msg = "\n".join(msg)
+    return output_msg
+
+
 def raw_correction(sci_raw, hdr, bias_fname, flat_fname, output='', crr=True, niter=4, verbose=True, overwrite=True):
     """
     Perform bias subtraction, flat field correction, and cosmic ray rejection
@@ -272,31 +335,15 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname, output='', crr=True, ni
     err_NaN = np.isnan(err)
     err[err_NaN] = readnoise/gain
     msg.append("          - Correcting NaNs in noise image: %i pixel(s)" % np.sum(err_NaN))
-
-    # Detect and correct cosmic ray hits:
-    if crr:
-        msg.append("")
-        msg.append("          - Running task: Cosmic Ray Rejection")
-        msg.append("          - Cosmic Ray Rejection using Astroscrappy (based on van Dokkum 2001)")
-        mask, sci = detect_cosmics(sci, gain=hdr['GAIN'], readnoise=hdr['RDNOISE'], niter=niter)
-        # Add comment to FITS header:
-        hdr.add_comment("Cosmic Ray Rejection using Astroscrappy (based on van Dokkum 2001)")
-        # expand mask to neighbouring pixels:
-        msg.append("          - Number of cosmic ray hits identified: %i" % np.sum(mask > 0))
-        msg.append("          - Expanding cosmic hit mask by one pixel")
-        big_mask = np.zeros_like(mask)
-        for shift, axis in [(1, 0), (-1, 0), (1, 1), (-1, 1)]:
-            big_mask += np.roll(mask, shift, axis)
-        mask = 4 * (big_mask > 0)
-
-    else:
-        mask = np.zeros_like(sci)
-        msg.append("          - Empty pixel mask created")
-    mask_hdr = fits.Header()
-    mask_hdr.add_comment("4 = Cosmic Ray Hit")
     hdr['DATAMIN'] = np.nanmin(sci)
     hdr['DATAMAX'] = np.nanmax(sci)
     hdr['EXTNAME'] = 'DATA'
+
+    mask = np.zeros_like(sci, dtype=int)
+    msg.append("          - Empty pixel mask created")
+    mask_hdr = fits.Header()
+    mask_hdr.add_comment("0 = Good Pixels")
+    mask_hdr.add_comment("1 = Cosmic Ray Hits")
 
     sci_ext = fits.PrimaryHDU(sci, header=hdr)
     err_ext = fits.ImageHDU(err, header=hdr, name='ERR')

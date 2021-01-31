@@ -14,7 +14,7 @@ import alfosc
 import data_organizer as do
 from calibs import combine_bias_frames, combine_flat_frames, normalize_spectral_flat
 from wavecal import create_pixtable, rectify
-from scired import raw_correction, auto_fit_background
+from scired import raw_correction, auto_fit_background, correct_cosmics
 from response import calculate_response
 
 code_dir = os.path.dirname(os.path.abspath(__file__))
@@ -134,7 +134,11 @@ def main(raw_path=None, options_fname=None, verbose=False):
 
     if options_fname:
         user_options = get_options(options_fname)
-        options.update(user_options)
+        for section_name, section in user_options.items():
+            if isinstance(section, dict):
+                options[section_name].update(section)
+            else:
+                options[section_name] = section
         if not raw_path:
             raw_path = user_options['path']
 
@@ -378,6 +382,7 @@ def main(raw_path=None, options_fname=None, verbose=False):
             response_fname = os.path.join(output_dir, 'response_%s_%s.fits' % (std_base, grism))
             if os.path.exists(response_fname):
                 log.write("Response function already exists: %s" % response_fname)
+                log.add_linebreak()
                 status['RESPONSE'] = response_fname
             else:
                 std_fname = flux_std_files[0]
@@ -407,7 +412,6 @@ def main(raw_path=None, options_fname=None, verbose=False):
         try:
             output_msg = raw_correction(sci_img.data, sci_img.header, master_bias_fname, norm_flat_fname,
                                         output=corrected_2d_fname,
-                                        crr=options['scired']['crr'], niter=options['scired']['niter'],
                                         verbose=True, overwrite=True)
             log.commit(output_msg)
         except:
@@ -417,10 +421,22 @@ def main(raw_path=None, options_fname=None, verbose=False):
             raise
 
 
+        # Call rectify
+        try:
+            rect_msg = rectify(corrected_2d_fname, arc_fname, pixtable, output=rect2d_fname, fig_dir=output_dir,
+                               dispaxis=sci_img.dispaxis, order_wl=order_wl, **options['rectify'])
+            log.commit(rect_msg)
+        except:
+            log.error("2D rectification failed!")
+            log.fatal_error()
+            print("Unexpected error:", sys.exc_info()[0])
+            raise
+
+
         # Automatic Background Subtraction:
         bgsub_pdf_name = os.path.join(output_dir, 'bgsub2D.pdf')
         try:
-            bg_msg = auto_fit_background(corrected_2d_fname, bgsub2d_fname, dispaxis=2,
+            bg_msg = auto_fit_background(rect2d_fname, bgsub2d_fname, dispaxis=1,
                                          kappa=10, fwhm_scale=4, xmin=20,
                                          order_bg=options['scired']['order_bg'], plot_fname=bgsub_pdf_name)
             log.commit(bg_msg)
@@ -430,17 +446,20 @@ def main(raw_path=None, options_fname=None, verbose=False):
             print("Unexpected error:", sys.exc_info()[0])
             raise
 
-
-        # Call rectify
-        try:
-            rect_msg = rectify(bgsub2d_fname, arc_fname, pixtable, output=rect2d_fname, fig_dir=output_dir,
-                               dispaxis=sci_img.dispaxis, order_wl=order_wl, **options['rectify'])
-            log.commit(rect_msg)
-        except:
-            log.error("2D rectification failed!")
-            log.fatal_error()
-            print("Unexpected error:", sys.exc_info()[0])
-            raise
+        # Identify and Correct Cosmic Rays Hits:
+        if options['scired']['crr']:
+            crr_fname = os.path.join(output_dir, 'CRR_BGSUB2D_%s.fits' % (sci_img.target_name))
+            try:
+                crr_msg = correct_cosmics(bgsub2d_fname, crr_fname, niter=options['scired']['niter'],
+                                          gain=options['scired']['gain'], readnoise=options['scired']['readnoise'])
+                log.commit(crr_msg)
+            except:
+                log.error("Cosmic ray correction failed!")
+                log.fatal_error()
+                print("Unexpected error:", sys.exc_info()[0])
+                raise
+        else:
+            crr_fname = bgsub2d_fname
 
         # Apply Response Function:
         # -- write function...

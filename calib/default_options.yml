@@ -1,9 +1,9 @@
 # Give the path to the raw data:
 # either as a single directory or a list of directories
 path:
-  - /path/to/data1
-  - /path/to/data2
-# alternatively:
+# path:
+#   - path/to/data1
+#   - path/to/data2
 # path: [dir1, dir2, dir3...]
 
 dataset:                    # The PyNOT File Classification (*.pfc)
@@ -12,45 +12,48 @@ bias:
   kappa:  15
 
 flat:
-  kappa:  5                 # Threshold for sigma clipping in Flat combiniation
-  lower:  0                 # Upper boundary on pixels used for spectral shape fitting
-  upper:  2050              # Upper boundary on pixels used for spectral shape fitting
-  order:  24                # Polynomial order for fit to spectral shape
-  sigma:  5                 # Kernel width for Gaussian smoothing
-  plot:   True              # Make diagnostic plots?
-  show:   False             # Show plots and block pipeline until figures are closed?
+  kappa:  5                  # Threshold for sigma clipping in Flat combiniation
+  lower:  0                  # Upper boundary on pixels used for spectral shape fitting
+  upper:  2050               # Upper boundary on pixels used for spectral shape fitting
+  order:  24                 # Polynomial order for fit to spectral shape
+  sigma:  5                  # Kernel width for Gaussian smoothing
+  plot:   True               # Make diagnostic plots?
+  show:   False              # Show plots and block pipeline until figures are closed?
 
 identify:
-  interactive: True         # Identify lines interactively using a graphical interface
-  order_wl:    4            # Polynomial order used for wavelength fit as a function of input pixel
-  all:         False        # Interactively reidentify arc reference frame for each target?
+  interactive: True          # Identify lines interactively using a graphical interface
+  order_wl:    4             # Polynomial order used for wavelength fit as a function of input pixel
+  all:         False         # Interactively reidentify arc reference frame for each target?
 
 rectify:
-  order_bg:   5             # Polynomial order for background subtraction of line continuum
-  order_2d:   3             # Polynomial order for spatial reconstruction of arc lines
-  log:        False         # Use logarithmic binning in wavelength?
-  N_out:      null          # No. of output pixels along dispersion axis. If null is given, use No. of pixels in input image.
-  kind:       'linear'      # Argument of scipy.interpolate.interp1d [linear, zero, slinear, quadratic, cubic]
-  fill_value: 'extrapolate' # Argument of scipy.interpolate.interp1d for data interpolation onto final grid
-  fit_window: 20            # Fitting window in pixels around each arc line to determine centroid  (optimized for grism 4)
-  plot:   True              # Make diagnostic plots?
+  order_bg:    5             # Polynomial order for background subtraction of line continuum
+  order_2d:    3             # Polynomial order for spatial reconstruction of arc lines
+  log:         False         # Use logarithmic binning in wavelength?
+  N_out:       null          # No. of output pixels along dispersion axis. If null is given, use No. of pixels in input image.
+  interpolate: True          # Perform interpolation or apply central wavelength solution to full 2D range
+  kind:        'linear'      # Argument of scipy.interpolate.interp1d [linear, zero, slinear, quadratic, cubic]
+  fill_value:  'extrapolate' # Argument of scipy.interpolate.interp1d for data interpolation onto final grid
+  fit_window:  20            # Fitting window in pixels around each arc line to determine centroid  (optimized for grism 4)
+  plot:        True          # Make diagnostic plots?
 
 scired:
-  order_bg: 3
-  crr:      True       # Perform cosmic ray rejection?
-  niter:    4          # Number of iterations for cosmic ray rejection
+  order_bg:    3
+  crr:         True          # Perform cosmic ray rejection?
+  niter:       4             # Number of iterations for cosmic ray rejection
+  gain:        null          # Detector gain, e-/ADU. Read from the header by default
+  readnoise:   null          # Detector read-out noise, e-. Read from the header by default
 
 extract:
-  interactive:  True        # Extract the 1D spectrum using a graphical user interface?
-  model_name:   'moffat'    # Profile type for optimal extraction 'moffat' or 'gaussian', otherwise 'tophat'
-  dx:           50          # Fit the spectral trace for every `dx` pixels along dispersion axis
-  width_scale:  2           # If model_name is 'tophat', this scales the width in terms of FWHM below and above the centroid
-  xmin:         null        # Exclude pixels above this index for the fitting and object identification [dispersion axis]
-  xmax:         null        # Exclude pixels below this index for the fitting and object identification [dispersion axis]
-  ymin:         null        # Exclude pixels above this index for the fitting and object identification [spatial axis]
-  ymax:         null        # Exclude pixels below this index for the fitting and object identification [spatial axis]
-  order_center: 3           # Polynomial order used to fit the centroid along the spectral trace
-  order_width:  1           # Polynomial order used to fit the width of the spectral trace
+  interactive:  True         # Extract the 1D spectrum using a graphical user interface?
+  model_name:   'moffat'     # Profile type for optimal extraction 'moffat' or 'gaussian', otherwise 'tophat'
+  dx:           50           # Fit the spectral trace for every `dx` pixels along dispersion axis
+  width_scale:  2            # If model_name is 'tophat', this scales the width in terms of FWHM below and above the centroid
+  xmin:         null         # Exclude pixels above this index for the fitting and object identification [dispersion axis]
+  xmax:         null         # Exclude pixels below this index for the fitting and object identification [dispersion axis]
+  ymin:         null         # Exclude pixels above this index for the fitting and object identification [spatial axis]
+  ymax:         null         # Exclude pixels below this index for the fitting and object identification [spatial axis]
+  order_center: 3            # Polynomial order used to fit the centroid along the spectral trace
+  order_width:  1            # Polynomial order used to fit the width of the spectral trace
 
 response:
   order:        8
