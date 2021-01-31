@@ -621,7 +621,11 @@ class ImageData(object):
             self.header = hdu[0].header
             if len(hdu) > 1:
                 imghdr = hdu[1].header
-                self.header.update(imghdr)
+                if hdu[1].name not in ['ERR', 'MASK']:
+                    self.header.update(imghdr)
+
+        if 'DISPAXIS' in self.header:
+            dispaxis = self.header['DISPAXIS']
 
         if dispaxis == 2:
             self.wl = get_wavelength_from_header(self.header, dispaxis)
@@ -629,7 +633,7 @@ class ImageData(object):
             self.error = self.error.T
             self.shape = self.data.shape
         else:
-            self.wl = get_wavelength_from_header(self.header)
+            self.wl = get_wavelength_from_header(self.header, 1)
         self.x = np.arange(self.data.shape[1], dtype=np.float64)
         self.y = np.arange(self.data.shape[0], dtype=np.float64)
 
@@ -682,18 +686,21 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.trace_models = list()
         self.delete_picked_object = False
         self.picked_object = None
+        self.state = None
+        self.bg_value1 = None
 
         # SPSF controls:
         self.add_btn = QtWidgets.QPushButton("Add Object")
-        self.add_btn.clicked.connect(self.add_new_object)
+        self.add_btn.clicked.connect(lambda x: self.set_state('add'))
         self.add_btn.setShortcut("ctrl+A")
         self.add_bg_btn = QtWidgets.QPushButton("Mark Background")
         self.add_bg_btn.setShortcut("ctrl+B")
-        self.add_bg_btn.clicked.connect(self.add_bg_range)
+        self.add_bg_btn.clicked.connect(lambda x: self.set_state('bg1'))
 
         self.remove_btn = QtWidgets.QPushButton("Delete")
         self.remove_btn.setShortcut("ctrl+D")
-        self.remove_btn.clicked.connect(self.delete_object)
+        self.remove_btn.clicked.connect(lambda x: self.set_state('delete'))
+        QtWidgets.QShortcut(QtGui.QKeySequence("Escape"), self, activated=self.clear_state)
 
 
         # Limits for profile averaging and fitting:
@@ -753,6 +760,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.canvas_spsf.mpl_connect('pick_event', self.on_pick)
         self.canvas_spsf.mpl_connect('motion_notify_event', self.on_motion)
         self.canvas_spsf.mpl_connect('button_release_event', self.on_release)
+        self.canvas_spsf.mpl_connect('button_press_event', self.on_mouse_press)
         self.canvas_spsf.setFocusPolicy(QtCore.Qt.ClickFocus)
         self.spsf_mpl_toolbar = NavigationToolbar(self.canvas_spsf, self)
         self.spsf_mpl_toolbar.setFixedHeight(20)
@@ -1132,19 +1140,18 @@ class ExtractGUI(QtWidgets.QMainWindow):
             self.load_spectrum(self.filename_2d, dispaxis=1)
             self.dispaxis = 1
 
-    def add_new_object(self):
+    def clear_state(self):
+        self.state = None
+        self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
+        self.axis_spsf.set_title("")
+        self.canvas_spsf.draw()
+
+    def add_new_object(self, center):
+        """Add new trace object at position `center`"""
         if self.image2d is None:
             msg = "Load data before defining an object trace"
             QtWidgets.QMessageBox.critical(None, 'No data loaded', msg)
             return
-        self.axis_spsf.set_title("Mark Trace Centroid", fontsize=11)
-        self.canvas_spsf.draw()
-        points = self.fig_spsf.ginput(1, 0)
-        if len(points) == 0:
-            self.axis_spsf.set_title("")
-            self.canvas_spsf.draw()
-            return
-        center, _ = points[0]
         self.axis_spsf.lines[0]
         x_data, SPSF = self.axis_spsf.lines[0].get_data()
         imin = np.argmin(np.abs(x_data - center))
@@ -1152,25 +1159,19 @@ class ExtractGUI(QtWidgets.QMainWindow):
         trace_model = TraceModel(center, height, self.axis_spsf, shape=self.image2d.data.shape,
                                  color=next(color_cycle))
         self.add_trace(trace_model)
-        self.axis_spsf.set_title("")
-        self.canvas_spsf.draw()
 
-    def add_bg_range(self):
+    def add_bg_range(self, x1, x2):
+        """
+        Add new background range between points `x1` and `x2`.
+        The points are automatically sorted before adding range.
+        """
         if self.image2d is None:
             msg = "Load data before defining background ranges"
             QtWidgets.QMessageBox.critical(None, 'No data loaded', msg)
             return
-        self.axis_spsf.set_title("Mark background range limits", fontsize=11)
-        self.canvas_spsf.draw()
-        points = self.fig_spsf.ginput(2, 0)
-        if len(points) == 0:
-            self.axis_spsf.set_title("")
-            self.canvas_spsf.draw()
-            return
-        x1, x2 = np.sort([xy[0] for xy in points])
-        self.background.add_range(x1, x2)
-        self.axis_spsf.set_title("")
-        self.canvas_spsf.draw()
+        xmin = min(x1, x2)
+        xmax = max(x1, x2)
+        self.background.add_range(xmin, xmax)
 
     def fit_background(self):
         if self.background is None:
@@ -1220,6 +1221,8 @@ class ExtractGUI(QtWidgets.QMainWindow):
             if self.delete_picked_object:
                 index = self.background.patches.index(artist)
                 self.background.remove_range(index)
+                self.delete_picked_object = False
+                self.clear_state()
 
         else:
             for num, model in enumerate(self.trace_models):
@@ -1227,6 +1230,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
                     if self.delete_picked_object:
                         self.remove_trace(num)
                         self.delete_picked_object = False
+                        self.clear_state()
                     else:
                         old_centroid = copy.copy(model.cen)
                         self.picked_object = (num, artist, model, old_centroid)
@@ -1279,24 +1283,61 @@ class ExtractGUI(QtWidgets.QMainWindow):
 
     def on_key_press(self, event):
         if event.key == 'b':
-            self.add_bg_range()
+            self.set_state('bg1')
 
         elif event.key == 'a':
-            self.add_new_object()
+            self.set_state('add')
 
         elif event.key == 'd':
-            self.delete_object()
+            self.set_state('delete')
 
-    def delete_object(self):
-        # Detect whether the selected object is a background region
-        # or whether it's a target region.
-        self.axis_spsf.set_title("Select background range to delete", fontsize=11)
-        self.canvas_spsf.draw()
-        self.delete_picked_object = True
-        self.fig_spsf.waitforbuttonpress(5)
-        self.delete_picked_object = False
-        self.axis_spsf.set_title("")
-        self.canvas_spsf.draw()
+
+    def set_state(self, state):
+        if state == 'add':
+            self.axis_spsf.set_title("Add New Object: Click on Trace Center")
+            self.canvas_spsf.draw()
+            self.state = state
+            self.setCursor(QtGui.QCursor(QtCore.Qt.CrossCursor))
+
+        elif state == 'bg1':
+            self.axis_spsf.set_title("Mark Background Range: Click on First Limit")
+            self.canvas_spsf.draw()
+            self.state = state
+            self.setCursor(QtGui.QCursor(QtCore.Qt.CrossCursor))
+
+        elif state == 'bg2':
+            self.axis_spsf.set_title("Click on Second Limit")
+            self.canvas_spsf.draw()
+            self.state = state
+            self.setCursor(QtGui.QCursor(QtCore.Qt.CrossCursor))
+
+        elif state == 'delete':
+            self.axis_spsf.set_title("Pick object or background range to delete", fontsize=11)
+            self.canvas_spsf.draw()
+            self.delete_picked_object = True
+            self.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
+
+    def on_mouse_press(self, event):
+        if self.state is None:
+            pass
+
+        elif self.state == 'add':
+            self.add_new_object(event.xdata)
+            self.clear_state()
+
+        elif self.state == 'bg1':
+            self.bg_value1 = event.xdata
+            self.set_state('bg2')
+
+        elif self.state == 'bg2':
+            self.add_bg_range(self.bg_value1, event.xdata)
+            self.clear_state()
+            self.bg_value1 = None
+
+        elif self.state == 'delete':
+            msg = "No object selected"
+            info = "Please pick an object in the SPSF plot: either a background range or a trace object"
+            WarningDialog(self, msg, info)
 
     def remove_trace(self, index):
         trace_model = self.trace_models[index]
@@ -1409,8 +1450,8 @@ class ExtractGUI(QtWidgets.QMainWindow):
             if np.max(trace_model_2d) != 0.:
                 trace_model_2d /= np.max(trace_model_2d)
             alpha_array = 2 * trace_model_2d.copy()
-            alpha_array[alpha_array > 0.1] += 0.2
-            alpha_array[alpha_array > 0.3] = 0.5
+            alpha_array[alpha_array > 0.1] += 0.3
+            alpha_array[alpha_array > 0.3] = 0.6
             if model.model_image is None:
                 model.model_image = self.axis_2d.imshow(trace_model_2d, vmin=0., vmax=0.5,
                                                         cmap=model.cmap, aspect='auto',
@@ -1580,15 +1621,15 @@ class ExtractGUI(QtWidgets.QMainWindow):
                     for line in model.point_lines[parname]:
                         line.remove()
                     l1, = ax.plot(model.x_binned[mask], model.points[parname][mask],
-                                  color=model.color, marker='o', ls='', mec=color_shade(model.color), picker=6.)
+                                  color=model.color, marker='o', ls='', mec=color_shade(model.color), picker=True, pickradius=10)
                     l2, = ax.plot(model.x_binned[~mask], model.points[parname][~mask],
-                                  color=model.color, marker='o', ls='', alpha=0.3, picker=6.)
+                                  color=model.color, marker='o', ls='', alpha=0.3, picker=True, pickradius=10)
                     l3, = ax.plot(model.x_binned[~mask], model.points[parname][~mask],
                                   color='k', marker='x', ls='')
                     model.point_lines[parname] = [l1, l2, l3]
                     if parname == 'mu':
                         l4, = self.axis_2d.plot(model.x_binned[mask], model.points[parname][mask],
-                                                color=model.color, marker='o', ls='', alpha=0.3, picker=6.)
+                                                color=model.color, marker='o', ls='', alpha=0.5, picker=True, pickradius=10)
                         model.point_lines[parname].append(l4)
                     # -- Plot fit to points:
                     if len(model.fit['mu']) > 0:
@@ -1613,15 +1654,15 @@ class ExtractGUI(QtWidgets.QMainWindow):
                     mask = model.get_mask(parname)
                     # -- Plot traced points:
                     l1, = ax.plot(model.x_binned[mask], model.points[parname][mask],
-                                  color=model.color, marker='o', ls='', mec=color_shade(model.color), picker=6.)
+                                  color=model.color, marker='o', ls='', mec=color_shade(model.color), picker=True, pickradius=10)
                     l2, = ax.plot(model.x_binned[~mask], model.points[parname][~mask],
-                                  color=model.color, marker='o', ls='', alpha=0.3, picker=6.)
+                                  color=model.color, marker='o', ls='', alpha=0.3, picker=True, pickradius=10)
                     l3, = ax.plot(model.x_binned[~mask], model.points[parname][~mask],
                                   color='k', marker='x', ls='')
                     model.point_lines[parname] = [l1, l2, l3]
                     if parname == 'mu':
                         l4, = self.axis_2d.plot(model.x_binned[mask], model.points[parname][mask],
-                                                color=model.color, marker='o', ls='', alpha=0.3, picker=6.)
+                                                color=model.color, marker='o', ls='', alpha=0.3, picker=True, pickradius=10)
                         model.point_lines[parname].append(l4)
                     # -- Plot fit to points:
                     if len(model.fit['mu']) > 0:
@@ -1711,6 +1752,10 @@ class ExtractGUI(QtWidgets.QMainWindow):
     def pick_points(self, event):
         artist = event.artist
         if isinstance(artist, matplotlib.lines.Line2D):
+            # -- Can maybe simplify using:
+            # line = event.artist
+            # xdata, ydata = line.get_data()
+            # ind = event.ind
             for model in self.trace_models:
                 for parname in ['mu', 'alpha', 'beta', 'sigma']:
                     if artist in model.point_lines[parname]:
@@ -1767,10 +1812,12 @@ class ExtractGUI(QtWidgets.QMainWindow):
             V = self.image2d.error**2
             M = np.ones_like(img2d)
 
-            data1d = np.sum(M*P*img2d/V, axis=0) / np.sum(M*P**2/V, axis=0)
-            err1d = np.sqrt(np.sum(M*P, axis=0) / np.sum(M*P**2/V, axis=0))
-            err1d = fix_nans(err1d)
-            bg1d = np.sum(M*P*bg2d, axis=0) / np.sum(M*P**2, axis=0)
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                data1d = np.sum(M*P*img2d/V, axis=0) / np.sum(M*P**2/V, axis=0)
+                err1d = np.sqrt(np.sum(M*P, axis=0) / np.sum(M*P**2/V, axis=0))
+                err1d = fix_nans(err1d)
+                bg1d = np.sum(M*P*bg2d, axis=0) / np.sum(M*P**2, axis=0)
 
             wl = self.image2d.wl
             spec1d = Spectrum(wl=wl, data=data1d, error=err1d, hdr=self.image2d.header)
@@ -1782,6 +1829,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
     def plot_data1d(self):
         if len(self.data1d) == 0:
             return
+        ylims = list()
         for num, model in enumerate(self.trace_models):
             spec1d = self.data1d[num]
             if model.plot_1d is not None:
@@ -1790,6 +1838,14 @@ class ExtractGUI(QtWidgets.QMainWindow):
                     # -- find a way to update the data instead...
             model.plot_1d = self.axis_1d.errorbar(spec1d.wl, spec1d.data, spec1d.error,
                                                   color=model.color, lw=1., elinewidth=0.5)
+            good_pixels = spec1d.data > 2*spec1d.error
+            if np.sum(good_pixels) < 3:
+                data_min = 0.
+                data_max = 2*np.nanmean(spec1d.data[50:-50])
+            else:
+                data_min = -3*np.nanmean(spec1d.error[good_pixels])
+                data_max = 1.5*np.nanmax(spec1d.data[good_pixels])
+            ylims.append([data_min, data_max])
             listItem = self.list_widget.item(num)
             if listItem.checkState() == 2:
                 for child in model.plot_1d.get_children():
@@ -1797,6 +1853,9 @@ class ExtractGUI(QtWidgets.QMainWindow):
             else:
                 for child in model.plot_1d.get_children():
                     child.set_visible(False)
+        ymin = np.min(ylims)
+        ymax = np.max(ylims)
+        self.axis_1d.set_ylim(ymin, ymax)
         self.canvas_1d.draw()
         self.tab_widget.setCurrentIndex(2)
 
@@ -1990,7 +2049,7 @@ class SettingsWindow(QtWidgets.QDialog):
             label = QtWidgets.QLabel("%s:" % options_descriptions[option])
             editor = QtWidgets.QLineEdit("%r" % value)
             if isinstance(value, int):
-                editor.setValidator(QtGui.QIntValidator(0, 1e6))
+                editor.setValidator(QtGui.QIntValidator(0, 1000000))
             elif isinstance(value, float):
                 editor.setValidator(QtGui.QDoubleValidator())
             # editor.returnPressed.connect(self.save_settings)
