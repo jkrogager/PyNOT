@@ -20,67 +20,24 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvas, NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
-import matplotlib.colors as mc
-import colorsys
-from lmfit import Parameters, minimize
-from scipy.signal import find_peaks
 from scipy.ndimage import median_filter
 from numpy.polynomial import Chebyshev
 from astropy.io import fits
-from itertools import cycle
 from PyQt5 import QtCore, QtGui, QtWidgets
 import warnings
 
+import alfosc
 
-def run_gui(input_fname, output_fname, app=None, **ext_kwargs):
+def run_gui(input_fname, app=None, order=8):
     # global app
     if app is None:
         app = QtWidgets.QApplication(sys.argv)
-    gui = ExtractGUI(input_fname, output_fname=output_fname, dispaxis=1, locked=True, **ext_kwargs)
+    gui = ResponseGUI(input_fname, locked=True, order=order)
     gui.show()
     app.exec_()
-
-
-def save_fits_spectrum(fname, wl, flux, err, hdr, bg=None, aper=None):
-    """Write spectrum to a FITS file with 3 extensions: FLUX, ERR and SKY"""
-    # Check if wavelength array increases linearly (to less than 1%):
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-        delta_log_wl = np.diff(np.log10(wl))
-        delta_wl = np.diff(wl)
-
-    if (np.abs(np.diff(delta_wl)) < delta_wl[0]/100.).all():
-        # linear wavelength solution: OK
-        hdr['CRVAL1'] = np.min(wl)
-        hdr['CDELT1'] = delta_wl[0]
-        hdr['CTYPE1'] = 'WAVE-LIN'
-    elif (np.abs(np.diff(delta_log_wl)) < delta_log_wl[0]/100.).all():
-        # logarithmic wavelength solution: OK
-        hdr['CRVAL1'] = np.log10(np.min(wl))
-        hdr['CDELT1'] = delta_wl[0]
-        hdr['CTYPE1'] = 'WAVE-LOG'
-    else:
-        return False, "Improper wavelength solution: wavelength should increase linearly or logarithmically!"
-
-    hdr['CRPIX1'] = 1
-    hdr['NAXIS1'] = len(wl)
-    hdr['NAXIS'] = 1
-
-    hdu1 = fits.PrimaryHDU(data=flux, header=hdr)
-    hdu1.name = 'FLUX'
-    hdu2 = fits.ImageHDU(data=err, header=hdr, name='ERR')
-    hdu = fits.HDUList([hdu1, hdu2])
-    if bg is not None:
-        hdu3 = fits.ImageHDU(data=bg, header=hdr, name='SKY')
-        hdu.append(hdu3)
-    if aper is not None:
-        aper_hdr = fits.Header()
-        aper_hdr['AUTHOR'] = 'PyNOT'
-        aper_hdr['COMMENT'] = '2D Extraction Aperture'
-        aper_hdu = fits.ImageHDU(data=aper, header=aper_hdr, name='APER')
-        hdu.append(aper_hdu)
-    hdu.writeto(fname, output_verify='silentfix', overwrite=True)
-    return True, "File saved successfully"
+    # Get Response Array:
+    response = gui.response
+    return response
 
 
 def save_fitstable_spectrum(fname, wl, flux, err, hdr, bg=None, aper=None):
@@ -105,148 +62,6 @@ def save_fitstable_spectrum(fname, wl, flux, err, hdr, bg=None, aper=None):
         hdu.append(aper_hdu)
     hdu.writeto(fname, overwrite=True, output_verify='silentfix')
     return True, "File saved successfully"
-
-
-def save_ascii_spectrum(fname, wl, flux, err, hdr, bg=None):
-    """Write spectrum to an ascii text file with header saved to separate text file."""
-    if bg is not None:
-        data_table = np.column_stack([wl, flux, err, bg])
-        fmt = "%12.4f  % .3e  %.3e  %.3e"
-        col_names = "# Wavelength  Flux        Flux_err   Sky"
-    else:
-        data_table = np.column_stack([wl, flux, err])
-        fmt = "%12.4f  % .3e  %.3e"
-        col_names = "# Wavelength  Flux        Flux_err"
-
-    basename, ext = os.path.splitext(fname)
-    header_fname = basename + '_hdr.txt'
-
-    with open(fname, 'w') as output:
-        output.write(col_names + "\n")
-        np.savetxt(output, data_table, fmt=fmt)
-    hdr.tofile(header_fname, sep='\n', endcard=False, padding=False, overwrite=True)
-    return True, "File saved successfully"
-
-
-def get_FWHM(y, x=None):
-    """
-    Measure the FWHM of the profile given as `y`.
-    If `x` is given, then report the FWHM in terms of data units
-    defined by the `x` array. Otherwise, report pixel units.
-
-    Parameters
-    ----------
-    y : np.ndarray, shape (N)
-        Input profile whose FWHM should be determined.
-
-    x : np.ndarray, shape (N)  [default = None]
-        Input data units, must be same shape as `y`.
-
-    Returns
-    -------
-    fwhm : float
-        FWHM of `y` in units of pixels.
-    """
-    if x is None:
-        x = np.arange(len(y))
-
-    half = max(y)/2.0
-    signs = np.sign(np.add(y, -half))
-    zero_crossings = (signs[0:-2] != signs[1:-1])
-    zero_crossings_i = np.where(zero_crossings)[0]
-
-    if np.sum(zero_crossings) > 2:
-        raise ValueError('Invalid profile! More than 2 crossings detected.')
-    elif np.sum(zero_crossings) < 2:
-        raise ValueError('Invalid profile! Less than 2 crossings detected.')
-    else:
-        pass
-
-    halfmax_x = list()
-    for i in zero_crossings_i:
-        x_i = x[i] + (x[i+1] - x[i]) * ((half - y[i]) / (y[i+1] - y[i]))
-        halfmax_x.append(x_i)
-    fwhm = halfmax_x[1] - halfmax_x[0]
-    return fwhm
-
-
-def nan_helper(y):
-    """Helper to handle indices and logical indices of NaNs.
-
-    Returns:
-        - nans, logical indices of NaNs
-        - index, a function, with signature indices= index(logical_indices),
-          to convert logical indices of NaNs to 'equivalent' indices
-    Example:
-        >>> # linear interpolation of NaNs
-        >>> nans, x= nan_helper(y)
-        >>> y[nans]= np.interp(x(nans), x(~nans), y[~nans])
-    """
-    return np.isnan(y), lambda z: z.nonzero()[0]
-
-
-def fix_nans(y):
-    """Fix NaN values in arrays by interpolating over them.
-
-    Example:
-        >>> y = np.array([1, 2, 3, Nan, Nan, 6])
-        >>> y_fix = fix_nans(y)
-        y_fix: array([ 1.,  2.,  3.,  4.,  5.,  6.])
-    """
-    nans, x = nan_helper(y)
-    y[nans] = np.interp(x(nans), x(~nans), y[~nans])
-    return y
-
-
-def color_shade(color, amount=1.2):
-    """
-    Lightens the given color by multiplying (1-luminosity) by the given amount.
-    Input can be matplotlib color string, hex string, or RGB tuple.
-
-    Examples:
-    >> lighten_color('g', 0.3)
-    >> lighten_color('#F034A3', 0.6)
-    >> lighten_color((.3,.55,.1), 0.5)
-    """
-    try:
-        c = mc.cnames[color]
-    except:
-        c = color
-    c = colorsys.rgb_to_hls(*mc.to_rgb(c))
-    return colorsys.hls_to_rgb(c[0], 1 - amount * (1 - c[1]), c[2])
-
-def make_linear_colormap(color, N=256):
-    lum = np.linspace(0., 1., 256)
-    c = np.array(mc.to_rgb(color))
-    col_array = np.outer(lum, c-1.) + 1.
-    return mc.ListedColormap(col_array)
-
-color_list = [
-    "#3949AB",
-    "#009688",
-    "#D81B60",
-    "#8E24AA",
-    "#FDD835",
-]
-# Create iterative color-cycle:
-color_cycle = cycle(color_list)
-
-def mad(img):
-    """Calculate Median Absolute Deviation from the median
-    This is a robust variance estimator.
-    For a Gaussian distribution:
-        sigma ≈ 1.4826 * MAD
-    """
-    return np.median(np.abs(img - np.median(img)))
-
-
-def median_filter_data(x, kappa=5., window=21, parname=None):
-    med_x = median_filter(x, window)
-    MAD = np.median(np.abs(x - med_x))*1.48
-    if MAD == 0.:
-        MAD = np.std(x - med_x)
-    mask = np.abs(x - med_x) < kappa*MAD
-    return (med_x, mask)
 
 
 def gui_label(text, color='black'):
@@ -275,142 +90,6 @@ def get_wavelength_from_header(hdr, dispaxis=1):
 
     return wavelength
 
-
-def tophat(x, low, high):
-    """Tophat profile: 1 within [low: high], 0 outside"""
-    mask = (x >= low) & (x <= high)
-    profile = mask * 1. / np.sum(1.*mask)
-    return profile
-
-
-def NN_moffat(x, mu, alpha, beta, logamp):
-    """One-dimensional non-negative Moffat profile."""
-    amp = 10**logamp
-    return amp*(1. + ((x-mu)**2/alpha**2))**(-beta)
-
-
-def NN_gaussian(x, mu, sigma, logamp):
-    """ One-dimensional modified non-negative Gaussian profile."""
-    amp = 10**logamp
-    return amp * np.exp(-0.5*(x-mu)**2/sigma**2)
-
-
-def trace_function(pars, x, N, model_type='moffat'):
-    model = np.zeros_like(x)
-    if model_type == 'gaussian':
-        for i in range(N):
-            p = [pars['mu_%i' % i],
-                 pars['sig_%i' % i],
-                 pars['logamp_%i' % i]]
-            model += NN_gaussian(x, *p)
-
-    elif model_type == 'moffat':
-        for i in range(N):
-            p = [pars['mu_%i' % i],
-                 pars['a_%i' % i],
-                 pars['b_%i' % i],
-                 pars['logamp_%i' % i]]
-            model += NN_moffat(x, *p)
-    model += pars['bg']
-    return model
-
-
-def model_residuals(pars, x, y, N, model_type='moffat'):
-    return y - trace_function(pars, x, N, model_type=model_type)
-
-
-def prep_parameters(peaks, prominence, size=np.inf, model_type='moffat', tie_traces=True):
-    values = zip(peaks, prominence)
-    pars = Parameters()
-    pars.add('bg', value=0.)
-    if model_type == 'gaussian':
-        for i, (x0, amp) in enumerate(values):
-            pars.add('mu_%i' % i, value=float(x0), min=0., max=size)
-            pars.add('sig_%i' % i, value=2., min=0., max=20.)
-            pars.add('logamp_%i' % i, value=np.log10(amp))
-    elif model_type == 'moffat':
-        for i, (x0, amp) in enumerate(values):
-            pars.add('mu_%i' % i, value=float(x0), min=0., max=size)
-            pars.add('a_%i' % i, value=2., min=0., max=20.)
-            pars.add('b_%i' % i, value=1., min=0., max=20.)
-            pars.add('logamp_%i' % i, value=np.log10(amp))
-    if len(peaks) > 1 and tie_traces is True:
-        # Define constraints such that mu_1 is a constant offset from mu_0
-        for num in range(1, len(peaks)):
-            dmu = pars['mu_%i' % num].value - pars['mu_0'].value
-            pars.add('dmu_%i' % num, value=dmu, min=dmu-2, max=dmu+2)
-            pars['mu_%i' % num].expr = 'mu_0 + dmu_%i' % num
-    return pars
-
-
-def auto_localize(img2D, settings):
-    img2D = img2D.astype(np.float64)
-
-    spsf = np.median(img2D, axis=1)
-    spsf = spsf - np.median(spsf)
-
-    # Detect peaks:
-    noise = mad(spsf) * 1.48
-    if noise == 0.:
-        noise = np.std(spsf)
-    peaks, properties = find_peaks(spsf, prominence=settings['LOCALIZE_THRESHOLD']*noise,
-                                   width=settings['LOCALIZE_MIN_WIDTH'],
-                                   distance=settings['LOCALIZE_MIN_SEP'])
-    if len(peaks) > 0:
-        prominences = properties['prominences']
-    else:
-        prominences = []
-    return (peaks, prominences)
-
-
-class BackgroundModel(object):
-    def __init__(self, axis, shape, order=3):
-        """Must be tied to the `axis` in the GUI which displays the SPSF"""
-        self.ranges = list()
-        self.order = order
-        self.model2d = np.zeros(shape)
-        self.x = np.arange(shape[1])
-        self.y = np.arange(shape[0])
-        self.vlines = list()
-        self.patches = list()
-        self.axis = axis
-
-    def add_range(self, i_low, i_high):
-        for num, (lower, upper) in enumerate(self.ranges):
-            if (lower <= i_low <= upper) or (lower <= i_high <= upper):
-                # merge ranges:
-                i_low = min(i_low, lower)
-                i_high = max(i_high, upper)
-                self.set_range(num, i_low, i_high)
-                return
-
-        self.ranges.append([i_low, i_high])
-        v1 = self.axis.axvline(i_low, color='#29b6f6', ls=':', lw=0.8)
-        v2 = self.axis.axvline(i_high, color='#29b6f6', ls=':', lw=0.8)
-        patch = self.axis.axvspan(i_low, i_high, color='#29b6f6', alpha=0.3, picker=True)
-        self.patches.append(patch)
-        self.vlines.append([v1, v2])
-
-    def set_range(self, index, i_low, i_high):
-        self.patches[index].remove()
-        self.patches.pop(index)
-        self.ranges[index] = [i_low, i_high]
-        self.vlines[index][0].set_xdata(i_low)
-        self.vlines[index][1].set_xdata(i_high)
-        patch = self.axis.axvspan(i_low, i_high, color='#29b6f6', alpha=0.3, picker=True)
-        self.patches.insert(index, patch)
-
-    def remove_range(self, index):
-        self.patches[index].remove()
-        self.patches.pop(index)
-        for vline in self.vlines[index]:
-            vline.remove()
-        self.vlines.pop(index)
-        self.ranges.pop(index)
-
-    def clear(self):
-        for num, range in enumerate(self.ranges):
-            self.remove_range(num)
 
 
 class TraceModel(object):
@@ -612,170 +291,68 @@ class TraceModel(object):
         return new_trace_model
 
 
-class ImageData(object):
-    def __init__(self, fname, dispaxis=1):
-        self.filename = fname
-        data_temp = fits.getdata(fname)
-        self.data = data_temp.astype(np.float64)
-        self.shape = self.data.shape
-        try:
-            self.error = fits.getdata(fname, 1)
-        except:
-            # noise = mad(self.data) * 1.48
-            # self.error = np.ones_like(self.data) * noise
-            noise_tmp = self.data.copy()
-            noise_tmp[noise_tmp <= 0.] = 1.e3
-            self.error = np.sqrt(noise_tmp)
-
-        with fits.open(fname) as hdu:
-            self.header = hdu[0].header
-            if len(hdu) > 1:
-                imghdr = hdu[1].header
-                if hdu[1].name not in ['ERR', 'MASK']:
-                    self.header.update(imghdr)
-
-        if 'DISPAXIS' in self.header:
-            dispaxis = self.header['DISPAXIS']
-
-        if dispaxis == 2:
-            self.wl = get_wavelength_from_header(self.header, dispaxis)
-            self.data = self.data.T
-            self.error = self.error.T
-            self.shape = self.data.shape
-            self.wl_unit = self.header['CUNIT2']
-        else:
-            self.wl = get_wavelength_from_header(self.header, 1)
-            self.wl_unit = self.header['CUNIT1']
-        self.x = np.arange(self.data.shape[1], dtype=np.float64)
-        self.y = np.arange(self.data.shape[0], dtype=np.float64)
-        self.flux_unit = self.header['BUNIT']
-
 
 
 class Spectrum(object):
-    def __init__(self, wl=None, data=None, error=None, mask=None, hdr={}, bg=None, wl_unit='', flux_unit=''):
+    def __init__(self, wl=None, data=None, error=None, header={}, wl_unit='', flux_unit=''):
         self.wl = wl
         self.data = data
         self.error = error
-        self.mask = mask
-        self.hdr = hdr
-        self.background = bg
+        self.header = header
         self.wl_unit = wl_unit
         self.flux_unit = flux_unit
 
         self.plot_line = None
 
 
-default_settings = {'BACKGROUND_POLY_ORDER': 3,
-                    'BACKGROUND_MED_KAPPA': 5,
-                    'LOCALIZE_THRESHOLD': 10.,
-                    'LOCALIZE_MIN_SEP': 5,
-                    'LOCALIZE_MIN_WIDTH': 3,
-                    }
 
-options_descriptions = {'BACKGROUND_POLY_ORDER': "Polynomial Order of Rows in Background Model",
-                        'BACKGROUND_MED_KAPPA': "Median Filter for Rows in Background Model",
-                        'LOCALIZE_THRESHOLD': "Significance for Object Detection",
-                        'LOCALIZE_MIN_SEP': "Minimum Separation between Objects",
-                        'LOCALIZE_MIN_WIDTH': "Minimum FWHM of Object Trace",
-                        }
-
-
-class ExtractGUI(QtWidgets.QMainWindow):
-    def __init__(self, fname=None, dispaxis=1, model_name='moffat', dx=50, width_scale=2., xmin=0, xmax=None, ymin=0, ymax=None, order_center=3, order_width=0, parent=None, locked=False, output_fname='', **kwargs):
+class ResponseGUI(QtWidgets.QMainWindow):
+    def __init__(self, fname=None, output_fname='', star_name='', order=8, parent=None, locked=False, **kwargs):
         QtWidgets.QMainWindow.__init__(self, parent)
-        self.setWindowTitle('PyNOT: Extract')
+        self.setWindowTitle('PyNOT: Response')
         self._main = QtWidgets.QWidget()
         self.setCentralWidget(self._main)
 
         # Set attributes:
-        self.image2d = None
-        self.background = None
-        self.last_fit = tuple()
-        self.filename_2d = fname
-        self.output_fname = output_fname
-        self.dispaxis = 1
-        self.settings = default_settings
+        self.spectrum = None
+        self.response = None
+        self.filename = fname
+        # Extinction table attributes:
+        self.ext_fname = alfosc.path + '/calib/lapalma.ext'
+        try:
+            ext_wl, ext = np.loadtxt(alfosc.path + '/calib/lapalma.ext', unpack=True)
+        except:
+            ext_wl, ext = None, None
+        self.ext_wl = ext_wl
+        self.ext = ext
+        # Reference table attributes:
+        self.ref_tab = None
+        self.flux_bins = None
+        self.wl_bins = None
+        self.mag_bins = None
+        self.resp_bins = None
+        self.mask = None
 
-        self.model_type = 'Moffat'
-        self.data1d = list()
-        self.background = None
-        self.trace_models = list()
-        self.delete_picked_object = False
-        self.picked_object = None
-        self.state = None
-        self.bg_value1 = None
-
-        # SPSF controls:
-        self.add_btn = QtWidgets.QPushButton("Add Object")
-        self.add_btn.clicked.connect(lambda x: self.set_state('add'))
-        self.add_btn.setShortcut("ctrl+A")
-        self.add_bg_btn = QtWidgets.QPushButton("Select Background")
-        self.add_bg_btn.setShortcut("ctrl+B")
-        self.add_bg_btn.clicked.connect(lambda x: self.set_state('bg1'))
-
-        self.remove_btn = QtWidgets.QPushButton("Delete Object")
-        self.remove_btn.setShortcut("ctrl+D")
-        self.remove_btn.clicked.connect(lambda x: self.set_state('delete'))
-        QtWidgets.QShortcut(QtGui.QKeySequence("Escape"), self, activated=self.clear_state)
-
-
-        # Limits for profile averaging and fitting:
-        self.xmin_edit = QtWidgets.QLineEdit("%i" % xmin)
-        if xmax is not None:
-            self.xmax_edit = QtWidgets.QLineEdit("%i" % xmax)
-        else:
-            self.xmax_edit = QtWidgets.QLineEdit("")
-        self.xmin_edit.setValidator(QtGui.QIntValidator(0, 1000000))
-        self.xmax_edit.setValidator(QtGui.QIntValidator(0, 1000000))
-        self.xmin_edit.returnPressed.connect(self.limits_updated)
-        self.xmax_edit.returnPressed.connect(self.limits_updated)
-
-        self.ymin_edit = QtWidgets.QLineEdit("%i" % ymin)
-        if ymax is not None:
-            self.ymax_edit = QtWidgets.QLineEdit("%i" % ymax)
-        else:
-            self.ymax_edit = QtWidgets.QLineEdit("")
-        self.ymin_edit.setValidator(QtGui.QIntValidator(0, 1000000))
-        self.ymax_edit.setValidator(QtGui.QIntValidator(0, 1000000))
-        self.ymin_edit.returnPressed.connect(self.limits_updated)
-        self.ymax_edit.returnPressed.connect(self.limits_updated)
 
         # Fitting Parameters:
-        self.model_chooser = QtWidgets.QComboBox()
-        self.model_chooser.addItems(["Moffat", "Gaussian", "Tophat"])
-        self.model_chooser.setCurrentText(model_name.title())
-        self.model_chooser.currentTextChanged.connect(self.model_change)
+        self.star_chooser = QtWidgets.QComboBox()
+        all_names = [alfosc.standard_star_names.values()] + ['']
+        self.star_chooser.addItems(all_names)
+        self.star_chooser.setCurrentText(star_name)
+        self.star_chooser.currentTextChanged.connect(self.set_star)
 
-        self.bins_edit = QtWidgets.QLineEdit("%i" % dx)
-        self.bins_edit.setValidator(QtGui.QIntValidator(0, 9999))
-        self.bins_edit.returnPressed.connect(self.fit_trace)
+        self.exptime_edit = QtWidgets.QLineEdit("")
+        self.exptime_edit.setValidator(QtGui.QDoubleValidator())
+        self.airmass_edit = QtWidgets.QLineEdit("")
+        self.airmass_edit.setValidator(QtGui.QDoubleValidator())
 
-        self.med_kappa_edit = QtWidgets.QLineEdit("3")
-        self.med_kappa_edit.setValidator(QtGui.QDoubleValidator())
-        self.med_kappa_edit.returnPressed.connect(self.median_filter_points)
+        self.order_edit = QtWidgets.QLineEdit("%i" % order)
+        self.order_edit.setValidator(QtGui.QIntValidator(0, 100))
+        self.order_edit.returnPressed.connect(self.fit_response)
 
-        self.med_window_edit = QtWidgets.QLineEdit("11")
-        self.med_window_edit.setValidator(QtGui.QIntValidator(3, 1000))
-        self.med_window_edit.returnPressed.connect(self.median_filter_points)
-
-        self.median_btn = QtWidgets.QPushButton("Median Filter Points")
-        self.median_btn.clicked.connect(self.median_filter_points)
-
-        self.c_order_edit = QtWidgets.QLineEdit("%i" % order_center)
-        self.c_order_edit.setValidator(QtGui.QIntValidator(0, 100))
-        self.c_order_edit.returnPressed.connect(self.fit_trace)
-        self.w_order_edit = QtWidgets.QLineEdit("%i" % order_width)
-        self.w_order_edit.setValidator(QtGui.QIntValidator(0, 100))
-        self.w_order_edit.returnPressed.connect(self.fit_trace)
-
-        self.extract_btn = QtWidgets.QPushButton("Extract 1D Spectrum")
-        self.extract_btn.setShortcut("ctrl+E")
-        self.extract_btn.clicked.connect(self.extract)
-
-        self.fit_btn = QtWidgets.QPushButton("Fit Spectral Trace")
+        self.fit_btn = QtWidgets.QPushButton("Fit Response")
         self.fit_btn.setShortcut("ctrl+F")
-        self.fit_btn.clicked.connect(self.fit_trace)
+        self.fit_btn.clicked.connect(self.fit_response)
 
         # SPSF Viewer:
         self.fig_spsf = Figure(figsize=(4, 3))
@@ -1043,89 +620,6 @@ class ExtractGUI(QtWidgets.QMainWindow):
         if success:
             self.close()
 
-    def save_aperture_model(self, index):
-        """Save the 2D trace model profile of a given object"""
-        current_dir = os.path.dirname(os.path.abspath(__file__)) + "/aper2d.fits"
-        filters = "FITS Files (*.fits *.fit)"
-        fname, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save 2D Trace Models', current_dir, filters)
-        if fname and len(self.trace_models) > 0:
-            model = self.trace_models[index]
-            hdu = fits.HDUList()
-            prim_hdr = fits.Header()
-            prim_hdr['AUTHOR'] = 'PyNOT'
-            prim_hdr['OBJECT'] = self.image2d.header['OBJECT']
-            prim_hdr['DATE-OBS'] = self.image2d.header['DATE-OBS']
-            prim_hdr['RA'] = self.image2d.header['RA']
-            prim_hdr['DEC'] = self.image2d.header['DEC']
-            prim_hdr['COMMENT'] = 'PyNOT extraction aperture'
-            prim_hdr['APERTYPE'] = model.model_type
-            prim = fits.PrimaryHDU(data=model.model2d, header=prim_hdr)
-            hdu.append(prim)
-            hdu.writeto(fname, overwrite=True)
-
-    def save_all_aperture_models(self):
-        """Save the 2D trace model profile"""
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        filters = "FITS Files (*.fits *.fit)"
-        fname, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save 2D Trace Models', current_dir, filters)
-        if fname and len(self.trace_models) > 0:
-            hdu = fits.HDUList()
-            prim_hdr = fits.Header()
-            prim_hdr['AUTHOR'] = 'PyNOT'
-            prim_hdr['OBJECT'] = self.image2d.header['OBJECT']
-            prim_hdr['DATE-OBS'] = self.image2d.header['DATE-OBS']
-            prim_hdr['RA'] = self.image2d.header['RA']
-            prim_hdr['DEC'] = self.image2d.header['DEC']
-            prim_hdr['COMMENT'] = 'PyNOT extraction aperture'
-            prim = fits.PrimaryHDU(header=prim_hdr)
-            hdu.append(prim)
-            for num, model in enumerate(self.trace_models):
-                hdr = fits.Header()
-                hdr['AUTHOR'] = 'PyNOT'
-                hdr['APERTYPE'] = model.model_type
-                ext = fits.ImageHDU(model.model2d, name='OBJ%i' % (num+1), header=hdr)
-                hdu.append(ext)
-            hdu.writeto(fname, overwrite=True)
-
-    def save_spectrum_2d(self):
-        """Save the background subtracted 2D spectrum"""
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        current_dir += '/skysub_2d.fits'
-        filters = "FITS Files (*.fits *.fit)"
-        path, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save 2D', current_dir, filters)
-        if path:
-            bg_model = self.background.model2d
-            data2d = self.image2d.data - bg_model
-            prim_hdr = self.image2d.header
-            prim_hdr['AUTHOR'] = 'PyNOT'
-            prim_hdr['COMMENT'] = '2D background subtracted spectrum'
-            prim_hdr['CHEB_ORD'] = self.settings['BACKGROUND_POLY_ORDER']
-            hdu = fits.PrimaryHDU(data=data2d, header=prim_hdr)
-            hdu.writeto(path, overwrite=True, output_verify='silentfix')
-
-    def save_spectrum_bg(self):
-        """Save the fitted 2D background spectrum"""
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        current_dir += '/sky_2d.fits'
-        filters = "FITS Files (*.fits *.fit)"
-        path, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save 2D', current_dir, filters)
-        if path:
-            bg_model = self.background.model2d
-            prim_hdr = fits.Header()
-            prim_hdr['AUTHOR'] = 'PyNOT'
-            prim_hdr['COMMENT'] = '2D background model spectrum'
-            prim_hdr['CHEB_ORD'] = self.settings['BACKGROUND_POLY_ORDER']
-            hdu = fits.PrimaryHDU(data=bg_model, header=prim_hdr)
-            hdu.writeto(path, overwrite=True, output_verify='silentfix')
-
-    def save_spectrum_1d(self, index=0):
-        if len(self.data1d) == 0:
-            msg = "No 1D spectra have been extracted. Nothing to save..."
-            QtWidgets.QMessageBox.critical(None, "Save Error", msg)
-            return
-
-        SaveWindow(parent=self, index=index)
-
     def save_all_extractions(self, fname=''):
         if len(self.data1d) == 0:
             msg = "No 1D spectra have been extracted. Nothing to save..."
@@ -1175,438 +669,92 @@ class ExtractGUI(QtWidgets.QMainWindow):
         else:
             return False
 
-    def load_spectrum(self, fname=None, dispaxis=1):
+    def clear_all(self):
+        for ax in self.axes:
+            ax.clear()
+        self.exptime_edit.setText("")
+        self.airmass_edit.setText("")
+        self.flux_bins = None
+        self.wl_bins = None
+        self.mag_bins = None
+        self.resp_bins = None
+        self.response = None
+        self.mask = None
+        self.filename = ""
+
+
+    def load_spectrum(self, fname=''):
         if fname is False:
             current_dir = os.path.dirname(os.path.abspath(__file__))
             filters = "FITS files (*.fits | *.fit)"
-            fname, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Open 2D Spectrum', current_dir, filters)
+            fname, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Open 1D Spectrum', current_dir, filters)
             fname = str(fname)
 
         if not os.path.exists(fname):
             return
 
         # Clear all models:
-        N_models = len(self.trace_models)
-        for index in range(N_models)[::-1]:
-            self.remove_trace(index)
-        if self.background is not None:
-            self.background.clear()
-        if len(self.data1d) > 0:
-            for spec in self.data1d:
-                del spec
-        self.axis_spsf.clear()
-        self.axis_2d.clear()
-        self.axis_2d_bg.clear()
-        self.axis_1d.clear()
-        self.image2d = ImageData(fname, dispaxis)
-        self.data1d = list()
-        self.filename_2d = fname
-        self.last_fit = tuple()
-        self.background = BackgroundModel(self.axis_spsf, self.image2d.data.shape)
-        self.background.model2d += np.median(self.image2d.data)
-        self.xmax_edit.setText("%i" % self.image2d.data.shape[1])
-        self.ymax_edit.setText("%i" % self.image2d.data.shape[0])
-        self.update_2d()
-        self.update_spsf()
-        self.localize_trace()
-        self.axis_1d.set_xlabel("Wavelength  [%s]" % self.image2d.wl_unit)
-        self.axis_1d.set_ylabel("Flux  [%s]" % self.image2d.flux_unit)
+        self.clear_all()
 
-    def rotate_image(self):
-        if len(self.trace_models) > 0:
-            msg = "This action will clear all data that has been defined so far."
-            msg += "\nAre you sure you want to continue?"
-            answer = QtWidgets.QMessageBox.question(None, "Warning", msg)
+        hdr = fits.getheader(fname)
+        table = fits.getdata(fname)
+        self.spectrum = Spectrum(wl=table['WAVE'], data=table['FLUX'], header=hdr,
+                                 wl_unit=table.columns['WAVE'].unit,
+                                 flux_unit=table.columns['FLUX'].unit)
+        if 'EXPTIME' in hdr:
+            self.exptime_edit.setText("%.1f" % hdr['EXPTIME'])
+        if 'AIRMASS' in hdr:
+            self.airmass_edit.setText("%.1f" % hdr['AIRMASS'])
 
-            if answer == QtWidgets.QMessageBox.No:
-                return
-
-        if self.dispaxis == 1:
-            self.load_spectrum(self.filename_2d, dispaxis=2)
-            self.dispaxis = 2
-        else:
-            self.load_spectrum(self.filename_2d, dispaxis=1)
-            self.dispaxis = 1
-
-    def clear_state(self):
-        self.state = None
-        self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
-        self.axis_spsf.set_title("SPSF view", fontsize=10)
-        self.canvas_spsf.draw()
-
-    def add_new_object(self, center):
-        """Add new trace object at position `center`"""
-        if self.image2d is None:
-            msg = "Load data before defining an object trace"
-            QtWidgets.QMessageBox.critical(None, 'No data loaded', msg)
-            return
-        self.axis_spsf.lines[0]
-        x_data, SPSF = self.axis_spsf.lines[0].get_data()
-        imin = np.argmin(np.abs(x_data - center))
-        height = SPSF[imin]
-        trace_model = TraceModel(center, height, self.axis_spsf, shape=self.image2d.data.shape,
-                                 color=next(color_cycle))
-        self.add_trace(trace_model)
-
-    def add_bg_range(self, x1, x2):
-        """
-        Add new background range between points `x1` and `x2`.
-        The points are automatically sorted before adding range.
-        """
-        if self.image2d is None:
-            msg = "Load data before defining background ranges"
-            QtWidgets.QMessageBox.critical(None, 'No data loaded', msg)
-            return
-        xmin = min(x1, x2)
-        xmax = max(x1, x2)
-        self.background.add_range(xmin, xmax)
-
-    def fit_background(self):
-        if self.background is None:
-            return
-        elif len(self.background.ranges) == 0:
-            self.background.model2d *= 0.
-            self.background.model2d += np.median(self.image2d.data)
-            msg = "No background regions defined"
-            info = "Please mark these in the top right figure by pressing 'B' or the 'Mark Background' button."
-            WarningDialog(self, msg, info)
-
-        else:
-            bg_order = self.settings['BACKGROUND_POLY_ORDER']
-            bg_kappa = self.settings['BACKGROUND_MED_KAPPA']
-            y = self.image2d.y
-            mask = np.zeros_like(y, dtype=bool)
-            msg = "Fitting background spectrum..."
-            self.progress = QtWidgets.QProgressDialog(msg, "Cancel", 0, len(self.image2d.x), self._main)
-            self.progress.setWindowModality(QtCore.Qt.WindowModal)
-            self.progress.show()
-            for y1, y2 in self.background.ranges:
-                mask += (y >= y1) & (y <= y2)
-            for i, column in enumerate(self.image2d.data.T):
-                if self.progress.wasCanceled():
-                    self.background.model2d *= 0.
-                    self.background.model2d += np.median(self.image2d.data)
-                    return
-                # Median filter the data to remove outliers:
-                med_column = median_filter(column, 15)
-                noise = mad(column)*1.4826
-                filtering_mask = (np.abs(column - med_column) < bg_kappa*noise)
-                if np.sum(mask & filtering_mask) < bg_order:
-                    this_mask = mask
-                else:
-                    this_mask = mask & filtering_mask
-                # Fit Chebyshev polynomial model:
-                bg_model = Chebyshev.fit(y[this_mask], column[this_mask], bg_order, domain=(y.min(), y.max()))
-                self.background.model2d[:, i] = bg_model(y)
-                self.progress.setValue(i+1)
-
-        self.update_2d()
-
-    def on_pick(self, event):
-        artist = event.artist
-        if isinstance(artist, matplotlib.patches.Polygon):
-            # -- Delete Background Patch
-            if self.delete_picked_object:
-                index = self.background.patches.index(artist)
-                self.background.remove_range(index)
-                self.delete_picked_object = False
-                self.clear_state()
-
-        else:
-            for num, model in enumerate(self.trace_models):
-                if artist in model.vlines:
-                    if self.delete_picked_object:
-                        self.remove_trace(num)
-                        self.delete_picked_object = False
-                        self.clear_state()
-                    else:
-                        old_centroid = copy.copy(model.cen)
-                        self.picked_object = (num, artist, model, old_centroid)
-
-    def on_motion(self, event):
-        if self.picked_object is None:
-            return
-        elif not event.inaxes:
-            return
-
-        num, artist, trace_model, old_centroid = self.picked_object
-        new_position = event.xdata
-        if artist.get_label() == 'center':
-            offset = new_position - trace_model.cen
-            low, high = trace_model.get_range()
-            trace_model.set_range(low + offset, high + offset)
-            trace_model.set_centroid(new_position)
-
-        elif artist.get_label() == 'lower':
-            trace_model.lower = new_position
-            artist.set_xdata(new_position)
-
-        elif artist.get_label() == 'upper':
-            trace_model.upper = new_position
-            artist.set_xdata(new_position)
-        self.canvas_spsf.draw()
-
-    def on_release(self, event):
-        if self.picked_object is None:
-            return
-        num, artist, trace_model, old_centroid = self.picked_object
-        if artist.get_label() == 'lower':
-            if trace_model.lower > trace_model.cen - 1:
-                trace_model.lower = trace_model.cen - 1
-                artist.set_xdata(trace_model.cen - 1)
-                self.canvas_spsf.draw()
-        elif artist.get_label() == 'upper':
-            if trace_model.upper < trace_model.cen + 1:
-                trace_model.upper = trace_model.cen + 1
-                artist.set_xdata(trace_model.cen + 1)
-                self.canvas_spsf.draw()
-        centroid_shift = trace_model.cen - old_centroid
-        if np.abs(centroid_shift) > 0:
-            trace_model.points['mu'] += centroid_shift
-            trace_model.fit['mu'] += centroid_shift
-            self.plot_fitted_points()
-        self.create_model_trace()
-        self.plot_trace_2d()
-        self.picked_object = None
-
-    def on_key_press(self, event):
-        if event.key == 'b':
-            self.set_state('bg1')
-
-        elif event.key == 'a':
-            self.set_state('add')
-
-        elif event.key == 'd':
-            self.set_state('delete')
+        if self.ref_tab is not None:
+            self.calculate_flux_in_bins()
+            self.calculate_response_bins()
+        self.update_plot()
 
 
-    def set_state(self, state):
-        if state == 'add':
-            self.axis_spsf.set_title("Add New Object: Click on Trace Center", fontsize=10)
-            self.canvas_spsf.draw()
-            self.state = state
-            self.setCursor(QtGui.QCursor(QtCore.Qt.CrossCursor))
+    def set_star(self, text):
+        star_name = str(text).lower()
+        self.ref_tab = np.loadtxt(alfosc.path+'/calib/std/%s.dat' % star_name)
+        self.calculate_flux_in_bins()
+        self.calculate_response_bins()
+        self.update_plot()
 
-        elif state == 'bg1':
-            self.axis_spsf.set_title("Mark Background Range: Click on First Limit", fontsize=10)
-            self.canvas_spsf.draw()
-            self.state = state
-            self.setCursor(QtGui.QCursor(QtCore.Qt.CrossCursor))
 
-        elif state == 'bg2':
-            self.axis_spsf.set_title("Click on Second Limit", fontsize=10)
-            self.canvas_spsf.draw()
-            self.state = state
-            self.setCursor(QtGui.QCursor(QtCore.Qt.CrossCursor))
-
-        elif state == 'delete':
-            self.axis_spsf.set_title("Pick object or background range to delete", fontsize=10)
-            self.canvas_spsf.draw()
-            self.delete_picked_object = True
-            self.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
-
-    def on_mouse_press(self, event):
-        if self.state is None:
-            pass
-
-        elif self.state == 'add':
-            self.add_new_object(event.xdata)
-            self.clear_state()
-
-        elif self.state == 'bg1':
-            self.bg_value1 = event.xdata
-            self.set_state('bg2')
-
-        elif self.state == 'bg2':
-            self.add_bg_range(self.bg_value1, event.xdata)
-            self.clear_state()
-            self.bg_value1 = None
-
-        elif self.state == 'delete':
-            msg = "No object selected"
-            info = "Please pick an object in the SPSF plot: either a background range or a trace object"
-            WarningDialog(self, msg, info)
-
-    def remove_trace(self, index):
-        trace_model = self.trace_models[index]
-        trace_model.clear_plot()
-        self.canvas_spsf.draw()
-        self.canvas_2d.draw()
-        self.canvas_1d.draw()
-        self.canvas_points.draw()
-        self.list_widget.takeItem(index)
-        self.trace_models.pop(index)
-
-    def add_trace(self, model):
-        self.trace_models.append(model)
-        N = self.list_widget.count() + 1
-        object_name = self.image2d.header['OBJECT'] + '_%i' % N
-        model.set_object_name(object_name)
-        if model.fixed:
-            object_name = "[ COPY ] " + object_name
-        item = QtWidgets.QListWidgetItem(object_name)
-        # item.setFlags(item.flags() | QtCore.Qt.ItemIsEditable)
-        item.setCheckState(QtCore.Qt.Checked)
-        item.setForeground(QtGui.QColor(model.color))
-        self.list_widget.addItem(item)
-        self.canvas_spsf.draw()
-
-    def limits_updated(self):
-        if self.image2d is None:
-            return
-
-        xmax = int(self.xmax_edit.text())
-        ymax = int(self.ymax_edit.text())
-        if xmax > self.image2d.data.shape[1]:
-            xmax = self.image2d.data.shape[1]
-            self.xmax_edit.setText("%i" % xmax)
-
-        if ymax > self.image2d.data.shape[0]:
-            ymax = self.image2d.data.shape[0]
-            self.ymax_edit.setText("%i" % ymax)
-
-        self.update_spsf()
-
-        xmin, xmax, ymin, ymax = self.get_limits()
-        for trace_model in self.trace_models:
-            trace_model.xmin = xmin
-            trace_model.xmax = xmax
-
-        if len(self.trace_models) > 0 and len(self.trace_models[0].x_binned) > 0:
-            self.plot_fitted_points(update_only=True)
-
-    def get_limits(self):
-        xmin = int(self.xmin_edit.text())
-        xmax = int(self.xmax_edit.text())
-        ymin = int(self.ymin_edit.text())
-        ymax = int(self.ymax_edit.text())
-        return (xmin, xmax, ymin, ymax)
-
-    def update_spsf(self):
-        xmin, xmax, ymin, ymax = self.get_limits()
-        SPSF = np.nanmedian(self.image2d.data[ymin:ymax, xmin:xmax], axis=1)
-        if len(self.axis_spsf.lines) == 0:
-            self.axis_spsf.plot(self.image2d.y[ymin:ymax], SPSF, color='k', lw=0.7)
-        else:
-            self.axis_spsf.lines[0].set_data(self.image2d.y[ymin:ymax], SPSF)
-        vmin = np.median(SPSF) - 10.*mad(SPSF)
-        vmax = np.max(SPSF) + 10.*mad(SPSF)
-        self.axis_spsf.set_ylim(vmin, vmax)
-        self.axis_spsf.set_yticklabels("")
-        self.axis_spsf.set_xlim(np.min(self.image2d.y)-2, np.max(self.image2d.y)+2)
-        self.axis_spsf.tick_params(axis='x', which='major', labelsize=8)
-        self.axis_spsf.set_title("SPSF view", fontsize=10)
-        self.canvas_spsf.figure.tight_layout()
-        self.canvas_spsf.draw()
-
-    def update_2d(self):
-        vmin = self.vmin_edit.text()
-        vmax = self.vmax_edit.text()
-        if vmin == '':
-            vmin = None
-        else:
-            vmin = float(vmin)
-
-        if vmax == '':
-            vmax = None
-        else:
-            vmax = float(vmax)
-
-        bg = self.background.model2d
-        if len(self.axis_2d.images) == 0:
-            self.axis_2d.imshow(self.image2d.data - bg, cmap=plt.cm.gray_r, aspect='auto', origin='lower')
-            self.axis_2d_bg.imshow(bg, aspect='auto', origin='lower')
-        else:
-            self.axis_2d.images[0].set_data(self.image2d.data - bg)
-            self.axis_2d_bg.images[0].set_data(bg)
-            N_Y, N_X = self.image2d.shape
-            extent = (-0.5, N_X-0.5, -0.5, N_Y-0.5)
-            self.axis_2d.images[0].set_extent(extent)
-            self.axis_2d_bg.images[0].set_extent(extent)
-        self.update_value_range(vmin, vmax)
-        self.canvas_2d.draw()
-
-    def plot_trace_2d(self):
-        active_models = list()
-        for model in self.trace_models:
-            if np.sum(model.model2d) > 0:
-                active_models.append(model)
-        if len(active_models) == 0:
-            msg = "No aperture models defined"
-            info = "Fit the aperture model before extracting."
+    def calculate_flux_in_bins(self):
+        if self.spectrum is None:
+            msg = "No spectrum loaded!"
+            info = "No spectral data has been loaded."
             WarningDialog(self, msg, info)
             return
+        wl = self.spectrum.wl
+        flux = self.data
+        flux_bins = list()
+        for wl_ref, mag_ref, bandwidth in self.ref_tab:
+            l1 = wl_ref - bandwidth/2
+            l2 = wl_ref + bandwidth/2
+            band = (wl >= l1) * (wl <= l2)
+            f0 = np.nansum(flux[band])
+            flux_bins.append(f0 / bandwidth)
+        self.wl_bins = self.ref_tab[:, 0]
+        self.flux_bins = np.array(flux_bins)
+        self.mag_bins = self.ref_tab[:, 1]
 
-        for num, model in enumerate(self.trace_models):
-            trace_model_2d = model.model2d.copy()
-            if np.max(trace_model_2d) != 0.:
-                trace_model_2d /= np.max(trace_model_2d)
-            alpha_array = 2 * trace_model_2d.copy()
-            alpha_array[alpha_array > 0.1] += 0.3
-            alpha_array[alpha_array > 0.3] = 0.6
-            if model.model_image is None:
-                model.model_image = self.axis_2d.imshow(trace_model_2d, vmin=0., vmax=0.5,
-                                                        cmap=model.cmap, aspect='auto',
-                                                        origin='lower', alpha=alpha_array)
-            else:
-                model.model_image.set_data(trace_model_2d)
-                model.model_image.set_alpha(alpha_array)
-
-            listItem = self.list_widget.item(num)
-            if listItem.checkState() == 2:
-                model.model_image.set_visible(True)
-            else:
-                model.model_image.set_visible(False)
-        self.canvas_2d.draw()
-
-    def update_value_range(self, vmin=None, vmax=None):
-        if len(self.axis_2d.images) == 0:
+    def calculate_response_bins(self):
+        ref_flux = 10**(-(self.mag_bins + 2.406)/2.5) / (self.wl_bins)**2
+        exp_str = self.exptime_edit.text()
+        airm_str = self.airmass_edit.text()
+        if exp_str == '' or airm_str == '':
+            WarningDialog(self, "No exposure time or airmass!", "Please set both exposure time and airmass.")
             return
+        exptime = float(exp_str)
+        airmass = float(airm_str)
+        # Calculate Sensitivity:
+        self.resp_bins = 2.5*np.log10(self.flux_bins / (exptime * ref_flux)) + airmass*self.ext
 
-        if vmin is None and vmax is None:
-            bg = self.background.model2d
-            noise = mad(self.image2d.data - bg)
-            vmin = np.median(self.image2d.data - bg) - 2*noise
-            vmax = np.median(self.image2d.data - bg) + 10*noise
-            self.vmin_edit.setText("%.2e" % vmin)
-            self.vmax_edit.setText("%.2e" % vmax)
+    def plot_flux_bins(self):
+        pass
 
-        if vmin is not None:
-            self.axis_2d.images[0].set_clim(vmin=vmin)
-            self.axis_2d_bg.images[0].set_clim(vmin=vmin)
-
-        if vmax is not None:
-            self.axis_2d.images[0].set_clim(vmax=vmax)
-            self.axis_2d_bg.images[0].set_clim(vmax=vmax)
-
-    def localize_trace(self):
-        if self.image2d is not None:
-            peaks, prominences = auto_localize(self.image2d.data, self.settings)
-            if len(peaks) == 0:
-                msg = "Automatic trace detection failed!"
-                QtWidgets.QMessageBox.critical(None, 'No trace detected', msg)
-
-            else:
-                for center, height in zip(peaks, prominences):
-                    trace_model = TraceModel(center, height, self.axis_spsf, shape=self.image2d.data.shape,
-                                             color=next(color_cycle))
-                    self.add_trace(trace_model)
-
-    def model_change(self, text):
-        # Changed to always show aperture limits...
-        # if text.lower() == 'tophat':
-        #     for num, model in enumerate(self.trace_models):
-        #         listItem = self.list_widget.item(num)
-        #         if listItem.checkState() == 2:
-        #             model.set_visible()
-        #         else:
-        #             model.set_visible(False)
-        #     self.canvas_spsf.draw()
-        #
-        # elif text.lower() == 'gaussian' or text.lower() == 'moffat':
-        #     for model in self.trace_models:
-        #         model.set_visible(False)
-        #     self.canvas_spsf.draw()
+    def plot_response_bins(self):
         pass
 
     def fit_trace(self):
