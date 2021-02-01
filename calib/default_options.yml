@@ -54,6 +54,10 @@ extract:
   ymax:         -5           # Exclude pixels below this index for the fitting and object identification [spatial axis]
   order_center: 3            # Polynomial order used to fit the centroid along the spectral trace
   order_width:  0            # Polynomial order used to fit the width of the spectral trace
+  w_cen:        15           # Kernel width of median filter for trace position
+  kappa_cen:    3.0          # Threshold for median filtering. Reject outliers above: ±`kappa` * sigma
+  w_width:      21           # Kernel width of median filter for trace width parameters
+  kappa_width:  3.0          # Threshold for median filtering. Reject outliers above: ±`kappa` * sigma
 
 response:
   order:        8            # Polynomial order used to fit the response function as function of wavelength
