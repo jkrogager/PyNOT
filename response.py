@@ -20,6 +20,7 @@ import warnings
 
 import alfosc
 from extraction import auto_extract
+import extract_gui
 from alfosc import get_alfosc_header
 from scired import auto_fit_background, my_formatter, mad, raw_correction
 from wavecal import rectify
@@ -88,7 +89,7 @@ def flux_calibrate(input_fname, *, output, response):
 
 def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat_fname, output='',
                        output_dir='', pdf_fname='', order=8, interactive=False, dispaxis=2,
-                       order_wl=4, order_bg=3, rectify_options={}):
+                       order_wl=4, order_bg=3, rectify_options={}, app=None):
     """
     Extract and wavelength calibrate the standard star spectrum.
     Calculate the instrumental response function and fit the median filtered data points
@@ -125,7 +126,7 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
         If none, autogenerate from OBJECT name
 
     order : integer  [default=8]
-        Order of the Chebyshev polynomium to fit the sensitivity
+        Order of the Chebyshev polynomium to fit the response
 
     interactive : boolean  [default=False]
         Interactively subtract background and extract 1D spectrum
@@ -158,7 +159,7 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
     # Setup the filenames:
     grism = alfosc.grism_translate[hdr['ALGRNM']]
     star = hdr['TCSTGT']
-    response_output = 'sens_%s_%s.fits' % (star, grism)
+    response_output = 'response_%s_%s.fits' % (star, grism)
     std_tmp_fname = 'std_corr2D_%s.fits' % star
     rect2d_fname = 'std_rect2D_%s.fits' % star
     bgsub2d_fname = 'std_bgsub2D_%s.fits' % star
@@ -208,7 +209,15 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
 
     # Extract 1-dimensional spectrum:
     if interactive:
-        raise IOError("The interactive extraction mode isn't implemented yet")
+        try:
+            msg.append("          - Starting Graphical User Interface...")
+            extract_gui.run_gui(bgsub2d_fname, output_fname=ext1d_output,
+                                app=app)
+            msg.append(" [OUTPUT] - Writing fits table: %s" % ext1d_output)
+        except:
+            msg.append("Unexpected error: %r" % sys.exc_info()[0])
+            output_msg = "\n".join(msg)
+            raise Exception(output_msg)
     else:
         try:
             ext_msg = auto_extract(bgsub2d_fname, ext1d_output, dispaxis=1, N=1, pdf_fname=extract_pdf_fname,
@@ -276,15 +285,19 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
     # Calculate Sensitivity:
     C = 2.5*np.log10(flux0 / (exptime * F)) + airmass*ext
 
-    # Fit a smooth polynomium to the calculated sensitivity:
-    msg.append("          - Fitting the filtered response curve data points")
-    response_fit = Chebyshev.fit(wl0[good], C[good], order, domain=[wl.min(), wl.max()])
-    sens = response_fit(wl)
+    if interactive:
+        # Load GUI -- needs to be written!
+        pass
+    else:
+        # Fit a smooth polynomium to the calculated response:
+        msg.append("          - Fitting the filtered response curve data points")
+        response_fit = Chebyshev.fit(wl0[good], C[good], order, domain=[wl.min(), wl.max()])
+        response = response_fit(wl)
 
 
     # -- Prepare PDF figure:
     if not pdf_fname:
-        pdf_fname = 'sens_diagnostic_' + hdr['OBJECT'] + '.pdf'
+        pdf_fname = 'response_diagnostic_' + hdr['OBJECT'] + '.pdf'
         pdf_fname = os.path.join(output_dir, pdf_fname)
     pdf = backend_pdf.PdfPages(pdf_fname)
 
@@ -301,25 +314,25 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
     ax.set_title(u"Filename: %s  ,  Star: %s" % (raw_fname, star.upper()))
     pdf.savefig(fig1)
 
-    # Plot the sensitivity function:
+    # Plot the response function:
     fig2 = plt.figure()
     ax2 = fig2.add_subplot(111)
     ax2.plot(wl0, C, color='RoyalBlue', marker='o', ls='')
     ax2.plot(wl0[~good], C[~good], color='r', marker='o', ls='')
-    ax2.set_ylabel(u"Sensitivity  ($F_{\\lambda}$)", fontsize=14)
+    ax2.set_ylabel(u"Response  ($F_{\\lambda}$)", fontsize=14)
     ax2.set_xlabel(u"Wavelength  (Å)", fontsize=14)
-    ax2.set_title(u"Sensitivity function, grism: "+hdr['ALGRNM'])
-    ax2.plot(wl, sens, color='crimson', lw=1)
+    ax2.set_title(u"Response function, grism: "+hdr['ALGRNM'])
+    ax2.plot(wl, response, color='crimson', lw=1)
     pdf.savefig(fig2)
     pdf.close()
-    msg.append("          - Plotting the sensitivity function diagnostics:  %s" % pdf_fname)
+    msg.append(" [OUTPUT] - Saving the response function diagnostics:  %s" % pdf_fname)
 
     # --- Prepare FITS output:
     resp_hdr = fits.Header()
     resp_hdr['GRISM'] = grism
     resp_hdr['AUTHOR'] = 'PyNOT version %s' % __version__
     col_wl = fits.Column(name='WAVE', array=wl, format='D')
-    col_resp = fits.Column(name='RESPONSE', array=sens, format='D')
+    col_resp = fits.Column(name='RESPONSE', array=response, format='D')
     tab = fits.BinTableHDU.from_columns([col_wl, col_resp], header=resp_hdr)
     hdu = fits.HDUList()
     hdu.append(tab)
@@ -354,6 +367,6 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
 #     #                     help="Print status updates")
 #     args = parser.parse_args()
 #
-#     # --- Generate sensitivity function:
+#     # --- Generate response function:
 #     calculate_response(args.input, arc_fname=args.arc, bias=args.bias, flat=args.flat, output_dir=args.output,
 #                        trimx=args.xrange, trimy=args.yrange, order=args.order)
