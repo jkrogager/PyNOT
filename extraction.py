@@ -165,7 +165,7 @@ def prep_parameters(peaks, prominence, size=np.inf, model_name='moffat'):
     return pars
 
 
-def median_filter_data(x, kappa=5., window=51):
+def median_filter_data(x, kappa=5., window=21):
     med_x = median_filter(x, window)
     MAD = 1.5*np.nanmedian(np.abs(x - med_x))
     if MAD == 0:
@@ -245,7 +245,9 @@ def fit_trace(img2D, x, y, model_name='moffat', dx=50, ymin=5, ymax=-5, xmin=Non
     return (x_binned, N_obj, trace_parameters, fwhm, output_msg)
 
 
-def create_2d_profile(img2D, model_name='moffat', dx=50, width_scale=2, xmin=None, xmax=None, ymin=None, ymax=None, order_center=3, order_width=1):
+def create_2d_profile(img2D, model_name='moffat', dx=25, width_scale=2,
+                      xmin=None, xmax=None, ymin=None, ymax=None, order_center=3, order_width=0,
+                      w_cen=15, kappa_cen=3., w_width=21, kappa_width=3.):
     """
     img2D : np.array(M, N)
         Input image with dispersion along x-axis!
@@ -269,8 +271,22 @@ def create_2d_profile(img2D, model_name='moffat', dx=50, width_scale=2, xmin=Non
     order_center : int  [default=3]
         Order of Chebyshev polynomium for the trace position
 
-    order_width : int [ default=1]
+    order_width : int  [default=0]
         Order of Chebyshev polynomium for the trace width
+
+    w_cen : int  [default=15]
+        Kernel width of median filter for trace position
+
+    kappa_cen : float  [default=3.0]
+        Threshold for median filtering. Reject outliers above: ±`kappa` * sigma,
+        where sigma is the robust standard deviation of the data points.
+
+    w_width : int  [default=15]
+        Kernel width of median filter for trace width parameters
+
+    kappa_width : float  [default=3.0]
+        Threshold for median filtering. Reject outliers above: ±`kappa` * sigma,
+        where sigma is the robust standard deviation of the data points.
 
     Returns
     -------
@@ -326,10 +342,11 @@ def create_2d_profile(img2D, model_name='moffat', dx=50, width_scale=2, xmin=Non
         mu_err = np.array([p['mu_%i' % n].stderr for p in trace_parameters])
         mu_err[mu_err == 0] = 100.
         w_mu = 1./mu_err**2
-        mu_med, mask_mu = median_filter_data(mu, 3., 11)
+        mu_med, mask_mu = median_filter_data(mu, kappa_cen, w_cen)
         mask_mu &= (x_binned > xmin) & (x_binned < xmax)
         mu_fit = Chebyshev.fit(x_binned[mask_mu], mu[mask_mu], deg=order_center, domain=domain, w=w_mu[mask_mu])
         info_dict['mu'] = mu
+        info_dict['mu_err'] = mu_err
         info_dict['mask_mu'] = mask_mu
         info_dict['fit_mu'] = mu_fit(x)
 
@@ -342,10 +359,11 @@ def create_2d_profile(img2D, model_name='moffat', dx=50, width_scale=2, xmin=Non
             sig_err = np.array([p['sig_%i' % n].stderr for p in trace_parameters])
             sig_err[sig_err == 0] = 100.
             w_sig = 1./sig_err**2
-            sig_med, mask_sig = median_filter_data(sig, 3., 21)
+            sig_med, mask_sig = median_filter_data(sig, kappa_width, w_width)
             mask_sig &= (x_binned > xmin) & (x_binned < xmax)
             sig_fit = Chebyshev.fit(x_binned[mask_sig], sig[mask_sig], deg=order_width, domain=domain, w=w_sig[mask_sig])
             info_dict['sig'] = sig
+            info_dict['sig_err'] = sig_err
             info_dict['mask_sig'] = mask_sig
             info_dict['fit_sig'] = sig_fit(x)
 
@@ -358,12 +376,12 @@ def create_2d_profile(img2D, model_name='moffat', dx=50, width_scale=2, xmin=Non
         elif model_name == 'moffat':
             # Median filter
             a = np.array([p['a_%i' % n] for p in trace_parameters])
-            a_med, mask_a = median_filter_data(a, 3., 21)
+            a_med, mask_a = median_filter_data(a, kappa_width, w_width)
             a_err = np.array([p['a_%i' % n].stderr for p in trace_parameters])
             a_err[a_err == 0] = 100.
             w_a = 1./a_err**2
             b = np.array([p['b_%i' % n] for p in trace_parameters])
-            b_med, mask_b = median_filter_data(b, 3., 21)
+            b_med, mask_b = median_filter_data(b, kappa_width, w_width)
             b_err = np.array([p['b_%i' % n].stderr for p in trace_parameters])
             b_err[b_err == 0] = 100.
             w_b = 1./b_err**2
@@ -373,9 +391,11 @@ def create_2d_profile(img2D, model_name='moffat', dx=50, width_scale=2, xmin=Non
             a_fit = Chebyshev.fit(x_binned[mask_a], a[mask_a], deg=order_width, domain=domain, w=w_a[mask_a])
             b_fit = Chebyshev.fit(x_binned[mask_b], b[mask_b], deg=order_width, domain=domain, w=w_b[mask_b])
             info_dict['a'] = a
+            info_dict['a_err'] = a_err
             info_dict['mask_a'] = mask_a
             info_dict['fit_a'] = a_fit(x)
             info_dict['b'] = b
+            info_dict['b_err'] = b_err
             info_dict['mask_b'] = mask_b
             info_dict['fit_b'] = b_fit(x)
 
@@ -416,13 +436,14 @@ def plot_diagnostics(pdf, spec1D, err1D, info_dict, width_scale=2):
     x = np.arange(len(info_dict['fit_mu']))
     for par, ax in zip(pars, axes):
         mask = info_dict['mask_'+par]
-        ax.plot(info_dict['x_binned'][mask], info_dict[par][mask], 'k+')
-        ax.plot(info_dict['x_binned'][~mask], info_dict[par][~mask], marker='.', ls='', color='0.6')
+        ax.errorbar(info_dict['x_binned'][mask], info_dict[par][mask], info_dict[par+'_err'][mask],
+                    marker='s', color='0.2', ls='', markersize=4)
+        ax.plot(info_dict['x_binned'][~mask], info_dict[par][~mask], marker='x', color='crimson', ls='')
         ax.plot(x, info_dict['fit_'+par], color='RoyalBlue', lw=1.5, alpha=0.9)
         med = np.nanmedian(info_dict[par][mask])
         std = 1.5*mad(info_dict[par][mask])
-        ymin = med-5*std
-        ymax = med+5*std
+        ymin = max(0, med-10*std)
+        ymax = med+10*std
         if 'fwhm' in info_dict:
             lower = info_dict['fit_'+par] - width_scale*info_dict['fwhm']
             upper = info_dict['fit_'+par] + width_scale*info_dict['fwhm']
@@ -443,9 +464,9 @@ def plot_diagnostics(pdf, spec1D, err1D, info_dict, width_scale=2):
     axes[-1].plot(spec1D, color='k', lw=1.0, alpha=0.9, label='Flux')
     axes[-1].plot(err1D, color='crimson', lw=0.7, alpha=0.8, label='Error')
     ymin = 0.
-    good = spec1D > 2*err1D
+    good = spec1D > 5*err1D
     if np.sum(good) == 0:
-        good = spec1D > 0
+        good = spec1D[100:-100] > 0
     ymax = np.nanmax(spec1D[good])
     axes[-1].set_ylim(ymin, ymax)
     axes[-1].set_ylabel("Flux")
@@ -456,7 +477,7 @@ def plot_diagnostics(pdf, spec1D, err1D, info_dict, width_scale=2):
 
 
 
-def auto_extract_img(img2D, err2D, *, N=None, pdf_fname=None, mask=None, model_name='moffat', dx=50, width_scale=2, xmin=None, xmax=None, ymin=None, ymax=None, order_center=3, order_width=1):
+def auto_extract_img(img2D, err2D, *, N=None, pdf_fname=None, mask=None, model_name='moffat', dx=50, width_scale=2, xmin=None, xmax=None, ymin=None, ymax=None, order_center=3, order_width=0, w_cen=15, kappa_cen=3., w_width=21, kappa_width=3.):
     assert err2D.shape == img2D.shape, "input image and error image do not match in shape"
     if N == 0:
         raise ValueError("Invalid input: N must be an integer larger than or equal to 1, not %r" % N)
@@ -476,7 +497,8 @@ def auto_extract_img(img2D, err2D, *, N=None, pdf_fname=None, mask=None, model_n
     # Optimal Extraction:
     profile_values = create_2d_profile(img2D, model_name=model_name, dx=dx, width_scale=width_scale,
                                        xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax,
-                                       order_center=order_center, order_width=order_width)
+                                       order_center=order_center, order_width=order_width,
+                                       w_cen=w_cen, kappa_cen=kappa_cen, w_width=w_width, kappa_width=kappa_width)
     trace_models_2d, trace_info, profile_msg = profile_values
     msg.append(profile_msg)
 
@@ -505,7 +527,7 @@ def auto_extract_img(img2D, err2D, *, N=None, pdf_fname=None, mask=None, model_n
             plot_diagnostics(pdf, spec1D, err1D, info_dict, width_scale)
 
     if pdf_fname:
-        msg.append("          - Saved diagnostic figures: %s" % pdf_fname)
+        msg.append(" [OUTPUT] - Saving diagnostic figures: %s" % pdf_fname)
         pdf.close()
         plt.close('all')
 
@@ -513,7 +535,7 @@ def auto_extract_img(img2D, err2D, *, N=None, pdf_fname=None, mask=None, model_n
     return spectra, output_msg
 
 
-def auto_extract(fname, output, dispaxis=1, *, N=None, pdf_fname=None, mask=None, model_name='moffat', dx=50, width_scale=2, xmin=None, xmax=None, ymin=None, ymax=None, order_center=3, order_width=1, **kwargs):
+def auto_extract(fname, output, dispaxis=1, *, N=None, pdf_fname=None, mask=None, model_name='moffat', dx=50, width_scale=2, xmin=None, xmax=None, ymin=None, ymax=None, order_center=3, order_width=1, w_cen=15, kappa_cen=3., w_width=21, kappa_width=3., **kwargs):
     """Automatically extract object spectra in the given file. Dispersion along the x-axis is assumed!"""
     msg = list()
     img2D = fits.getdata(fname)
@@ -540,7 +562,8 @@ def auto_extract(fname, output, dispaxis=1, *, N=None, pdf_fname=None, mask=None
     spectra, ext_msg = auto_extract_img(img2D, err2D, N=N, pdf_fname=pdf_fname, mask=mask,
                                         model_name=model_name, dx=dx, width_scale=width_scale,
                                         xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax,
-                                        order_center=order_center, order_width=order_width)
+                                        order_center=order_center, order_width=order_width,
+                                        w_cen=w_cen, kappa_cen=kappa_cen, w_width=w_width, kappa_width=kappa_width)
     msg.append(ext_msg)
 
     hdu = fits.HDUList()
@@ -570,7 +593,7 @@ def auto_extract(fname, output, dispaxis=1, *, N=None, pdf_fname=None, mask=None
         hdu.append(tab)
 
     hdu.writeto(output, overwrite=True, output_verify='silentfix')
-    msg.append("          - Writing fits table: %s" % output)
+    msg.append(" [OUTPUT] - Writing fits table: %s" % output)
     msg.append("")
     output_msg = "\n".join(msg)
     return output_msg
