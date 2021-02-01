@@ -137,7 +137,7 @@ def get_options(option_fname):
     return options
 
 
-def main(raw_path=None, options_fname=None, verbose=False):
+def main(raw_path=None, options_fname=None, verbose=False, interactive=False):
     log = Report(verbose)
     status = State()
 
@@ -156,6 +156,13 @@ def main(raw_path=None, options_fname=None, verbose=False):
                 options[section_name] = section
         if not raw_path:
             raw_path = user_options['path']
+
+    if interactive:
+        # Set all interactive steps to True
+        options['identify']['interactive'] = True
+        options['identify']['all'] = True
+        options['extract']['interactive'] = True
+        options['response']['interactive'] = True
 
     if not os.path.exists(raw_path):
         log.error("Data path does not exist : %s" % raw_path)
@@ -410,10 +417,10 @@ def main(raw_path=None, options_fname=None, verbose=False):
         if identify_interactive and identify_all:
             log.write("Running task: Arc Line Identification")
             try:
-                if grism_name+'_pixtab' in options:
+                if grism+'_pixtab' in options:
                     pixtab_fname = options[grism_name+'_pixtab']
                 else:
-                    pixtab_fname = os.path.join(calib_dir, '%s_pixeltable.dat' % grism_name)
+                    pixtab_fname = os.path.join(calib_dir, '%s_pixeltable.dat' % grism)
 
                 file_type = database.file_database[arc_fname]
                 if 'HeNe' in file_type:
@@ -423,12 +430,12 @@ def main(raw_path=None, options_fname=None, verbose=False):
                 else:
                     log.error("No reference linelist found! Something went wrong!")
                     linelist_fname = ''
-                poly_order, saved_pixtab_fname, msg = create_pixtable(arc_fname, grism_name,
-                                                                      pixtab_fname, linelist_fname,
-                                                                      order_wl=options['identify']['order_wl'],
-                                                                      app=app)
-                status[saved_pixtab_fname] = poly_order
-                status[grism_name+'_pixtab'] = saved_pixtab_fname
+                order_wl, pixtable, msg = create_pixtable(arc_fname, grism,
+                                                          pixtab_fname, linelist_fname,
+                                                          order_wl=options['identify']['order_wl'],
+                                                          app=app)
+                status[pixtable] = order_wl
+                status[grism+'_pixtab'] = pixtable
                 log.commit(msg)
             except:
                 log.error("Identification of arc lines failed!")
@@ -471,7 +478,8 @@ def main(raw_path=None, options_fname=None, verbose=False):
                                                                       interactive=options['response']['interactive'],
                                                                       dispaxis=sci_img.dispaxis, order_wl=order_wl,
                                                                       order_bg=options['scired']['order_bg'],
-                                                                      rectify_options=options['rectify'])
+                                                                      rectify_options=options['rectify'],
+                                                                      app=app)
                     status['RESPONSE'] = response_fname
                     log.commit(response_msg)
                 except:
@@ -539,7 +547,7 @@ def main(raw_path=None, options_fname=None, verbose=False):
             crr_fname = bgsub2d_fname
 
 
-        # Apply Response Function:
+        # Flux Calibration:
         if status['RESPONSE']:
             log.write("Running task: Flux Calibration")
             response_fname = status['RESPONSE']
@@ -564,7 +572,7 @@ def main(raw_path=None, options_fname=None, verbose=False):
                 log.write("Starting Graphical User Interface")
                 extract_gui.run_gui(extract_fname, output_fname=flux1d_fname,
                                     app=app, **options['extract'])
-                log.write("Writing fits table: %s" % flux1d_fname)
+                log.write("Writing fits table: %s" % flux1d_fname, prefix=" [OUTPUT] - ")
             except:
                 log.error("Interactive 1D extraction failed!")
                 log.fatal_error()
@@ -593,13 +601,15 @@ if __name__ == '__main__':
                         help="Filename of options in YAML format")
     parser.add_argument("-v", "--verbose", action="store_true",
                         help="Print log to terminal")
+    parser.add_argument("-I", "--interactive", action="store_true",
+                        help="Use interactive interface throughout")
     args = parser.parse_args()
 
     if args.path:
-        main(args.path, options_fname=args.options, verbose=args.verbose)
+        main(args.path, options_fname=args.options, verbose=args.verbose, interactive=args.interactive)
 
     elif args.options:
-        main(options_fname=args.options, verbose=args.verbose)
+        main(options_fname=args.options, verbose=args.verbose, interactive=args.interactive)
 
     else:
         print("\n  Running PyNOT Data Processing Pipeline\n")

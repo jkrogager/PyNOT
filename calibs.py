@@ -105,6 +105,7 @@ def combine_bias_frames(bias_frames, output='', kappa=15, overwrite=True):
 
     pf.writeto(output, master_bias, header=hdr, overwrite=overwrite)
     msg.append(" [OUTPUT] - Saving combined Bias Image: %s" % output)
+    msg.append("")
     output_msg = "\n".join(msg)
 
     return output, output_msg
@@ -220,6 +221,7 @@ def combine_flat_frames(raw_frames, output, mbias='', mode='spec', dispaxis=2,
 
     pf.writeto(output, flat_combine, header=hdr, overwrite=overwrite)
     msg.append(" [OUTPUT] - Saving combined Flat Field Image: %s" % output)
+    msg.append("")
     output_msg = "\n".join(msg)
     if verbose:
         print(output_msg)
@@ -417,6 +419,7 @@ def normalize_spectral_flat(fname, output='', fig_dir='', axis=2, lower=0, upper
 
     pf.writeto(output, flat_norm, header=hdr, overwrite=overwrite)
     msg.append(" [OUTPUT] - Saving normalized MASTER FLAT: %s" % output)
+    msg.append("")
     output_msg = "\n".join(msg)
     if verbose:
         print(output_msg)
