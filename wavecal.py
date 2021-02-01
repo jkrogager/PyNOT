@@ -16,9 +16,7 @@ from scipy.optimize import curve_fit
 from scipy.signal import find_peaks
 import spectres
 import warnings
-from PyQt5.QtWidgets import QApplication
 
-from identify_gui import GraphicInterface
 from alfosc import get_alfosc_header, create_pixel_array
 from scired import trim_overscan
 
@@ -27,54 +25,6 @@ v_file = os.path.join(code_dir, 'VERSION')
 with open(v_file) as version_file:
     __version__ = version_file.read().strip()
 
-
-# -- Function to call from PyNOT.main
-def create_pixtable(arc_image, grism_name, pixtable_name, linelist_fname, order_wl=4, app=None):
-    """
-    arc_image : str
-        Filename of arc image
-
-    grism_name : str
-        Grism name, ex: grism4
-    """
-
-    fname = os.path.basename(arc_image)
-    base_name, ext = os.path.splitext(fname)
-    output_pixtable = "%s_arcID_%s.tab" % (base_name, grism_name)
-    # Launch App:
-    # global app
-    # app = QApplication.instance()
-    if app is None:
-        app = QApplication(sys.argv)
-    gui = GraphicInterface(arc_image,
-                           grism_name=grism_name,
-                           pixtable=pixtable_name,
-                           linelist_fname=linelist_fname,
-                           output=output_pixtable,
-                           order_wl=order_wl,
-                           locked=True)
-    gui.show()
-    app.exit(app.exec_())
-
-    if os.path.exists(output_pixtable) and gui.message == 'ok':
-        # The GUI exited successfully
-        order_wl = int(gui.poly_order.text())
-        msg = "          - Successfully saved line identifications: %s\n" % output_pixtable
-
-        if not os.path.exists(pixtable_name):
-            # move output_pixtable to pixtable_name:
-            copy_command = "cp %s %s" % (output_pixtable, pixtable_name)
-            # os.system(copy_command)                                            # <-- UPDATE BEFORE RELEASE
-            print(copy_command)
-
-    else:
-        msg = " [ERROR]  - Something went wrong in line identification of %s\n" % grism_name
-        order_wl = None
-        output_pixtable = None
-
-    del gui
-
-    return order_wl, output_pixtable, msg
 
 
 def verify_arc_frame(arc_fname, dispaxis=2):
@@ -388,7 +338,6 @@ def apply_transform(img2D, pix, fit_table2d, ref_table, err2D=None, mask2D=None,
         img2D_tr = img2D
         err2D_tr = err2D
         mask2D_tr = mask2D
-    msg.append("")
     output_msg = "\n".join(msg)
     return img2D_tr, err2D_tr, mask2D_tr, wl, hdr_tr, output_msg
 
@@ -529,7 +478,7 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
         plot_fname = os.path.join(fig_dir, 'PixTable2D.pdf')
         plot_2d_pixtable(arc2D_sub, pix_in, pixtab2d, fit_table2d, filename=plot_fname)
         msg.append("          - Plotting fitted arc line positions in 2D frame")
-        msg.append("          - Saving figure to file: %s" % plot_fname)
+        msg.append(" [OUTPUT] - Saving figure: %s" % plot_fname)
 
     if output:
         if output[-5:] != '.fits':
@@ -571,7 +520,7 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
             mask_ext = fits.ImageHDU(mask2D, header=mask_hdr, name='MASK')
             hdu.append(mask_ext)
         hdu.writeto(output, overwrite=overwrite)
-    msg.append("          - Saving rectified 2D image to file: %s" % output)
+    msg.append(" [OUTPUT] - Saving rectified 2D image: %s" % output)
     msg.append("")
     output_str = "\n".join(msg)
     if verbose:

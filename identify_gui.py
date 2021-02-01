@@ -29,19 +29,52 @@ with open(v_file) as version_file:
     __version__ = version_file.read().strip()
 
 
-def run_gui(arc_fname, grism_name, tab_fname, linelist_fname, dispaxis=2):
+# -- Function to call from PyNOT.main
+def create_pixtable(arc_image, grism_name, pixtable_name, linelist_fname, order_wl=4, app=None):
+    """
+    arc_image : str
+        Filename of arc image
+
+    grism_name : str
+        Grism name, ex: grism4
+    """
+
+    fname = os.path.basename(arc_image)
+    base_name, ext = os.path.splitext(fname)
+    output_pixtable = "%s_arcID_%s.tab" % (base_name, grism_name)
     # Launch App:
-    qapp = QApplication(sys.argv)
-    app = GraphicInterface(fname,
+    # global app
+    # app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+    gui = GraphicInterface(arc_image,
                            grism_name=grism_name,
-                           pixtable=tab_fname,
+                           pixtable=pixtable_name,
                            linelist_fname=linelist_fname,
-                           dispaxis=dispaxis,
+                           output=output_pixtable,
+                           order_wl=order_wl,
                            locked=True)
-    app.show()
-    qapp.exec_()
-    # Get from temp file...
-    return poly_order, pixtab_fname
+    gui.show()
+    app.exit(app.exec_())
+
+    if os.path.exists(output_pixtable) and gui.message == 'ok':
+        # The GUI exited successfully
+        order_wl = int(gui.poly_order.text())
+        msg = "          - Successfully saved line identifications: %s\n" % output_pixtable
+
+        if not os.path.exists(pixtable_name):
+            # move output_pixtable to pixtable_name:
+            copy_command = "cp %s %s" % (output_pixtable, pixtable_name)
+            os.system(copy_command)
+
+    else:
+        msg = " [ERROR]  - Something went wrong in line identification of %s\n" % grism_name
+        order_wl = None
+        output_pixtable = None
+
+    del gui
+
+    return order_wl, output_pixtable, msg
 
 
 
