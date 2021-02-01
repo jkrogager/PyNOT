@@ -203,7 +203,7 @@ def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, kappa=
         fig2D.tight_layout()
         fig2D.savefig(plot_fname)
         plt.close()
-        msg.append("          - Saved diagnostic figure: %s" % plot_fname)
+        msg.append(" [OUTPUT] - Saving diagnostic figure: %s" % plot_fname)
 
     data = data - bg2D
     if dispaxis == 1:
@@ -227,7 +227,7 @@ def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, kappa=
         hdu.append(sky_ext)
         hdu.writeto(output_fname, overwrite=True)
 
-    msg.append("          - Saved background subtracted image: %s" % output_fname)
+    msg.append(" [OUTPUT] - Saving background subtracted image: %s" % output_fname)
     msg.append("")
     output_msg = "\n".join(msg)
     return output_msg
@@ -291,7 +291,7 @@ def correct_cosmics(input_fname, output_fname, niter=4, gain=None, readnoise=Non
             mask_ext = fits.ImageHDU(mask, header=mask_hdr, name='MASK')
             hdu.append(mask_ext)
         hdu.writeto(output_fname, overwrite=True)
-    msg.append("          - Saved cosmic ray corrected image: %s" % output_fname)
+    msg.append(" [OUTPUT] - Saving cosmic ray corrected image: %s" % output_fname)
     msg.append("")
     output_msg = "\n".join(msg)
     return output_msg
@@ -376,7 +376,7 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname, output='', overscan=50,
     output_HDU = fits.HDUList([sci_ext, err_ext, mask_ext])
     output_HDU.writeto(output, overwrite=overwrite)
     msg.append("          - Successfully corrected the image.")
-    msg.append("          - Saving output: %s" % output)
+    msg.append(" [OUTPUT] - Saving output: %s" % output)
     msg.append("")
     output_msg = "\n".join(msg)
 

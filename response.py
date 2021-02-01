@@ -79,7 +79,7 @@ def flux_calibrate(input_fname, *, output, response):
         hdu['ERR'].header['BUNIT'] = 'erg/s/cm2/A'
 
         hdu.writeto(output, overwrite=True)
-    msg.append("          - Saving flux calibrated 2D image: %s" % output)
+    msg.append(" [OUTPUT] - Saving flux calibrated 2D image: %s" % output)
     msg.append("")
     output_msg = "\n".join(msg)
     return output_msg
@@ -324,7 +324,7 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
     hdu = fits.HDUList()
     hdu.append(tab)
     hdu.writeto(response_output, overwrite=True)
-    msg.append("          - Saved the response function as FITS table: %s" % response_output)
+    msg.append(" [OUTPUT] - Saving the response function as FITS table: %s" % response_output)
     msg.append("")
     output_msg = "\n".join(msg)
     return response_output, output_msg

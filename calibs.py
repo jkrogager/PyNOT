@@ -36,7 +36,7 @@ def mad(img):
     For a Gaussian distribution:
         sigma ≈ 1.4826 * MAD
     """
-    return np.median(np.abs(img - np.median(img)))
+    return np.nanmedian(np.abs(img - np.nanmedian(img)))
 
 
 def combine_bias_frames(bias_frames, output='', kappa=15, overwrite=True):
@@ -85,7 +85,7 @@ def combine_bias_frames(bias_frames, output='', kappa=15, overwrite=True):
         masked_bias.append(np.ma.masked_where(this_mask, img))
         mask += 1*this_mask
     msg.append("          - Masking outlying pixels: kappa = %f" % kappa)
-    msg.append("          - Total number of masked pixels: %i" % np.sum(mask))
+    msg.append("          - Total number of masked pixels: %i" % np.sum(mask > 0))
 
     master_bias = np.median(masked_bias, 0)
     Ncomb = len(bias) - mask
@@ -93,30 +93,24 @@ def combine_bias_frames(bias_frames, output='', kappa=15, overwrite=True):
     master_bias[Ncomb == 0] = np.median(master_bias[Ncomb != 0])
     msg.append("          - Combined %i files" % len(bias))
 
-    if output:
-        hdr = pf.getheader(bias_frames[0], 0)
-        hdr1 = pf.getheader(bias_frames[0], 1)
-        for key in hdr1.keys():
-            hdr[key] = hdr1[key]
-        hdr['NCOMBINE'] = len(bias_frames)
-        hdr.add_comment('Median combined Master Bias')
-        hdr.add_comment('PyNOT version %s' % __version__)
-
-        if output[-5:] == '.fits':
-            pass
-        else:
-            output += '.fits'
-    else:
+    hdr = pf.getheader(bias_frames[0], 0)
+    hdr1 = pf.getheader(bias_frames[0], 1)
+    for key in hdr1.keys():
+        hdr[key] = hdr1[key]
+    hdr['NCOMBINE'] = len(bias_frames)
+    hdr.add_comment('Median combined Master Bias')
+    hdr.add_comment('PyNOT version %s' % __version__)
+    if not output:
         output = 'MASTER_BIAS.fits'
 
     pf.writeto(output, master_bias, header=hdr, overwrite=overwrite)
-    msg.append("          - Successfully median combined bias frames: %s" % output)
+    msg.append(" [OUTPUT] - Saving combined Bias Image: %s" % output)
     output_msg = "\n".join(msg)
 
     return output, output_msg
 
 
-def combine_flat_frames(raw_frames, mbias='', output='', match_slit='',
+def combine_flat_frames(raw_frames, output, mbias='', mode='spec', dispaxis=2,
                         kappa=5, verbose=False, overwrite=True):
     """Combine individual spectral flat frames to create a 'master flat' frame.
     The individual frames are normalized to the mode of the 1D collapsed spectral
@@ -140,18 +134,20 @@ def combine_flat_frames(raw_frames, mbias='', output='', match_slit='',
     output : string [default='']
         Output file name for the final combined image.
 
-    match_slit : string [default='Slit_1.0']
-        Slit name to match, if a flat frame is not taken with the
-        given slit, it is not included in the combination.
-        This is following NOT/ALFOSC naming from 'ALAPRTNM' in the header.
+    mode : string ['spec' or 'img']
+        Combine spectral flats or imaging flats. Default is 'spec'
 
-    kappa : integer [default=5]
+    dispaxis : integer  [default=2]
+        Dispersion axis. 1: Horizontal spectra, 2: vertical spectra
+        For the majority of ALFOSC spectra, the default is 2.
+
+    kappa : integer  [default=5]
         Number of sigmas above which to reject pixels.
 
-    verbose : boolean [default=False]
+    verbose : boolean  [default=False]
         If True, print status messages.
 
-    overwrite : boolean [default=False]
+    overwrite : boolean  [default=True]
         Overwrite existing output file if True.
 
     Returns
@@ -173,42 +169,46 @@ def combine_flat_frames(raw_frames, mbias='', output='', match_slit='',
     flat_peaks = list()
     for fname in raw_frames:
         hdr = pf.getheader(fname)
-        if match_slit != '' and match_slit in alfosc.slits:
-            if hdr['ALAPRTNM'] == match_slit:
-                flat = pf.getdata(fname)
-                flat = flat - bias
-                peak_val = np.max(np.mean(flat, 1))
-                flats.append(flat/peak_val)
-                flat_peaks.append(peak_val)
-                msg.append("          - Loaded FLAT file: %s   mode=%.1f" % (fname, peak_val))
-
-        elif match_slit == '':
-            flat = pf.getdata(fname)
-            flat = flat - bias
-            peak_val = np.max(np.mean(flat, 1))
+        flat = pf.getdata(fname)
+        flat = flat - bias
+        if mode == 'spec':
+            peak_val = np.max(np.mean(flat, dispaxis-1))
             flats.append(flat/peak_val)
             flat_peaks.append(peak_val)
-            msg.append("          - Loaded FLAT file: %s   mode=%.1f" % (fname, peak_val))
+            msg.append("          - Loaded Spectral Flat file: %s   mode=%.1f" % (fname, peak_val))
 
         else:
-            msg.append(" [ERROR]  - Invalid Slit Name given:  %s" % match_slit)
-            raise ValueError("\n".join(msg))
+            peak_val = np.median(flat, 1)
+            flats.append(flat/peak_val)
+            flat_peaks.append(peak_val)
+            msg.append("          - Loaded Imaging Flat file: %s   median=%.1f" % (fname, peak_val))
 
-    # Perform robust clipping using median absolute deviation
-    # Assuming a Gaussian distribution:
-    sigma = mad(flat_peaks)*1.4826
-    median = np.median(flat_peaks)
-    frames_to_remove = list()
-    for i, peak_val in enumerate(flat_peaks):
-        if np.abs(peak_val - median) > kappa*sigma:
-            frames_to_remove.append(i)
+    mask = np.zeros_like(flats[0], dtype=int)
+    median_img0 = np.median(flats, 0)
+    sig = mad(median_img0)*1.4826
+    masked_flats = list()
+    for img in flats:
+        this_mask = np.abs(img - median_img0) > kappa*sig
+        masked_flats.append(np.ma.masked_where(this_mask, img))
+        mask += 1*this_mask
+    msg.append("          - Standard deviation of raw median image: %.1f ADUs" % sig)
+    msg.append("          - Masking outlying pixels using a threshold of  kappa=%.1f" % kappa)
+    msg.append("          - Total number of masked pixels: %i" % np.sum(mask > 0))
+    msg.append("          - Median value of combined flat: %i" % np.sum(mask > 0))
 
-    # Sort the indeces and pop them in reverse order:
-    for index in sorted(frames_to_remove)[::-1]:
-        flats.pop(index)
+    # Take the mean of the sigma-clipped images.
+    flat_combine = np.mean(masked_flats, 0)
+    if mode == 'spec':
+        # Scale the image back to the original ADU scale
+        flat_combine = flat_combine * np.nanmedian(flat_peaks)
 
-    flat_combine = np.median(flats, 0) * median
-    msg.append("          - Combined %i files" % len(flats))
+    # Identify gaps in the image where no pixels contribute:
+    Ncomb = len(flats) - mask
+    flat_combine[Ncomb == 0] = np.median(flat_combine[Ncomb != 0])
+    if len(flats) == 1:
+        msg.append("          - Combined %i file" % len(flats))
+    else:
+        msg.append("          - Combined %i files" % len(flats))
 
     hdr = pf.getheader(raw_frames[0], 0)
     hdr1 = pf.getheader(raw_frames[0], 1)
@@ -218,18 +218,8 @@ def combine_flat_frames(raw_frames, mbias='', output='', match_slit='',
     hdr.add_comment('Median combined Master Spectral Flat')
     hdr.add_comment('PyNOT version %s' % __version__)
 
-    if output:
-        if output[-5:] == '.fits':
-            pass
-        else:
-            output += '.fits'
-    else:
-        grism = alfosc.grism_translate[hdr['ALGRNM']]
-        slit_name = hdr['ALAPRTNM']
-        output = 'FLAT_COMBINED_%s_%s.fits' % (grism, slit_name)
-
     pf.writeto(output, flat_combine, header=hdr, overwrite=overwrite)
-    msg.append("          - Generating combined MASTER FLAT: %s" % output)
+    msg.append(" [OUTPUT] - Saving combined Flat Field Image: %s" % output)
     output_msg = "\n".join(msg)
     if verbose:
         print(output_msg)
@@ -426,7 +416,7 @@ def normalize_spectral_flat(fname, output='', fig_dir='', axis=2, lower=0, upper
         output = 'NORM_FLAT_%s_%s.fits' % (grism, slit_name)
 
     pf.writeto(output, flat_norm, header=hdr, overwrite=overwrite)
-    msg.append("          - Generating normalized MASTER FLAT: %s" % output)
+    msg.append(" [OUTPUT] - Saving normalized MASTER FLAT: %s" % output)
     output_msg = "\n".join(msg)
     if verbose:
         print(output_msg)

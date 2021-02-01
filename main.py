@@ -15,7 +15,8 @@ import data_organizer as do
 from calibs import combine_bias_frames, combine_flat_frames, normalize_spectral_flat
 from extraction import auto_extract
 import extract_gui
-from wavecal import create_pixtable, rectify
+from wavecal import rectify
+from identify_gui import create_pixtable
 from scired import raw_correction, auto_fit_background, correct_cosmics
 from response import calculate_response, flux_calibrate
 
@@ -47,6 +48,13 @@ class Report(object):
 
         if self.verbose:
             print(self.header)
+
+    def clear(self):
+        self.lines = list()
+        self.remarks = list()
+
+    def set_filename(self, fname):
+        self.fname = fname
 
     def commit(self, text):
         if self.verbose:
@@ -261,7 +269,15 @@ def main(raw_path=None, options_fname=None, verbose=False):
                 pixtab_fname = options[grism_name+'_pixtab']
             else:
                 pixtab_fname = os.path.join(calib_dir, '%s_pixeltable.dat' % grism_name)
-            linelist_fname = os.path.join(calib_dir, 'HeNe_linelist.dat')
+            # Check arc line type:
+            file_type = database.file_database[arc_fname]
+            if 'HeNe' in file_type:
+                linelist_fname = os.path.join(calib_dir, 'HeNe_linelist.dat')
+            elif 'ThAr' in file_type:
+                linelist_fname = os.path.join(calib_dir, 'ThAr_linelist.dat')
+            else:
+                log.error("No reference linelist found! Something went wrong!")
+                linelist_fname = ''
             poly_order, saved_pixtab_fname, msg = create_pixtable(arc_fname, grism_name,
                                                                   pixtab_fname, linelist_fname,
                                                                   order_wl=options['identify']['order_wl'],
@@ -270,17 +286,38 @@ def main(raw_path=None, options_fname=None, verbose=False):
             status[grism_name+'_pixtab'] = saved_pixtab_fname
             log.commit(msg)
         except:
+            log.error("Identification of arc lines failed!")
             log.fatal_error()
             log.save()
             print("Unexpected error:", sys.exc_info()[0])
             raise
 
+
+    # Save overview log:
+    print("")
+    print(" - Pipeline setup ended successfully.")
+    print("   Consult the overview log: %s\n\n" % log.fname)
+    log.save()
+
+
+    # ------------------------------------------------------------------
+    # -- Start Main Reduction:
     for sci_img in object_images[:1]:                                       # <-- FULL LOOP BEFORE RELEASE
+        # Create working directory:
         raw_base = os.path.basename(sci_img.filename).split('.')[0][2:]
         output_dir = sci_img.target_name + '_' + raw_base
         if not os.path.exists(output_dir):
             os.mkdir(output_dir)
-            log.write("Created output directory: %s" % output_dir)
+
+        # Start new log in working directory:
+        log_fname = os.path.join(output_dir, 'pynot.log')
+        log.clear()
+        log.set_filename(log_fname)
+        log.write("Starting PyNOT Longslit Spectroscopic Reduction")
+        log.add_linebreak()
+        log.write("Target Name: %s" % sci_img.target_name)
+        log.write("Input Filename: %s" % sci_img.filename)
+        log.write("Saving output to directory: %s" % output_dir)
 
         # Prepare output filenames:
         grism = alfosc.grism_translate[sci_img.grism]
@@ -332,10 +369,9 @@ def main(raw_path=None, options_fname=None, verbose=False):
 
         try:
             log.write("Running task: Spectral Flat Combination")
-            _, flat_msg = combine_flat_frames(flat_frames, mbias=master_bias_fname,
-                                              output=comb_flat_fname,
-                                              kappa=options['flat']['kappa'],
-                                              overwrite=True)
+            _, flat_msg = combine_flat_frames(flat_frames, comb_flat_fname, mbias=master_bias_fname,
+                                              kappa=options['flat']['kappa'], overwrite=True,
+                                              mode='spec', dispaxis=sci_img.dispaxis)
             log.commit(flat_msg)
             log.add_linebreak()
             status['flat_combined'] = comb_flat_fname
@@ -373,9 +409,32 @@ def main(raw_path=None, options_fname=None, verbose=False):
         arc_fname, = sci_img.match_files(arc_images, grism=True, slit=True, filter=True, get_closest_time=True)
         if identify_interactive and identify_all:
             log.write("Running task: Arc Line Identification")
-            # run interactive GUI
-            # poly_order, pixtable, msg = create_pixtable(...)
-            pass
+            try:
+                if grism_name+'_pixtab' in options:
+                    pixtab_fname = options[grism_name+'_pixtab']
+                else:
+                    pixtab_fname = os.path.join(calib_dir, '%s_pixeltable.dat' % grism_name)
+
+                file_type = database.file_database[arc_fname]
+                if 'HeNe' in file_type:
+                    linelist_fname = os.path.join(calib_dir, 'HeNe_linelist.dat')
+                elif 'ThAr' in file_type:
+                    linelist_fname = os.path.join(calib_dir, 'ThAr_linelist.dat')
+                else:
+                    log.error("No reference linelist found! Something went wrong!")
+                    linelist_fname = ''
+                poly_order, saved_pixtab_fname, msg = create_pixtable(arc_fname, grism_name,
+                                                                      pixtab_fname, linelist_fname,
+                                                                      order_wl=options['identify']['order_wl'],
+                                                                      app=app)
+                status[saved_pixtab_fname] = poly_order
+                status[grism_name+'_pixtab'] = saved_pixtab_fname
+                log.commit(msg)
+            except:
+                log.error("Identification of arc lines failed!")
+                log.fatal_error()
+                print("Unexpected error:", sys.exc_info()[0])
+                raise
         else:
             # -- or use previous line identifications
             pixtable = status[grism+'_pixtab']
