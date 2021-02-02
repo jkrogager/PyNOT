@@ -1713,15 +1713,15 @@ class ExtractGUI(QtWidgets.QMainWindow):
                     for line in model.point_lines[parname]:
                         line.remove()
                     l1, = ax.plot(model.x_binned[mask], model.points[parname][mask],
-                                  color=model.color, marker='o', ls='', mec=color_shade(model.color), picker=True, pickradius=10)
+                                  color=model.color, marker='o', ls='', mec=color_shade(model.color), picker=True, pickradius=6)
                     l2, = ax.plot(model.x_binned[~mask], model.points[parname][~mask],
-                                  color=model.color, marker='o', ls='', alpha=0.3, picker=True, pickradius=10)
+                                  color=model.color, marker='o', ls='', alpha=0.3, picker=True, pickradius=6)
                     l3, = ax.plot(model.x_binned[~mask], model.points[parname][~mask],
                                   color='k', marker='x', ls='')
                     model.point_lines[parname] = [l1, l2, l3]
                     if parname == 'mu':
                         l4, = self.axis_2d.plot(model.x_binned[mask], model.points[parname][mask],
-                                                color=model.color, marker='o', ls='', alpha=0.5, picker=True, pickradius=10)
+                                                color=model.color, marker='o', ls='', alpha=0.5, picker=True, pickradius=6)
                         model.point_lines[parname].append(l4)
                     # -- Plot fit to points:
                     if len(model.fit['mu']) > 0:
@@ -1748,15 +1748,15 @@ class ExtractGUI(QtWidgets.QMainWindow):
                     mask = model.get_mask(parname)
                     # -- Plot traced points:
                     l1, = ax.plot(model.x_binned[mask], model.points[parname][mask],
-                                  color=model.color, marker='o', ls='', mec=color_shade(model.color), picker=True, pickradius=10)
+                                  color=model.color, marker='o', ls='', mec=color_shade(model.color), picker=True, pickradius=6)
                     l2, = ax.plot(model.x_binned[~mask], model.points[parname][~mask],
-                                  color=model.color, marker='o', ls='', alpha=0.3, picker=True, pickradius=10)
+                                  color=model.color, marker='o', ls='', alpha=0.3, picker=True, pickradius=6)
                     l3, = ax.plot(model.x_binned[~mask], model.points[parname][~mask],
                                   color='k', marker='x', ls='')
                     model.point_lines[parname] = [l1, l2, l3]
                     if parname == 'mu':
                         l4, = self.axis_2d.plot(model.x_binned[mask], model.points[parname][mask],
-                                                color=model.color, marker='o', ls='', alpha=0.3, picker=True, pickradius=10)
+                                                color=model.color, marker='o', ls='', alpha=0.3, picker=True, pickradius=6)
                         model.point_lines[parname].append(l4)
                     # -- Plot fit to points:
                     if len(model.fit['mu']) > 0:
@@ -1849,10 +1849,6 @@ class ExtractGUI(QtWidgets.QMainWindow):
     def pick_points(self, event):
         artist = event.artist
         if isinstance(artist, matplotlib.lines.Line2D):
-            # -- Can maybe simplify using:
-            # line = event.artist
-            # xdata, ydata = line.get_data()
-            # ind = event.ind
             for model in self.trace_models:
                 for parname in ['mu', 'alpha', 'beta', 'sigma']:
                     if artist in model.point_lines[parname]:
