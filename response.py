@@ -262,9 +262,10 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
         band = (wl >= l1) * (wl <= l2)
         if np.sum(band) > 3:
             f0 = np.nanmean(ext1d[band])
-            flux0.append(f0)
-            wl0.append(l0)
-            mag.append(m0)
+            if f0 > 0:
+                flux0.append(f0)
+                wl0.append(l0)
+                mag.append(m0)
     wl0 = np.array(wl0)
     flux0 = np.array(flux0)
     mag = np.array(mag)
@@ -325,7 +326,7 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
     ax = fig1.add_subplot(111)
     ax.plot(wl, ext1d)
     ax.set_ylim(ymin=0.)
-    power = np.floor(np.log10(np.max(ext1d))) - 1
+    power = np.floor(np.log10(np.nanmax(ext1d))) - 1
     majFormatter = ticker.FuncFormatter(lambda x, p: my_formatter(x, p, power))
     ax.get_yaxis().set_major_formatter(majFormatter)
     ax.set_ylabel(u'Counts  [$10^{{{0:d}}}$ ADU]'.format(int(power)), fontsize=14)

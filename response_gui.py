@@ -39,9 +39,9 @@ def run_gui(input_fname, output_fname, app=None, order=3, smoothing=0.02):
     gui = ResponseGUI(input_fname, output_fname=output_fname, locked=True, order=order, smoothing=smoothing)
     gui.show()
     app.exit(app.exec_())
-    del gui
     # Get Response Array:
     response = gui.response
+    del gui
     return response
 
 
@@ -311,9 +311,13 @@ class ResponseGUI(QtWidgets.QMainWindow):
         if 'EXPTIME' in hdr:
             self.exptime_edit.setText("%.1f" % hdr['EXPTIME'])
             self.exptime_edit.setEnabled(False)
+        else:
+            self.exptime_edit.setEnabled(True)
         if 'AIRMASS' in hdr:
             self.airmass_edit.setText("%.1f" % hdr['AIRMASS'])
             self.airmass_edit.setEnabled(False)
+        else:
+            self.airmass_edit.setEnabled(True)
         if 'OBJECT' in hdr:
             for entry_name in self.all_names:
                 if hdr['OBJECT'] in entry_name:
@@ -345,8 +349,10 @@ class ResponseGUI(QtWidgets.QMainWindow):
             l1 = wl_ref - bandwidth/2
             l2 = wl_ref + bandwidth/2
             band = (wl >= l1) * (wl <= l2)
-            if np.sum(band) > 0:
+            if np.sum(band) > 3:
                 f0 = np.nanmean(flux[band])
+                if f0 < 0:
+                    f0 = np.nan
             else:
                 f0 = np.nan
             # flux_bins.append(f0 / bandwidth)
@@ -424,6 +430,7 @@ class ResponseGUI(QtWidgets.QMainWindow):
             else:
                 self.fit_line.set_data(self.spectrum.wl, self.response)
         self.canvas_points.draw()
+
 
     def fit_response(self):
         if self.resp_bins is None:
@@ -600,4 +607,4 @@ if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
     gui = ResponseGUI(args.filename, output_fname=args.output, locked=args.locked)
     gui.show()
-    app.exec_()
+    app.exit(app.exec_())
