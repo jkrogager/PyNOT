@@ -9,7 +9,6 @@ Graphical interface to extract 1D spectra
 __author__ = "Jens-Kristian Krogager"
 __email__ = "krogager.jk@gmail.com"
 __credits__ = ["Jens-Kristian Krogager"]
-__version__ = '0.13'
 
 import copy
 import os
@@ -31,6 +30,11 @@ from itertools import cycle
 from PyQt5 import QtCore, QtGui, QtWidgets
 import warnings
 
+code_dir = os.path.dirname(os.path.abspath(__file__))
+v_file = os.path.join(code_dir, 'VERSION')
+with open(v_file) as version_file:
+    __version__ = version_file.read().strip()
+
 
 def run_gui(input_fname, output_fname, app=None, **ext_kwargs):
     # global app
@@ -38,7 +42,8 @@ def run_gui(input_fname, output_fname, app=None, **ext_kwargs):
         app = QtWidgets.QApplication(sys.argv)
     gui = ExtractGUI(input_fname, output_fname=output_fname, dispaxis=1, locked=True, **ext_kwargs)
     gui.show()
-    app.exec_()
+    app.exit(app.exec_())
+    del gui
 
 
 def save_fits_spectrum(fname, wl, flux, err, hdr, bg=None, aper=None):

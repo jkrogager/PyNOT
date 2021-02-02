@@ -183,7 +183,7 @@ def main(raw_path=None, options_fname=None, verbose=False, interactive=False):
             database, message = do.classify(raw_path, progress=verbose)
             do.io.save_database(database, dataset_fname)
             log.commit(message)
-            log.write("Saved database to file: %s" % dataset_fname)
+            log.write("Saved file classification database: %s" % dataset_fname)
         except ValueError as err:
             log.error(str(err))
             print(err)
@@ -457,8 +457,7 @@ def main(raw_path=None, options_fname=None, verbose=False, interactive=False):
 
         else:
             std_fname = flux_std_files[0]
-            std_base = os.path.basename(std_fname).split('.')[0][2:]
-            response_fname = os.path.join(output_dir, 'response_%s_%s.fits' % (std_base, grism))
+            response_fname = os.path.join(output_dir, 'response_%s.fits' % (grism))
             if os.path.exists(response_fname) and not options['response']['force']:
                 log.write("Response function already exists: %s" % response_fname)
                 log.add_linebreak()

@@ -13,6 +13,7 @@ from matplotlib.backends import backend_pdf
 import matplotlib.pyplot as plt
 from matplotlib import ticker
 from scipy.ndimage import gaussian_filter1d, median_filter
+from scipy.interpolate import UnivariateSpline
 from numpy.polynomial import Chebyshev
 import os
 import sys
@@ -21,6 +22,7 @@ import warnings
 import alfosc
 from extraction import auto_extract
 import extract_gui
+import response_gui
 from alfosc import get_alfosc_header
 from scired import auto_fit_background, my_formatter, mad, raw_correction
 from wavecal import rectify
@@ -60,6 +62,8 @@ def flux_calibrate(input_fname, *, output, response):
     # Load Sensitivity Function:
     resp_tab = fits.getdata(response)
     resp_int = np.interp(wl, resp_tab['WAVE'], resp_tab['RESPONSE'])
+    # Truncate values less than 20:
+    resp_int[resp_int < 20] = 20.
     msg.append("          - Loaded response function: %s" % response)
 
     airm = hdr['AIRMASS']
@@ -88,8 +92,8 @@ def flux_calibrate(input_fname, *, output, response):
 
 
 def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat_fname, output='',
-                       output_dir='', pdf_fname='', order=8, interactive=False, dispaxis=2,
-                       order_wl=4, order_bg=3, rectify_options={}, app=None):
+                       output_dir='', pdf_fname='', order=3, smoothing=0.02, interactive=False, dispaxis=2,
+                       order_wl=4, order_bg=5, rectify_options={}, app=None):
     """
     Extract and wavelength calibrate the standard star spectrum.
     Calculate the instrumental response function and fit the median filtered data points
@@ -126,7 +130,10 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
         If none, autogenerate from OBJECT name
 
     order : integer  [default=8]
-        Order of the Chebyshev polynomium to fit the response
+        Order of the spline interpolation of the response function
+
+    smoothing : float  [default=0.02]
+        Smoothing factor for spline interpolation
 
     interactive : boolean  [default=False]
         Interactively subtract background and extract 1D spectrum
@@ -172,8 +179,6 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
         bgsub2d_fname = os.path.join(output_dir, bgsub2d_fname)
         ext1d_output = os.path.join(output_dir, ext1d_output)
         extract_pdf_fname = os.path.join(output_dir, extract_pdf_fname)
-    if output:
-        response_output = output
 
     try:
         output_msg = raw_correction(raw2D, hdr, bias_fname, flat_fname,
@@ -207,12 +212,13 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
         output_msg = "\n".join(msg)
         raise Exception(output_msg)
 
+
     # Extract 1-dimensional spectrum:
     if interactive:
         try:
-            msg.append("          - Starting Graphical User Interface...")
+            msg.append("          - Starting Graphical User Interface for Spectral Extraction")
             extract_gui.run_gui(bgsub2d_fname, output_fname=ext1d_output,
-                                app=app)
+                                app=app, order=order, smoothing=smoothing)
             msg.append(" [OUTPUT] - Writing fits table: %s" % ext1d_output)
         except:
             msg.append("Unexpected error: %r" % sys.exc_info()[0])
@@ -221,7 +227,8 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
     else:
         try:
             ext_msg = auto_extract(bgsub2d_fname, ext1d_output, dispaxis=1, N=1, pdf_fname=extract_pdf_fname,
-                                   model_name='tophat', dx=10, width_scale=2, order_center=4, xmin=10, ymin=5, ymax=-5)
+                                   model_name='moffat', dx=20, order_center=4, order_width=5, xmin=20, ymin=5, ymax=-5,
+                                   kappa_cen=5., w_cen=15)
             msg.append(ext_msg)
         except:
             msg.append("Unexpected error: %r" % sys.exc_info()[0])
@@ -236,6 +243,7 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
 
     # Load the 1D extraction:
     wl, ext1d = load_spectrum1d(ext1d_output)
+    cdelt = np.mean(np.diff(wl))
 
     # Load the spectroscopic standard table:
     # The files are located in 'calib/std/'
@@ -252,9 +260,9 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
         l1 = l0 - b/2.
         l2 = l0 + b/2.
         band = (wl >= l1) * (wl <= l2)
-        f0 = np.sum(ext1d[band])
-        if not np.isnan(f0) and f0 > 0.:
-            flux0.append(f0/b)
+        if np.sum(band) > 3:
+            f0 = np.nanmean(ext1d[band])
+            flux0.append(f0)
             wl0.append(l0)
             mag.append(m0)
     wl0 = np.array(wl0)
@@ -283,15 +291,26 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
     F = 10**(-(mag+2.406)/2.5) / (wl0)**2
 
     # Calculate Sensitivity:
-    C = 2.5*np.log10(flux0 / (exptime * F)) + airmass*ext
+    C = 2.5*np.log10(flux0 / (exptime * cdelt * F)) + airmass*ext
 
     if interactive:
-        # Load GUI -- needs to be written!
-        pass
+        msg.append("          - ")
+        msg.append("          - Starting Graphical User Interface...")
+        try:
+            response = response_gui.run_gui(ext1d_output, response_output,
+                                            order=3, smoothing=0.02, app=app)
+            msg.append(" [OUTPUT] - Saving the response function as FITS table: %s" % response_output)
+        except:
+            msg.append("Unexpected error: %r" % sys.exc_info()[0])
+            output_msg = "\n".join(msg)
+            raise Exception(output_msg)
     else:
         # Fit a smooth polynomium to the calculated response:
-        msg.append("          - Fitting the filtered response curve data points")
-        response_fit = Chebyshev.fit(wl0[good], C[good], order, domain=[wl.min(), wl.max()])
+        msg.append("          - Interpolating the filtered response curve data points")
+        msg.append("          - Spline degree: %i" % order)
+        msg.append("          - Smoothing factor: %.3f" % smoothing)
+        response_fit = UnivariateSpline(wl0[good], C[good], k=order, s=smoothing)
+        # response_fit = Chebyshev.fit(wl0[good], C[good], order, domain=[wl.min(), wl.max()])
         response = response_fit(wl)
 
 
@@ -327,17 +346,32 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
     pdf.close()
     msg.append(" [OUTPUT] - Saving the response function diagnostics:  %s" % pdf_fname)
 
-    # --- Prepare FITS output:
-    resp_hdr = fits.Header()
-    resp_hdr['GRISM'] = grism
-    resp_hdr['AUTHOR'] = 'PyNOT version %s' % __version__
-    col_wl = fits.Column(name='WAVE', array=wl, format='D')
-    col_resp = fits.Column(name='RESPONSE', array=response, format='D')
-    tab = fits.BinTableHDU.from_columns([col_wl, col_resp], header=resp_hdr)
-    hdu = fits.HDUList()
-    hdu.append(tab)
-    hdu.writeto(response_output, overwrite=True)
-    msg.append(" [OUTPUT] - Saving the response function as FITS table: %s" % response_output)
+    if interactive:
+        # The GUI saved the output already...
+        pass
+    else:
+        # --- Prepare FITS output:
+        resp_hdr = fits.Header()
+        resp_hdr['GRISM'] = grism
+        resp_hdr['OBJECT'] = hdr['OBJECT']
+        resp_hdr['DATE-OBS'] = hdr['DATE-OBS']
+        resp_hdr['EXPTIME'] = hdr['EXPTIME']
+        resp_hdr['AIRMASS'] = hdr['AIRMASS']
+        resp_hdr['ALGRNM'] = hdr['ALGRNM']
+        resp_hdr['ALAPRTNM'] = hdr['ALAPRTNM']
+        resp_hdr['RA'] = hdr['RA']
+        resp_hdr['DEC'] = hdr['DEC']
+        resp_hdr['COMMENT'] = 'PyNOT response function'
+        resp_hdr['AUTHOR'] = 'PyNOT version %s' % __version__
+        prim = fits.PrimaryHDU(header=resp_hdr)
+        col_wl = fits.Column(name='WAVE', array=wl, format='D', unit='Angstrom')
+        col_resp = fits.Column(name='RESPONSE', array=response, format='D', unit='-2.5*log(erg/s/cm2/A)')
+        tab = fits.BinTableHDU.from_columns([col_wl, col_resp])
+        hdu = fits.HDUList()
+        hdu.append(prim)
+        hdu.append(tab)
+        hdu.writeto(response_output, overwrite=True)
+        msg.append(" [OUTPUT] - Saving the response function as FITS table: %s" % response_output)
     msg.append("")
     output_msg = "\n".join(msg)
     return response_output, output_msg

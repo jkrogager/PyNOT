@@ -60,6 +60,7 @@ extract:
   kappa_width:  3.0          # Threshold for median filtering. Reject outliers above: ±`kappa` * sigma
 
 response:
-  order:        8            # Polynomial order used to fit the response function as function of wavelength
-  interactive: False         # Not supported yet!
-  force:       False         # Overwrite existing response function?
+  order:        3            # Spline degree for smoothing the response function [1 ≤ order ≤ 5]
+  smoothing:    0.02         # Smoothing scale of the spline interpolation.
+  interactive:  False        # Interactively filter and fit the response function
+  force:        False        # Overwrite existing response function?

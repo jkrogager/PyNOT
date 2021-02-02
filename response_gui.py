@@ -1,26 +1,24 @@
 #!/usr/bin/env python3
 """
-    PyNOT -- Extract GUI
+    PyNOT -- Response GUI
 
-Graphical interface to extract 1D spectra
+Graphical interface to determine instrumental response
 
 """
 
 __author__ = "Jens-Kristian Krogager"
 __email__ = "krogager.jk@gmail.com"
 __credits__ = ["Jens-Kristian Krogager"]
-__version__ = '0.13'
 
-import copy
+
 import os
 import re
 import sys
 import numpy as np
 import matplotlib
-import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvas, NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
-from scipy.ndimage import median_filter
+from scipy.interpolate import UnivariateSpline
 from numpy.polynomial import Chebyshev
 from astropy.io import fits
 from PyQt5 import QtCore, QtGui, QtWidgets
@@ -28,268 +26,23 @@ import warnings
 
 import alfosc
 
-def run_gui(input_fname, app=None, order=8):
-    # global app
+
+code_dir = os.path.dirname(os.path.abspath(__file__))
+v_file = os.path.join(code_dir, 'VERSION')
+with open(v_file) as version_file:
+    __version__ = version_file.read().strip()
+
+
+def run_gui(input_fname, output_fname, app=None, order=3, smoothing=0.02):
     if app is None:
         app = QtWidgets.QApplication(sys.argv)
-    gui = ResponseGUI(input_fname, locked=True, order=order)
+    gui = ResponseGUI(input_fname, output_fname=output_fname, locked=True, order=order, smoothing=smoothing)
     gui.show()
-    app.exec_()
+    app.exit(app.exec_())
+    del gui
     # Get Response Array:
     response = gui.response
     return response
-
-
-def save_fitstable_spectrum(fname, wl, flux, err, hdr, bg=None, aper=None):
-    """Write spectrum to a FITS Table with 4 columns: Wave, FLUX, ERR and SKY"""
-    hdu = fits.HDUList()
-    hdr['COMMENT'] = 'PyNOT extracted spectrum'
-    hdr['COMMENT'] = 'Each spectrum in its own extension'
-    if bg is None:
-        bg = np.zeros_like(flux)
-    col_wl = fits.Column(name='WAVE', array=wl, format='D')
-    col_flux = fits.Column(name='FLUX', array=flux, format='D')
-    col_err = fits.Column(name='ERR', array=err, format='D')
-    col_sky = fits.Column(name='SKY', array=bg, format='D')
-    tab = fits.BinTableHDU.from_columns([col_wl, col_flux, col_err, col_sky], header=hdr)
-    tab.name = 'DATA'
-    hdu.append(tab)
-    if aper is not None:
-        aper_hdr = fits.Header()
-        aper_hdr['AUTHOR'] = 'PyNOT'
-        aper_hdr['COMMENT'] = '2D Extraction Aperture'
-        aper_hdu = fits.ImageHDU(data=aper, header=aper_hdr, name='APER')
-        hdu.append(aper_hdu)
-    hdu.writeto(fname, overwrite=True, output_verify='silentfix')
-    return True, "File saved successfully"
-
-
-def gui_label(text, color='black'):
-    label_string = "%s" % (text)
-    return QtWidgets.QLabel(label_string)
-
-
-def get_wavelength_from_header(hdr, dispaxis=1):
-    """Get image axes from FITS header"""
-    if 'CD1_1' in hdr.keys():
-        # Use CD matrix:
-        cdelt1 = hdr['CD%i_%i' % (dispaxis, dispaxis)]
-        crval1 = hdr['CRVAL%i' % dispaxis]
-        crpix1 = hdr['CRPIX%i' % dispaxis]
-        wavelength = (np.arange(hdr['NAXIS%i' % dispaxis]) - (crpix1 - 1))*cdelt1 + crval1
-
-    elif 'CDELT1' in hdr.keys():
-        cdelt1 = hdr['CDELT%i' % dispaxis]
-        crval1 = hdr['CRVAL%i' % dispaxis]
-        crpix1 = hdr['CRPIX%i' % dispaxis]
-        wavelength = (np.arange(hdr['NAXIS%i' % dispaxis]) - (crpix1 - 1))*cdelt1 + crval1
-
-    else:
-        # No info, just return pixels:
-        wavelength = np.arange(hdr['NAXIS%i' % dispaxis]) + 1.
-
-    return wavelength
-
-
-
-class TraceModel(object):
-    def __init__(self, cen, amp, axis, shape, fwhm=5, model_type='Moffat', object_name="", xmin=None, xmax=None, color='RoyalBlue'):
-        self.model_type = model_type
-        self._original_type = model_type
-        self.xmin = xmin
-        self.xmax = xmax
-        self.color = color
-        self.cmap = make_linear_colormap(color)
-        self.cen = cen
-        self.lower = cen - fwhm
-        self.upper = cen + fwhm
-        self.amp = amp
-        self.model2d = np.zeros(shape, dtype=np.float64)
-        self.x = np.arange(shape[1], dtype=np.float64)
-        self.y = np.arange(shape[0], dtype=np.float64)
-        self.axis = axis
-        self.fixed = False
-        self.object_name = object_name
-
-        self.x_binned = np.array([])
-        self.mask = {'mu': np.array([], dtype=bool), 'sigma': np.array([], dtype=bool),
-                     'alpha': np.array([], dtype=bool), 'beta': np.array([], dtype=bool)
-                     }
-        self.points = {'mu': np.array([]), 'sigma': np.array([]),
-                       'alpha': np.array([]), 'beta': np.array([])
-                       }
-        self.fit = {'mu': np.array([]), 'sigma': np.array([]),
-                    'alpha': np.array([]), 'beta': np.array([])
-                    }
-
-        # -- Define artists for the axes:
-        v_cen = self.axis.axvline(self.cen, color=color, lw=1., ls='-', picker=True, label='center')
-        v_lower = self.axis.axvline(self.lower, color=color, lw=0.8, ls='--', picker=True, label='lower')
-        v_upper = self.axis.axvline(self.upper, color=color, lw=0.8, ls='--', picker=True, label='upper')
-        self.vlines = [v_lower, v_cen, v_upper]
-
-        # Collector for points:
-        self.point_lines = {'mu': [], 'sigma': [],
-                            'alpha': [], 'beta': []}
-        self.fit_lines = {'mu': None, 'sigma': None,
-                          'alpha': None, 'beta': None}
-        self.model_image = None
-        self.plot_1d = None
-
-    def set_object_name(self, name):
-        self.object_name = name
-
-    def set_color(self, color):
-        self.color = color
-        self.cmap = make_linear_colormap(color)
-        for vline in self.vlines:
-            vline.set_color(color)
-        for line_collection in self.point_lines.values():
-            if len(line_collection) > 0:
-                for line in line_collection:
-                    line.set_color(color)
-        for line in self.fit_lines.values():
-            if line is not None:
-                line.set_color(color)
-        if self.model_image is not None:
-            self.model_image.set_cmap(self.cmap)
-        if self.plot_1d is not None:
-            for child in self.plot_1d.get_children():
-                child.set_color(color)
-
-    def set_data(self, x, mu=None, alpha=None, beta=None, sigma=None):
-        self.x_binned = x
-        if mu is not None:
-            self.points['mu'] = mu
-            self.mask['mu'] = np.ones_like(mu, dtype=bool)
-        if alpha is not None:
-            self.points['alpha'] = alpha
-            self.mask['alpha'] = np.ones_like(alpha, dtype=bool)
-        if beta is not None:
-            self.points['beta'] = beta
-            self.mask['beta'] = np.ones_like(beta, dtype=bool)
-        if sigma is not None:
-            self.points['sigma'] = sigma
-            self.mask['sigma'] = np.ones_like(sigma, dtype=bool)
-
-    def get_unicode_name(self, parname):
-        unicode_names = {'mu': 'µ', 'sigma': 'σ',
-                         'alpha': 'α', 'beta': 'β'}
-        return unicode_names[parname]
-
-    def get_data(self):
-        if self.model_type.lower() == 'moffat':
-            return (self.x_binned, self.points['mu'], self.points['alpha'], self.points['beta'])
-        elif self.model_type.lower() == 'gaussian':
-            return (self.x_binned, self.points['mu'], self.points['sigma'])
-        elif self.model_type.lower() == 'tophat':
-            return (self.x_binned, self.points['mu'])
-
-    def get_parnames(self):
-        if self.model_type.lower() == 'moffat':
-            return ['mu', 'alpha', 'beta']
-        elif self.model_type.lower() == 'gaussian':
-            return ['mu', 'sigma']
-        elif self.model_type.lower() == 'tophat':
-            return ['mu']
-
-    def set_centroid(self, cen):
-        self.cen = cen
-        self.vlines[1].set_xdata(cen)
-
-    def set_range(self, lower, upper):
-        self.lower = lower
-        self.upper = upper
-        self.vlines[0].set_xdata(lower)
-        self.vlines[2].set_xdata(upper)
-
-    def get_range(self):
-        return (self.lower, self.upper)
-
-    def get_mask(self, parname):
-        if len(self.mask[parname]) == 0:
-            return self.mask[parname]
-
-        if self.xmin is None:
-            xmin = 0.
-        else:
-            xmin = self.xmin
-
-        if self.xmax is None:
-            xmax = np.max(self.x_binned)
-        else:
-            xmax = self.xmax
-        limit_mask = (self.x_binned >= xmin) & (self.x_binned <= xmax)
-        base_mask = self.mask[parname]
-        return base_mask & limit_mask
-
-    def clear_plot(self):
-        for vline in self.vlines:
-            vline.remove()
-        for line_collection in self.point_lines.values():
-            if len(line_collection) > 0:
-                for line in line_collection:
-                    line.remove()
-        for line in self.fit_lines.values():
-            if line is not None:
-                line.remove()
-        if self.model_image is not None:
-            self.model_image.remove()
-        if self.plot_1d is not None:
-            for child in self.plot_1d.get_children():
-                child.remove()
-
-    def deactivate(self):
-        for vline in self.vlines:
-            vline.set_visible(False)
-        for line_collection in self.point_lines.values():
-            if len(line_collection) > 0:
-                for line in line_collection:
-                    line.set_visible(False)
-        for line in self.fit_lines.values():
-            if line is not None:
-                line.set_visible(False)
-        if self.model_image is not None:
-            self.model_image.set_visible(False)
-        if self.plot_1d is not None:
-            for child in self.plot_1d.get_children():
-                child.set_visible(False)
-
-    def activate(self):
-        self.vlines[1].set_visible(True)
-        for line_collection in self.point_lines.values():
-            if len(line_collection) > 0:
-                for line in line_collection:
-                    line.set_visible(True)
-        for line in self.fit_lines.values():
-            if line is not None:
-                line.set_visible(True)
-        if self.model_image is not None:
-            self.model_image.set_visible(True)
-        if self.plot_1d is not None:
-            for child in self.plot_1d.get_children():
-                child.set_visible(True)
-
-    def set_visible(self, vis=True):
-        self.vlines[0].set_visible(vis)
-        self.vlines[2].set_visible(vis)
-
-    def copy(self, offset=20.):
-        new_trace_model = TraceModel(self.cen + offset, self.amp, self.axis, model_type=self.model_type,
-                                     shape=self.model2d.shape, color=next(color_cycle))
-        lower, upper = self.get_range()
-        new_trace_model.set_range(lower+offset, upper+offset)
-        new_trace_model.x_binned = self.x_binned.copy()
-        new_trace_model.fixed = True
-        for param in self.points.keys():
-            new_trace_model.points[param] = self.points[param].copy()
-            new_trace_model.fit[param] = self.fit[param].copy()
-            new_trace_model.mask[param] = self.mask[param].copy()
-            if param == 'mu':
-                new_trace_model.points[param] += offset
-                new_trace_model.fit[param] += offset
-        return new_trace_model
-
 
 
 
@@ -302,12 +55,10 @@ class Spectrum(object):
         self.wl_unit = wl_unit
         self.flux_unit = flux_unit
 
-        self.plot_line = None
-
 
 
 class ResponseGUI(QtWidgets.QMainWindow):
-    def __init__(self, fname=None, output_fname='', star_name='', order=8, parent=None, locked=False, **kwargs):
+    def __init__(self, fname=None, output_fname='', star_name='', order=3, smoothing=0.02, parent=None, locked=False, **kwargs):
         QtWidgets.QMainWindow.__init__(self, parent)
         self.setWindowTitle('PyNOT: Response')
         self._main = QtWidgets.QWidget()
@@ -317,6 +68,7 @@ class ResponseGUI(QtWidgets.QMainWindow):
         self.spectrum = None
         self.response = None
         self.filename = fname
+        self.output_fname = output_fname
         # Extinction table attributes:
         self.ext_fname = alfosc.path + '/calib/lapalma.ext'
         try:
@@ -347,8 +99,12 @@ class ResponseGUI(QtWidgets.QMainWindow):
         self.airmass_edit.setValidator(QtGui.QDoubleValidator())
 
         self.order_edit = QtWidgets.QLineEdit("%i" % order)
-        self.order_edit.setValidator(QtGui.QIntValidator(0, 100))
+        self.order_edit.setValidator(QtGui.QIntValidator(1, 5))
         self.order_edit.returnPressed.connect(self.fit_response)
+
+        self.smooth_edit = QtWidgets.QLineEdit("%.2f" % smoothing)
+        self.smooth_edit.setValidator(QtGui.QDoubleValidator())
+        self.smooth_edit.returnPressed.connect(self.fit_response)
 
         self.fit_btn = QtWidgets.QPushButton("Fit Response")
         self.fit_btn.setShortcut("ctrl+F")
@@ -443,10 +199,16 @@ class ResponseGUI(QtWidgets.QMainWindow):
         right_panel.addWidget(separatorLine)
 
         row_orders = QtWidgets.QHBoxLayout()
-        row_orders.addWidget(QtWidgets.QLabel("Polynomial Order:"))
+        row_orders.addWidget(QtWidgets.QLabel("Spline Degree:"))
         row_orders.addWidget(self.order_edit)
         row_orders.addStretch(1)
         right_panel.addLayout(row_orders)
+
+        row_smooth = QtWidgets.QHBoxLayout()
+        row_smooth.addWidget(QtWidgets.QLabel("Smoothing factor:"))
+        row_smooth.addWidget(self.smooth_edit)
+        row_smooth.addStretch(1)
+        right_panel.addLayout(row_smooth)
 
         separatorLine = QtWidgets.QFrame()
         separatorLine.setFrameShape(QtWidgets.QFrame.HLine)
@@ -465,7 +227,7 @@ class ResponseGUI(QtWidgets.QMainWindow):
 
         self.canvas_points.setFocus()
 
-        # self.create_menu()
+        self.create_menu()
 
         # -- Set Data:
         if fname:
@@ -473,54 +235,41 @@ class ResponseGUI(QtWidgets.QMainWindow):
 
 
     def done(self):
-        success = True
+        success = self.save_response(self.output_fname)
         if success:
             self.close()
 
     def save_response(self, fname=''):
-        if len(self.data1d) == 0:
-            msg = "No 1D spectra have been extracted. Nothing to save..."
+        if self.response is None:
+            msg = "No response function has been fitted. Nothing to save..."
             QtWidgets.QMessageBox.critical(None, "Save Error", msg)
             return False
 
         if not fname:
             current_dir = os.path.dirname(os.path.abspath(__file__))
-            basename = current_dir + '/' + self.image2d.header['OBJECT'] + '_ext.fits'
+            basename = os.path.join(current_dir, "response_%s.fits" % (self.spectrum.header['OBJECT']))
             filters = "FITS Files (*.fits *.fit)"
-            fname, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save All Extractions', basename, filters)
+            fname, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save Response Function', basename, filters)
 
         if fname:
             hdu = fits.HDUList()
             prim_hdr = fits.Header()
-            prim_hdr['AUTHOR'] = 'PyNOT'
-            prim_hdr['OBJECT'] = self.image2d.header['OBJECT']
-            prim_hdr['DATE-OBS'] = self.image2d.header['DATE-OBS']
-            prim_hdr['EXPTIME'] = self.image2d.header['EXPTIME']
-            prim_hdr['AIRMASS'] = self.image2d.header['AIRMASS']
-            prim_hdr['ALGRNM'] = self.image2d.header['ALGRNM']
-            prim_hdr['ALAPRTNM'] = self.image2d.header['ALAPRTNM']
-            prim_hdr['RA'] = self.image2d.header['RA']
-            prim_hdr['DEC'] = self.image2d.header['DEC']
-            prim_hdr['COMMENT'] = 'PyNOT extracted spectra'
-            prim_hdr['COMMENT'] = 'Each spectrum in its own extension'
+            prim_hdr['AUTHOR'] = 'PyNOT version %s' % __version__
+            prim_hdr['OBJECT'] = self.spectrum.header['OBJECT']
+            prim_hdr['DATE-OBS'] = self.spectrum.header['DATE-OBS']
+            prim_hdr['EXPTIME'] = self.spectrum.header['EXPTIME']
+            prim_hdr['AIRMASS'] = self.spectrum.header['AIRMASS']
+            prim_hdr['ALGRNM'] = self.spectrum.header['ALGRNM']
+            prim_hdr['ALAPRTNM'] = self.spectrum.header['ALAPRTNM']
+            prim_hdr['RA'] = self.spectrum.header['RA']
+            prim_hdr['DEC'] = self.spectrum.header['DEC']
+            prim_hdr['COMMENT'] = 'PyNOT response function'
             prim = fits.PrimaryHDU(header=prim_hdr)
             hdu.append(prim)
-
-            keywords_base = ['CDELT%i', 'CRPIX%i', 'CRVAL%i', 'CTYPE%i', 'CUNIT%i']
-            keywords_to_remove = sum([[key % num for key in keywords_base] for num in [1, 2]], [])
-            keywords_to_remove += ['CD1_1', 'CD2_1', 'CD1_2', 'CD2_2']
-            keywords_to_remove += ['BUNIT', 'DATAMIN', 'DATAMAX']
-            for num, spectrum in enumerate(self.data1d):
-                col_wl = fits.Column(name='WAVE', array=spectrum.wl, format='D', unit=spectrum.wl_unit)
-                col_flux = fits.Column(name='FLUX', array=spectrum.data, format='D', unit=spectrum.flux_unit)
-                col_err = fits.Column(name='ERR', array=spectrum.error, format='D', unit=spectrum.flux_unit)
-                col_sky = fits.Column(name='SKY', array=spectrum.background, format='D', unit=spectrum.flux_unit)
-                tab_hdr = spectrum.hdr.copy()
-                for key in keywords_to_remove:
-                    tab_hdr.remove(key, ignore_missing=True)
-                tab = fits.BinTableHDU.from_columns([col_wl, col_flux, col_err, col_sky], header=tab_hdr)
-                tab.name = 'OBJ%i' % (num+1)
-                hdu.append(tab)
+            col_wl = fits.Column(name='WAVE', array=self.spectrum.wl, format='D', unit=self.spectrum.wl_unit)
+            col_resp = fits.Column(name='RESPONSE', array=self.response, format='D', unit='-2.5*log(erg/s/cm2/A)')
+            tab = fits.BinTableHDU.from_columns([col_wl, col_resp])
+            hdu.append(tab)
             hdu.writeto(fname, overwrite=True, output_verify='silentfix')
             return True
         else:
@@ -538,6 +287,7 @@ class ResponseGUI(QtWidgets.QMainWindow):
         self.response = None
         self.mask = None
         self.filename = ""
+        self.canvas_points.draw()
 
 
     def load_spectrum(self, fname=''):
@@ -552,7 +302,6 @@ class ResponseGUI(QtWidgets.QMainWindow):
 
         # Clear all models:
         self.clear_all()
-
         self.filename = fname
         hdr = fits.getheader(fname, 1)
         table = fits.getdata(fname, 1)
@@ -682,9 +431,10 @@ class ResponseGUI(QtWidgets.QMainWindow):
             return
         wl = self.spectrum.wl
         order = int(self.order_edit.text())
+        smoothing = float(self.smooth_edit.text())
         mask = self.mask
-        # Find better interpolation than Chebyshev. Maybe just a spline?
-        resp_fit = Chebyshev.fit(self.wl_bins[mask], self.resp_bins[mask], order, domain=[wl.min(), wl.max()])
+        # resp_fit = Chebyshev.fit(self.wl_bins[mask], self.resp_bins[mask], order, domain=[wl.min(), wl.max()])
+        resp_fit = UnivariateSpline(self.wl_bins[mask], self.resp_bins[mask], k=order, s=smoothing)
         self.response = resp_fit(wl)
         self.update_points()
 
@@ -720,7 +470,7 @@ class ResponseGUI(QtWidgets.QMainWindow):
         load_file_action.setShortcut("ctrl+O")
         load_file_action.triggered.connect(self.load_spectrum)
 
-        save_1d_action = QtWidgets.QAction("Save 1D Spectrum", self)
+        save_1d_action = QtWidgets.QAction("Save", self)
         save_1d_action.setShortcut("ctrl+S")
         save_1d_action.triggered.connect(self.save_response)
 
@@ -838,14 +588,16 @@ class WarningDialog(QtWidgets.QDialog):
 if __name__ == '__main__':
     from argparse import ArgumentParser
     parser = ArgumentParser(description='Spectral Extraction')
-    parser.add_argument("filename", type=str, nargs='?', default='',
-                        help="Input 2D spectrum")
+    parser.add_argument("filename", type=str,
+                        help="Input 1D spectrum of Spectroscopic Standard Star")
+    parser.add_argument("--output", type=str, default='',
+                        help="Output filename of response function [FITS Table]")
     parser.add_argument("--locked", "-l", action='store_true',
-                        help="Lock interface")
+                        help="Lock interface [for pipeline workflow]")
     args = parser.parse_args()
 
     # Launch App:
     app = QtWidgets.QApplication(sys.argv)
-    gui = ResponseGUI(args.filename, locked=args.locked)
+    gui = ResponseGUI(args.filename, output_fname=args.output, locked=args.locked)
     gui.show()
     app.exec_()
