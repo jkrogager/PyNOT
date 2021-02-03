@@ -8,13 +8,13 @@ from collections import defaultdict
 import os
 import sys
 import datetime
-import yaml
 
 import alfosc
 import data_organizer as do
 from calibs import combine_bias_frames, combine_flat_frames, normalize_spectral_flat
 from extraction import auto_extract
 import extract_gui
+from functions import get_options, get_version_number
 from wavecal import rectify
 from identify_gui import create_pixtable
 from scired import raw_correction, auto_fit_background, correct_cosmics
@@ -25,9 +25,7 @@ from PyQt5.QtWidgets import QApplication
 code_dir = os.path.dirname(os.path.abspath(__file__))
 calib_dir = os.path.join(code_dir, 'calib/')
 defaults_fname = os.path.join(calib_dir, 'default_options.yml')
-v_file = os.path.join(code_dir, 'VERSION')
-with open(v_file) as version_file:
-    __version__ = version_file.read().strip()
+__version__ = get_version_number()
 
 
 class Report(object):
@@ -130,11 +128,6 @@ class State(dict):
     def set_current_state(self, state):
         self.current = state
 
-
-def get_options(option_fname):
-    with open(option_fname) as opt_file:
-        options = yaml.full_load(opt_file)
-    return options
 
 
 def main(raw_path=None, options_fname=None, verbose=False, interactive=False):

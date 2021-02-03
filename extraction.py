@@ -10,6 +10,10 @@ import warnings
 
 from lmfit import Parameters, minimize
 
+from functions import mad, NNmoffat, NN_gaussian, fix_nans, get_version_number
+
+__version__ = get_version_number()
+
 
 def get_FWHM(y, x=None):
     """
@@ -55,73 +59,6 @@ def get_FWHM(y, x=None):
     fwhm = halfmax_x[1] - halfmax_x[0]
     return fwhm
 
-
-def nan_helper(y):
-    """Helper to handle indices and logical indices of NaNs.
-
-    Input:
-        - y, 1d numpy array with possible NaNs
-    Output:
-        - nans, logical indices of NaNs
-        - index, a function, with signature indices= index(logical_indices),
-          to convert logical indices of NaNs to 'equivalent' indices
-    Example:
-        >>> # linear interpolation of NaNs
-        >>> nans, x= nan_helper(y)
-        >>> y[nans]= np.interp(x(nans), x(~nans), y[~nans])
-    """
-
-    return np.isnan(y), lambda z: z.nonzero()[0]
-
-
-def fix_nans(y):
-    """Fix NaN values in arrays by interpolating over them.
-
-    Input
-    -----
-    y : 1d numpy array
-
-    Returns
-    -------
-    y_fix : corrected input array
-
-    Example:
-        >>> y = np.array([1, 2, 3, Nan, Nan, 6])
-        >>> y_fix = fix_nans(y)
-        y_fix: array([ 1.,  2.,  3.,  4.,  5.,  6.])
-    """
-    nans, x = nan_helper(y)
-    y[nans] = np.interp(x(nans), x(~nans), y[~nans])
-
-    return y
-
-
-def mad(img):
-    """Calculate Median Absolute Deviation from the median. This is a robust variance estimator.
-    For a Gaussian distribution: sigma ≈ 1.4826 * MAD
-    """
-    return np.nanmedian(np.abs(img - np.nanmedian(img)))
-
-
-def NNmoffat(x, mu, alpha, beta, logamp):
-    """
-    One-dimensional non-negative Moffat profile.
-
-    See:  https://en.wikipedia.org/wiki/Moffat_distribution
-    """
-    amp = 10**logamp
-    return amp*(1. + ((x-mu)**2/alpha**2))**(-beta)
-
-
-def gaussian(x, mu, sigma, amp):
-    """ One-dimensional Gaussian profile."""
-    return amp * np.exp(-0.5*(x-mu)**2/sigma**2)
-
-
-def NN_gaussian(x, mu, sigma, logamp):
-    """ One-dimensional modified non-negative Gaussian profile."""
-    amp = 10**logamp
-    return amp * np.exp(-0.5*(x-mu)**2/sigma**2)
 
 
 def trace_model(pars, x, N, model_name='moffat'):
@@ -567,6 +504,7 @@ def auto_extract(fname, output, dispaxis=1, *, N=None, pdf_fname=None, mask=None
     msg.append(ext_msg)
 
     hdu = fits.HDUList()
+    hdr['AUTHOR'] = 'PyNOT version %s' % __version__
     hdr['COMMENT'] = 'PyNOT automatically extracted spectrum'
     hdr['COMMENT'] = 'Each spectrum in its own extension'
     if 'CDELT1' in hdr:

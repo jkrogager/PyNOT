@@ -20,18 +20,16 @@ import sys
 import warnings
 
 import alfosc
+from alfosc import get_alfosc_header
 from extraction import auto_extract
 import extract_gui
+from functions import get_version_number
 import response_gui
-from alfosc import get_alfosc_header
 from scired import auto_fit_background, my_formatter, mad, raw_correction
 from wavecal import rectify
 
 
-code_dir = os.path.dirname(os.path.abspath(__file__))
-v_file = os.path.join(code_dir, 'VERSION')
-with open(v_file) as version_file:
-    __version__ = version_file.read().strip()
+__version__ = get_version_number()
 
 
 def load_spectrum1d(fname):
@@ -407,7 +405,7 @@ def run_response():
 
     args = parser.parse_args()
 
-    from main import get_options
+    from functions import get_options
 
     _, output_msg = calculate_response(args.input, output=args.output, arc_fname=args.arc, pixtable_fname=args.pixtable,
                                        bias_fname=args.bias, flat_fname=args.flat,

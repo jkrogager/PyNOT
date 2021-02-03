@@ -21,12 +21,11 @@ from PyQt5.QtWidgets import *
 from scipy.optimize import curve_fit
 from numpy.polynomial import Chebyshev
 from astropy.io import fits
-from alfosc import create_pixel_array
 
-code_dir = os.path.dirname(os.path.abspath(__file__))
-v_file = os.path.join(code_dir, 'VERSION')
-with open(v_file) as version_file:
-    __version__ = version_file.read().strip()
+from alfosc import create_pixel_array
+from functions import get_version_number, NN_mod_gaussian
+
+__version__ = get_version_number()
 
 
 # -- Function to call from PyNOT.main
@@ -77,19 +76,13 @@ def create_pixtable(arc_image, grism_name, pixtable_name, linelist_fname, order_
     return order_wl, output_pixtable, msg
 
 
-
-def NN_gaussian(x, bg, mu, sigma, logamp):
-    """ One-dimensional modified non-negative Gaussian profile."""
-    amp = 10**logamp
-    return bg + amp * np.exp(-0.5*(x-mu)**4/sigma**2)
-
 def fit_gaussian_center(x, y):
     bg = np.median(y)
     logamp = np.log10(np.nanmax(y))
     sig = 1.5
     mu = x[len(x)//2]
     p0 = np.array([bg, mu, sig, logamp])
-    popt, pcov = curve_fit(NN_gaussian, x, y, p0)
+    popt, pcov = curve_fit(NN_mod_gaussian, x, y, p0)
     return popt[1]
 
 

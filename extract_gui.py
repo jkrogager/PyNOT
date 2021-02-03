@@ -30,6 +30,9 @@ from itertools import cycle
 from PyQt5 import QtCore, QtGui, QtWidgets
 import warnings
 
+from functions import fix_nans, mad, tophat, NN_moffat, NN_gaussian
+
+
 code_dir = os.path.dirname(os.path.abspath(__file__))
 v_file = os.path.join(code_dir, 'VERSION')
 with open(v_file) as version_file:
@@ -175,34 +178,6 @@ def get_FWHM(y, x=None):
     return fwhm
 
 
-def nan_helper(y):
-    """Helper to handle indices and logical indices of NaNs.
-
-    Returns:
-        - nans, logical indices of NaNs
-        - index, a function, with signature indices= index(logical_indices),
-          to convert logical indices of NaNs to 'equivalent' indices
-    Example:
-        >>> # linear interpolation of NaNs
-        >>> nans, x= nan_helper(y)
-        >>> y[nans]= np.interp(x(nans), x(~nans), y[~nans])
-    """
-    return np.isnan(y), lambda z: z.nonzero()[0]
-
-
-def fix_nans(y):
-    """Fix NaN values in arrays by interpolating over them.
-
-    Example:
-        >>> y = np.array([1, 2, 3, Nan, Nan, 6])
-        >>> y_fix = fix_nans(y)
-        y_fix: array([ 1.,  2.,  3.,  4.,  5.,  6.])
-    """
-    nans, x = nan_helper(y)
-    y[nans] = np.interp(x(nans), x(~nans), y[~nans])
-    return y
-
-
 def color_shade(color, amount=1.2):
     """
     Lightens the given color by multiplying (1-luminosity) by the given amount.
@@ -235,14 +210,6 @@ color_list = [
 ]
 # Create iterative color-cycle:
 color_cycle = cycle(color_list)
-
-def mad(img):
-    """Calculate Median Absolute Deviation from the median
-    This is a robust variance estimator.
-    For a Gaussian distribution:
-        sigma ≈ 1.4826 * MAD
-    """
-    return np.median(np.abs(img - np.median(img)))
 
 
 def median_filter_data(x, kappa=5., window=21, parname=None):
@@ -279,25 +246,6 @@ def get_wavelength_from_header(hdr, dispaxis=1):
         wavelength = np.arange(hdr['NAXIS%i' % dispaxis]) + 1.
 
     return wavelength
-
-
-def tophat(x, low, high):
-    """Tophat profile: 1 within [low: high], 0 outside"""
-    mask = (x >= low) & (x <= high)
-    profile = mask * 1. / np.sum(1.*mask)
-    return profile
-
-
-def NN_moffat(x, mu, alpha, beta, logamp):
-    """One-dimensional non-negative Moffat profile."""
-    amp = 10**logamp
-    return amp*(1. + ((x-mu)**2/alpha**2))**(-beta)
-
-
-def NN_gaussian(x, mu, sigma, logamp):
-    """ One-dimensional modified non-negative Gaussian profile."""
-    amp = 10**logamp
-    return amp * np.exp(-0.5*(x-mu)**2/sigma**2)
 
 
 def trace_function(pars, x, N, model_type='moffat'):

@@ -47,25 +47,10 @@ import warnings
 
 from astroscrappy import detect_cosmics
 from alfosc import create_pixel_array
-
-code_dir = os.path.dirname(os.path.abspath(__file__))
-v_file = os.path.join(code_dir, 'VERSION')
-with open(v_file) as version_file:
-    __version__ = version_file.read().strip()
+from functions import mad, get_version_number
 
 
-def my_formatter(x, p, scale_pow):
-    """Format tick marks to exponential notation"""
-    return "%.0f" % (x / (10 ** scale_pow))
-
-
-def mad(img):
-    """Calculate Median Absolute Deviation from the median
-    This is a robust variance estimator.
-    For a Gaussian distribution:
-        sigma ≈ 1.4826 * MAD
-    """
-    return np.nanmedian(np.abs(img - np.nanmedian(img)))
+__version__ = get_version_number()
 
 
 def trim_overscan(img, hdr, overscan=50):

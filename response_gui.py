@@ -25,12 +25,10 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 import warnings
 
 import alfosc
+from functions import get_version_number
 
 
-code_dir = os.path.dirname(os.path.abspath(__file__))
-v_file = os.path.join(code_dir, 'VERSION')
-with open(v_file) as version_file:
-    __version__ = version_file.read().strip()
+__version__ = get_version_number()
 
 
 def run_gui(input_fname, output_fname, app=None, order=3, smoothing=0.02):

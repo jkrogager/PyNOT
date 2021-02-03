@@ -10,21 +10,18 @@ from astropy.io import fits
 import numpy as np
 from numpy.polynomial import Chebyshev
 import matplotlib.pyplot as plt
-from scipy.interpolate import interp1d
 from scipy.ndimage import median_filter
 from scipy.optimize import curve_fit
 from scipy.signal import find_peaks
-import spectres
 import warnings
 
+import spectres
+
 from alfosc import get_alfosc_header, create_pixel_array
+from functions import get_version_number, NN_mod_gaussian
 from scired import trim_overscan
 
-code_dir = os.path.dirname(os.path.abspath(__file__))
-v_file = os.path.join(code_dir, 'VERSION')
-with open(v_file) as version_file:
-    __version__ = version_file.read().strip()
-
+__version__ = get_version_number()
 
 
 def verify_arc_frame(arc_fname, dispaxis=2):
@@ -50,11 +47,6 @@ def verify_arc_frame(arc_fname, dispaxis=2):
     return result
 
 
-def modNN_gaussian(x, bg, mu, sigma, logamp):
-    """ One-dimensional modified non-negative Gaussian profile."""
-    amp = 10**logamp
-    return bg + amp * np.exp(-0.5*(x-mu)**4/sigma**2)
-
 def fit_gaussian_center(x, y):
     bg = np.nanmedian(y)
     logamp = np.log10(np.nanmax(y)-bg)
@@ -63,7 +55,7 @@ def fit_gaussian_center(x, y):
     mu = x[max_index]
     p0 = np.array([bg, mu, sig, logamp])
     try:
-        popt, pcov = curve_fit(modNN_gaussian, x, y, p0)
+        popt, pcov = curve_fit(NN_mod_gaussian, x, y, p0)
         if pcov is None:
             return popt[1], None
         else:
