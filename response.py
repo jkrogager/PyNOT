@@ -59,6 +59,8 @@ def flux_calibrate(input_fname, *, output, response):
 
     # Load Sensitivity Function:
     resp_tab = fits.getdata(response)
+    resp_hdr = fits.getheader(response)
+    assert resp_hdr['ALGRNM'] == hdr['ALGRNM'], "Grisms of input spectrum and response function do not match!"
     resp_int = np.interp(wl, resp_tab['WAVE'], resp_tab['RESPONSE'])
     # Truncate values less than 20:
     resp_int[resp_int < 20] = 20.
@@ -87,6 +89,58 @@ def flux_calibrate(input_fname, *, output, response):
     output_msg = "\n".join(msg)
     return output_msg
 
+
+def flux_calibrate_1d(input_fname, *, output, response):
+    """Apply response function to flux calibrate the input 1D spectrum"""
+    msg = list()
+    # Load input data:
+    hdu_list = fits.open(input_fname)
+    msg.append("          - Loaded image: %s" % input_fname)
+    output_hdu = fits.HDUList()
+    for hdu in hdu_list[1:]:
+        tab = hdu.data
+        hdr = hdu.header
+        wl = tab['WAVE']
+        spec1d = tab['FLUX']
+        err1d = tab['ERR']
+        hdr = tab
+        # Load Extinction Table:
+        wl_ext, A0 = np.loadtxt(alfosc.path + '/calib/lapalma.ext', unpack=True)
+        ext = np.interp(wl, wl_ext, A0)
+        msg.append("          - Loaded average extinction table for La Palma")
+
+        # Load Sensitivity Function:
+        resp_tab = fits.getdata(response)
+        resp_hdr = fits.getheader(response)
+        assert resp_hdr['ALGRNM'] == hdr['ALGRNM'], "Grisms of input spectrum and response function do not match!"
+        resp_int = np.interp(wl, resp_tab['WAVE'], resp_tab['RESPONSE'])
+        # Truncate values less than 20:
+        resp_int[resp_int < 20] = 20.
+        msg.append("          - Loaded response function: %s" % response)
+
+        airm = hdr['AIRMASS']
+        t = hdr['EXPTIME']
+        cdelt = np.mean(np.diff(wl))
+        flux_calibration = 10**(0.4*(airm*ext - resp_int))
+        flux1d = spec1d / (t * cdelt) * flux_calibration
+        err1d = err1d / (t * cdelt) * flux_calibration
+
+        hdr['BUNIT'] = 'erg/s/cm2/A'
+        hdr['RESPONSE'] = response
+        msg.append("          - Applied flux calibration to object: %r" % tab.name)
+
+        col_wl = fits.Column(name='WAVE', array=wl, format='D', unit=hdr['CUNIT1'])
+        col_flux = fits.Column(name='FLUX', array=flux1d, format='D', unit=hdr['BUNIT'])
+        col_err = fits.Column(name='ERR', array=err1d, format='D', unit=hdr['BUNIT'])
+        output_tab = fits.BinTableHDU.from_columns([col_wl, col_flux, col_err], header=hdr)
+        output_tab = tab.name
+        output_hdu.append(output_tab)
+
+    output_hdu.writeto(output, overwrite=True)
+    msg.append(" [OUTPUT] - Saving flux calibrated 2D image: %s" % output)
+    msg.append("")
+    output_msg = "\n".join(msg)
+    return output_msg
 
 
 def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat_fname, output='',
@@ -375,8 +429,9 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
     output_msg = "\n".join(msg)
     return response_output, output_msg
 
-def run_response():
 
+
+def run_response():
     parser = ArgumentParser()
     parser.add_argument("input", type=str,
                         help="Raw flux standard star frame")
@@ -390,31 +445,33 @@ def run_response():
                         help="Filename of output response function")
     parser.add_argument("-d", "--dir", type=str, default='',
                         help="Output directory, default='./'")
-    parser.add_argument("--order", type=int, default=3,
-                        help="Spline degree for interpolation of response function")
-    parser.add_argument("--smooth", type=float, default=0.02,
-                        help="Spline smoothing factor")
-    parser.add_argument("--axis", type=int, default=2,
-                        help="Dispersion axis, 1: horizontal, 2: vertical")
-    parser.add_argument("--order-wl", type=int, default=5,
-                        help="Polynomial order for wavelength solution")
-    parser.add_argument("--order-bg", type=int, default=5,
-                        help="Polynomial order for background subtraction")
-    parser.add_argument("--options", type=str, default='',
+    parser.add_argument("-O", "--options", type=str, default='',
                         help="Option file (.yml)")
+    parser.add_argument("-I", "--interactive", action='store_true',
+                        help="Interactive mode")
 
     args = parser.parse_args()
 
     from functions import get_options
+    code_dir = os.path.dirname(os.path.abspath(__file__))
+    calib_dir = os.path.join(code_dir, 'calib/')
+    defaults_fname = os.path.join(calib_dir, 'default_options.yml')
+    options = get_options(defaults_fname)
+    if args.options:
+        user_options = get_options(args.options)
+        for section_name, section in user_options.items():
+            if isinstance(section, dict):
+                options[section_name].update(section)
+            else:
+                options[section_name] = section
+
+    options['response']['interactive'] = args.interactive
 
     _, output_msg = calculate_response(args.input, output=args.output, arc_fname=args.arc, pixtable_fname=args.pixtable,
                                        bias_fname=args.bias, flat_fname=args.flat,
                                        output_dir=args.dir, order=args.order, smoothing=args.smooth,
                                        interactive=args.int, dispaxis=args.axis,
-                                       order_wl=args.order_wl, order_bg=5, rectify_options={})
+                                       order_wl=args.order_wl, order_bg=5, rectify_options=options['rectify'])
 
-#     # --- Generate response function:
-#     calculate_response(args.input, arc_fname=args.arc, bias=args.bias, flat=args.flat, output_dir=args.output,
-#                        trimx=args.xrange, trimy=args.yrange, order=args.order)
 
 # if __name__ == '__main__':
