@@ -10,7 +10,7 @@ import warnings
 
 from lmfit import Parameters, minimize
 
-from functions import mad, NNmoffat, NN_gaussian, fix_nans, get_version_number
+from functions import mad, NN_moffat, NN_gaussian, fix_nans, get_version_number
 
 __version__ = get_version_number()
 
@@ -75,7 +75,7 @@ def trace_model(pars, x, N, model_name='moffat'):
                  pars['a_%i' % i],
                  pars['b_%i' % i],
                  pars['logamp_%i' % i]]
-            model += NNmoffat(x, *p)
+            model += NN_moffat(x, *p)
     model += pars['bg']
     return model
 
@@ -337,7 +337,7 @@ def create_2d_profile(img2D, model_name='moffat', dx=25, width_scale=2,
             info_dict['fit_b'] = b_fit(x)
 
             for num, x_i in enumerate(x):
-                P_i = NNmoffat(y, mu_fit(x_i), a_fit(x_i), b_fit(x_i), 0.)
+                P_i = NN_moffat(y, mu_fit(x_i), a_fit(x_i), b_fit(x_i), 0.)
                 P_i = P_i/np.sum(P_i)
                 trace2D[:, num] = P_i
             trace_models_2d.append(trace2D)

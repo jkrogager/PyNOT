@@ -22,9 +22,9 @@ import alfosc
 from alfosc import get_alfosc_header
 from extraction import auto_extract
 import extract_gui
-from functions import get_version_number
+from functions import get_version_number, my_formatter, mad
 import response_gui
-from scired import auto_fit_background, my_formatter, mad, raw_correction
+from scired import auto_fit_background, raw_correction
 from wavecal import rectify
 
 
@@ -429,62 +429,46 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
     return response_output, output_msg
 
 
-
-def run_response():
-    parser = ArgumentParser()
-    parser.add_argument("input", type=str,
-                        help="Raw flux standard star frame")
-    parser.add_argument("arc", type=str,
-                        help="Raw arc lamp frame")
-    parser.add_argument("--bias", type=str,
-                        help="Combined bias frame")
-    parser.add_argument("--flat", type=str,
-                        help="Normalized spectral flat frame")
-    parser.add_argument("-o", "--output", type=str, default='',
-                        help="Filename of output response function")
-    parser.add_argument("-d", "--dir", type=str, default='',
-                        help="Output directory, default='./'")
-    parser.add_argument("-O", "--options", type=str, default='',
-                        help="Option file (.yml)")
-    parser.add_argument("-I", "--interactive", action='store_true',
-                        help="Interactive mode")
-
-    args = parser.parse_args()
-
-    from functions import get_options
-    code_dir = os.path.dirname(os.path.abspath(__file__))
-    calib_dir = os.path.join(code_dir, 'calib/')
-    defaults_fname = os.path.join(calib_dir, 'default_options.yml')
-    options = get_options(defaults_fname)
-    if args.options:
-        user_options = get_options(args.options)
-        for section_name, section in user_options.items():
-            if isinstance(section, dict):
-                options[section_name].update(section)
-            else:
-                options[section_name] = section
-
-    options['response']['interactive'] = args.interactive
-
-    _, output_msg = calculate_response(args.input, output=args.output, arc_fname=args.arc, pixtable_fname=args.pixtable,
-                                       bias_fname=args.bias, flat_fname=args.flat,
-                                       output_dir=args.dir, order=args.order, smoothing=args.smooth,
-                                       interactive=args.int, dispaxis=args.axis,
-                                       order_wl=args.order_wl, order_bg=5, rectify_options=options['rectify'])
-    print(output_msg)
-
-
-def run_flux_calibrate(args):
-
-    parser_fluxcalib.add_argument("input", type=str,
-                                  help="Raw flux standard star frame")
-    parser_fluxcalib.add_argument("response", type=str,
-                                  help="Response function")
-    parser_fluxcalib.add_argument("-o", "--output", type=str, default='',
-                                  help="Filename of output response function")
-
-    output_msg = flux_calibrate(args.input, response=args.response, output=args.output)
-    print(output_msg)
-
-
-# if __name__ == '__main__':
+#
+# def run_response():
+#     parser = ArgumentParser()
+#     parser.add_argument("input", type=str,
+#                         help="Raw flux standard star frame")
+#     parser.add_argument("arc", type=str,
+#                         help="Raw arc lamp frame")
+#     parser.add_argument("--bias", type=str,
+#                         help="Combined bias frame")
+#     parser.add_argument("--flat", type=str,
+#                         help="Normalized spectral flat frame")
+#     parser.add_argument("-o", "--output", type=str, default='',
+#                         help="Filename of output response function")
+#     parser.add_argument("-d", "--dir", type=str, default='',
+#                         help="Output directory, default='./'")
+#     parser.add_argument("-O", "--options", type=str, default='',
+#                         help="Option file (.yml)")
+#     parser.add_argument("-I", "--interactive", action='store_true',
+#                         help="Interactive mode")
+#
+#     args = parser.parse_args()
+#
+#     from functions import get_options
+#     code_dir = os.path.dirname(os.path.abspath(__file__))
+#     calib_dir = os.path.join(code_dir, 'calib/')
+#     defaults_fname = os.path.join(calib_dir, 'default_options.yml')
+#     options = get_options(defaults_fname)
+#     if args.options:
+#         user_options = get_options(args.options)
+#         for section_name, section in user_options.items():
+#             if isinstance(section, dict):
+#                 options[section_name].update(section)
+#             else:
+#                 options[section_name] = section
+#
+#     options['response']['interactive'] = args.interactive
+#
+#     _, output_msg = calculate_response(args.input, output=args.output, arc_fname=args.arc, pixtable_fname=args.pixtable,
+#                                        bias_fname=args.bias, flat_fname=args.flat,
+#                                        output_dir=args.dir, order=args.order, smoothing=args.smooth,
+#                                        interactive=args.int, dispaxis=args.axis,
+#                                        order_wl=args.order_wl, order_bg=5, rectify_options=options['rectify'])
+#     print(output_msg)

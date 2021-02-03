@@ -25,7 +25,7 @@ def mad(img):
     return np.nanmedian(np.abs(img - np.nanmedian(img)))
 
 
-def NNmoffat(x, mu, alpha, beta, logamp):
+def NN_moffat(x, mu, alpha, beta, logamp):
     """
     One-dimensional non-negative Moffat profile.
 

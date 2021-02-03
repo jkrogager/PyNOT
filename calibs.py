@@ -62,10 +62,9 @@ def combine_bias_frames(bias_frames, output='', kappa=15, overwrite=True):
     mask = np.zeros_like(bias[0], dtype=int)
     median_img0 = np.median(bias, 0)
     sig = mad(median_img0)*1.4826
-    median = np.median(median_img0)
     masked_bias = list()
     for img in bias:
-        this_mask = np.abs(img - median) > kappa*sig
+        this_mask = np.abs(img - median_img0) > kappa*sig
         masked_bias.append(np.ma.masked_where(this_mask, img))
         mask += 1*this_mask
     msg.append("          - Masking outlying pixels: kappa = %f" % kappa)
@@ -203,6 +202,19 @@ def combine_flat_frames(raw_frames, output, mbias='', mode='spec', dispaxis=2,
     hdr.add_comment('Median combined Master Spectral Flat')
     hdr.add_comment('PyNOT version %s' % __version__)
 
+    if output == '':
+        if mode == 'spec':
+            grism = alfosc.grism_translate[hdr['ALGRNM']]
+            output = 'flatcombine_%s.fits' % grism
+        else:
+            filter = 'white'
+            for keyword in ['FAFLTNM', 'FBFLTNM', 'ALFLTNM']:
+                if 'open' in hdr[keyword].lower():
+                    pass
+                else:
+                    filter = hdr[keyword]
+            output = 'flatcombine_%s.fits' % filter
+
     pf.writeto(output, flat_combine, header=hdr, overwrite=overwrite)
     msg.append(" [OUTPUT] - Saving combined Flat Field Image: %s" % output)
     msg.append("")
@@ -213,7 +225,7 @@ def combine_flat_frames(raw_frames, output, mbias='', mode='spec', dispaxis=2,
     return output, output_msg
 
 
-def normalize_spectral_flat(fname, output='', fig_dir='', axis=2, lower=0, upper=2050, order=24, sigma=5,
+def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=2, lower=0, upper=2050, order=24, sigma=5,
                             plot=True, show=True, ext=1, overwrite=True, verbose=False):
     """
     Normalize spectral flat field for long-slit observations. Parameters are optimized
@@ -233,7 +245,7 @@ def normalize_spectral_flat(fname, output='', fig_dir='', axis=2, lower=0, upper
     output : string [default='']
         Filename of normalized flat frame, if not given the output is not saved to file
 
-    axis : integer [default=2]
+    dispaxis : integer [default=2]
         Dispersion axis, 1: horizontal spectra, 2: vertical spectra
 
     lower : integer [default=0]
@@ -288,10 +300,10 @@ def normalize_spectral_flat(fname, output='', fig_dir='', axis=2, lower=0, upper
 
     msg.append("          - Input file: %s" % fname)
 
-    flat1D = np.mean(flat, axis-1)
+    flat1D = np.mean(flat, dispaxis-1)
     x = np.arange(len(flat1D))
     lower = int(lower)
-    if axis == 2:
+    if dispaxis == 2:
         upper = int(upper / hdr['DETYBIN'])
     else:
         upper = int(upper / hdr['DETXBIN'])
@@ -308,7 +320,7 @@ def normalize_spectral_flat(fname, output='', fig_dir='', axis=2, lower=0, upper
     flat_model[ycut:] = fit(x[ycut:])
 
     # make 2D spectral shape:
-    if axis == 2:
+    if dispaxis == 2:
         model2D = np.resize(flat_model, flat.T.shape)
         model2D = model2D.T
     else:
@@ -336,7 +348,7 @@ def normalize_spectral_flat(fname, output='', fig_dir='', axis=2, lower=0, upper
         v2 = np.mean(flat_norm[lower:upper, :]) + 3*std_norm
         ax2_2d.imshow(flat_norm, origin='lower', vmin=v1, vmax=v2)
         ax2_2d.set_title("Normalized Flat")
-        if axis == 2:
+        if dispaxis == 2:
             ax1_2d.set_xlabel("Spatial Axis [pixels]")
             ax2_2d.set_xlabel("Spatial Axis [pixels]")
             ax1_2d.set_ylabel("Dispersion Axis [pixels]")
