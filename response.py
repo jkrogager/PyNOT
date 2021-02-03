@@ -377,31 +377,46 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
     output_msg = "\n".join(msg)
     return response_output, output_msg
 
+def run_response():
 
-# if __name__ == '__main__':
-#     parser = ArgumentParser()
-#     parser.add_argument("input", type=str,
-#                         help="Raw flux standard frame")
-#     parser.add_argument("arc", type=str,
-#                         help="Raw arc lamp frame")
-#     parser.add_argument("--bias", type=str, default='MASTER_BIAS.fits',
-#                         help="Master bias frame")
-#     parser.add_argument("--flat", type=str, default='',
-#                         help="Normalized spectral flat frame")
-#     parser.add_argument("-o", "--output", type=str, default='',
-#                         help="Output directory")
-#     parser.add_argument("--order", type=int, default=24,
-#                         help="Polynomial order for fit to response function")
-#     # parser.add_argument("--axis", type=int, default=1,
-#     #                     help="Dispersion axis, 0: horizontal, 1: vertical")
-#     parser.add_argument("-x", "--xrange", nargs=2, type=int, default=[None, None],
-#                         help="Give lower and upper limit for the x-range to use")
-#     parser.add_argument("-y", "--yrange", nargs=2, type=int, default=[None, None],
-#                         help="Give lower and upper limit for the y-range to use")
-#     # parser.add_argument("-v", "--verbose", action="store_true",
-#     #                     help="Print status updates")
-#     args = parser.parse_args()
-#
+    parser = ArgumentParser()
+    parser.add_argument("input", type=str,
+                        help="Raw flux standard star frame")
+    parser.add_argument("arc", type=str,
+                        help="Raw arc lamp frame")
+    parser.add_argument("--bias", type=str,
+                        help="Combined bias frame")
+    parser.add_argument("--flat", type=str,
+                        help="Normalized spectral flat frame")
+    parser.add_argument("-o", "--output", type=str, default='',
+                        help="Filename of output response function")
+    parser.add_argument("-d", "--dir", type=str, default='',
+                        help="Output directory, default='./'")
+    parser.add_argument("--order", type=int, default=3,
+                        help="Spline degree for interpolation of response function")
+    parser.add_argument("--smooth", type=float, default=0.02,
+                        help="Spline smoothing factor")
+    parser.add_argument("--axis", type=int, default=2,
+                        help="Dispersion axis, 1: horizontal, 2: vertical")
+    parser.add_argument("--order-wl", type=int, default=5,
+                        help="Polynomial order for wavelength solution")
+    parser.add_argument("--order-bg", type=int, default=5,
+                        help="Polynomial order for background subtraction")
+    parser.add_argument("--options", type=str, default='',
+                        help="Option file (.yml)")
+
+    args = parser.parse_args()
+
+    from main import get_options
+
+    _, output_msg = calculate_response(args.input, output=args.output, arc_fname=args.arc, pixtable_fname=args.pixtable,
+                                       bias_fname=args.bias, flat_fname=args.flat,
+                                       output_dir=args.dir, order=args.order, smoothing=args.smooth,
+                                       interactive=args.int, dispaxis=args.axis,
+                                       order_wl=args.order_wl, order_bg=5, rectify_options={})
+
 #     # --- Generate response function:
 #     calculate_response(args.input, arc_fname=args.arc, bias=args.bias, flat=args.flat, output_dir=args.output,
 #                        trimx=args.xrange, trimy=args.yrange, order=args.order)
+
+# if __name__ == '__main__':
