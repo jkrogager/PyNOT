@@ -6,7 +6,6 @@ __author__ = 'Jens-Kristian Krogager'
 __email__ = "krogager.jk@gmail.com"
 __credits__ = ["Jens-Kristian Krogager"]
 
-from argparse import ArgumentParser
 import numpy as np
 from astropy.io import fits
 from matplotlib.backends import backend_pdf
@@ -472,6 +471,20 @@ def run_response():
                                        output_dir=args.dir, order=args.order, smoothing=args.smooth,
                                        interactive=args.int, dispaxis=args.axis,
                                        order_wl=args.order_wl, order_bg=5, rectify_options=options['rectify'])
+    print(output_msg)
+
+
+def run_flux_calibrate(args):
+
+    parser_fluxcalib.add_argument("input", type=str,
+                                  help="Raw flux standard star frame")
+    parser_fluxcalib.add_argument("response", type=str,
+                                  help="Response function")
+    parser_fluxcalib.add_argument("-o", "--output", type=str, default='',
+                                  help="Filename of output response function")
+
+    output_msg = flux_calibrate(args.input, response=args.response, output=args.output)
+    print(output_msg)
 
 
 # if __name__ == '__main__':
