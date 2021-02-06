@@ -275,6 +275,7 @@ def run_pipeline(options_fname, verbose=False, interactive=False):
             else:
                 log.error("No reference linelist found! Something went wrong!")
                 linelist_fname = ''
+            log.write("Input arc line frame: %s" % arc_fname)
             poly_order, saved_pixtab_fname, msg = create_pixtable(arc_fname, grism_name,
                                                                   pixtab_fname, linelist_fname,
                                                                   order_wl=options['identify']['order_wl'],
@@ -331,17 +332,14 @@ def run_pipeline(options_fname, verbose=False, interactive=False):
 
         # Combine Bias Frames matched for CCD setup:
         bias_frames = sci_img.match_files(database['BIAS'])
-        if len(bias_frames) < 3:
-            log.warn("Must have at least 3 bias frames to combine, not %i" % len(bias_frames))
-            if 'master_bias' in options['bias']:
-                log.warn("Using master bias frame: %s" % options['bias']['master_bias'])
-                master_bias_fname = options['bias']['master_bias']
-                status['master_bias'] = master_bias_fname
-            else:
-                log.error("No backup bias frame! Either provide more than 3 bias frames")
-                log.error("or provide one using the option: bias.master_bias")
-                log.fatal_error()
-                return
+        if options['mbias']:
+            master_bias_fname = options['mbias']
+            log.write("Using static master bias frame: %s" % options['mbias'])
+        elif len(bias_frames) < 3:
+            log.error("Must have at least 3 bias frames to combine, not %i" % len(bias_frames))
+            log.error("otherwise provide a static 'master bias' frame!")
+            log.fatal_error()
+            return
         else:
             log.write("Running task: Bias Combination")
             try:
@@ -359,47 +357,49 @@ def run_pipeline(options_fname, verbose=False, interactive=False):
 
         # Combine Flat Frames matched for CCD setup, grism, slit and filter:
         flat_frames = sci_img.match_files(database['SPEC_FLAT'], grism=True, slit=True, filter=True)
-        if len(flat_frames) == 0:
+        if options['mflat']:
+            norm_flat_fname = options['mflat']
+            log.write("Using static master flat frame: %s" % options['mflat'])
+        elif len(flat_frames) == 0:
             log.error("No flat frames provided!")
             log.fatal_error()
             return
+        else:
+            try:
+                log.write("Running task: Spectral Flat Combination")
+                _, flat_msg = combine_flat_frames(flat_frames, comb_flat_fname, mbias=master_bias_fname,
+                                                  kappa=options['flat']['kappa'], overwrite=True,
+                                                  mode='spec', dispaxis=sci_img.dispaxis)
+                log.commit(flat_msg)
+                log.add_linebreak()
+                status['flat_combined'] = comb_flat_fname
+            except ValueError as err:
+                log.commit(str(err)+'\n')
+                log.fatal_error()
+                return
+            except:
+                log.error("Combination of flat frames failed!")
+                log.fatal_error()
+                print("Unexpected error:", sys.exc_info()[0])
+                raise
 
-        try:
-            log.write("Running task: Spectral Flat Combination")
-            _, flat_msg = combine_flat_frames(flat_frames, comb_flat_fname, mbias=master_bias_fname,
-                                              kappa=options['flat']['kappa'], overwrite=True,
-                                              mode='spec', dispaxis=sci_img.dispaxis)
-            log.commit(flat_msg)
-            log.add_linebreak()
-            status['flat_combined'] = comb_flat_fname
-        except ValueError as err:
-            log.commit(str(err)+'\n')
-            log.fatal_error()
-            return
-        except:
-            log.error("Combination of flat frames failed!")
-            log.fatal_error()
-            print("Unexpected error:", sys.exc_info()[0])
-            raise
-
-
-        # Normalize the spectral flat field:
-        try:
-            log.write("Running task: Spectral Flat Normalization")
-            _, norm_msg = normalize_spectral_flat(comb_flat_fname, output=norm_flat_fname,
-                                                  fig_dir=output_dir, dispaxis=sci_img.dispaxis,
-                                                  lower=options['flat']['lower'], upper=options['flat']['upper'],
-                                                  order=options['flat']['order'], sigma=options['flat']['sigma'],
-                                                  plot=options['flat']['plot'], show=options['flat']['show'],
-                                                  overwrite=True)
-            log.commit(norm_msg)
-            log.add_linebreak()
-            status['flat_normalized'] = norm_flat_fname
-        except:
-            log.error("Normalization of flat frames failed!")
-            log.fatal_error()
-            print("Unexpected error:", sys.exc_info()[0])
-            raise
+            # Normalize the spectral flat field:
+            try:
+                log.write("Running task: Spectral Flat Normalization")
+                _, norm_msg = normalize_spectral_flat(comb_flat_fname, output=norm_flat_fname,
+                                                      fig_dir=output_dir, dispaxis=sci_img.dispaxis,
+                                                      lower=options['flat']['lower'], upper=options['flat']['upper'],
+                                                      order=options['flat']['order'], sigma=options['flat']['sigma'],
+                                                      plot=options['flat']['plot'], show=options['flat']['show'],
+                                                      overwrite=True)
+                log.commit(norm_msg)
+                log.add_linebreak()
+                status['master_flat'] = norm_flat_fname
+            except:
+                log.error("Normalization of flat frames failed!")
+                log.fatal_error()
+                print("Unexpected error:", sys.exc_info()[0])
+                raise
 
 
         # Identify lines in arc frame:
