@@ -28,8 +28,8 @@ def main():
                                      help="Combine bias frames")
     parser_bias.add_argument("input", type=str,
                              help="Input file containing list of image filenames to combine")
-    parser_bias.add_argument("-o", "--output", type=str,
-                             help="Output filename of combined bias frame")
+    parser_bias.add_argument("-o", "--output", type=str, required=True,
+                             help="Output filename of combined bias frame  [REQUIRED]")
     parser_bias.add_argument("--kappa", type=float, default=15,
                              help="Threshold for sigma clipping")
 
@@ -38,8 +38,8 @@ def main():
                                       help="Combine spectral flat frames")
     parser_sflat.add_argument("input", type=str,
                               help="Input file containing list of image filenames to combine")
-    parser_sflat.add_argument("-o", "--output", type=str,
-                              help="Output filename of combined bias frame")
+    parser_sflat.add_argument("-o", "--output", type=str, required=True,
+                              help="Output filename of combined bias frame  [REQUIRED]")
     parser_sflat.add_argument("--axis", type=int, default=2,
                               help="Dispersion axis: 1 horizontal, 2: vertical")
     # Define based on default options:
@@ -56,9 +56,9 @@ def main():
     parser_corr.add_argument("input", type=str,
                              help="Input file containing list of image filenames to combine")
     parser_corr.add_argument("-o", "--output", type=str,
-                             help="Output filename")
+                             help="Output filename  [REQUIRED]")
     parser_corr.add_argument("--bias", type=str, required=True,
-                             help="Filename of combined bias frame")
+                             help="Filename of combined bias frame  [REQUIRED]")
     parser_corr.add_argument("--flat", type=str, default='',
                              help="Filename of combined flat frame")
 
@@ -80,7 +80,7 @@ def main():
     parser_resp.add_argument("input", type=str,
                              help="Input filename of 1D spectrum of flux standard star")
     parser_resp.add_argument("-o", "--output", type=str, required=True,
-                             help="Output filename of response function")
+                             help="Output filename of response function [REQUIRED]")
 
 
     # -- wave1d :: Wavelength Calibrate 1D Image
@@ -88,10 +88,10 @@ def main():
                                       help="Apply wavelength calibration to 1D spectra (FITS table)")
     parser_wave1.add_argument("input", type=str,
                               help="Input filename of 1D spectrum of flux standard star")
-    parser_wave1.add_argument("pixtable", type=str,
-                              help="Pixeltable of line identification from 'PyNOT-identify'")
+    parser_wave1.add_argument("--table", type=str, required=True,
+                              help="Pixeltable of line identification from 'PyNOT-identify' [REQUIRED]")
     parser_wave1.add_argument("-o", "--output", type=str, required=True,
-                              help="Output filename of wavelength calibrated 1D spectrum (FITS table)")
+                              help="Output filename of wavelength calibrated 1D spectrum (FITS table) [REQUIRED]")
     parser_wave1.add_argument("--order", type=int, default=5,
                               help="Polynomial order for fitting wavelength solution")
     parser_wave1.add_argument("--log", action='store_true',
@@ -110,12 +110,12 @@ def main():
     parser_wave2.add_argument("arc", type=str,
                               help="Input filename of arc line image")
     parser_wave2.add_argument("--table", type=str, required=True,
-                              help="Pixeltable of line identification from 'PyNOT-identify'")
+                              help="Pixeltable of line identification from 'PyNOT-identify' [REQUIRED]")
     parser_wave2.add_argument("-o", "--output", type=str, required=True,
-                              help="Output filename of rectified, wavelength calibrated 2D image")
+                              help="Output filename of rectified, wavelength calibrated 2D image [REQUIRED]")
     parser_wave2.add_argument("--axis", type=int, default=2,
                               help="Dispersion axis: 1 horizontal, 2: vertical")
-    parser_wave2.add_argument("--order_wl", type=int, default=5,
+    parser_wave2.add_argument("--order", type=int, default=5,
                               help="Order of Chebyshev polynomium for wavelength solution")
     for key, val in parameters['rectify'].items():
         parser_wave2.add_argument("--%s" % key, type=type(val), default=val)
@@ -127,7 +127,7 @@ def main():
     parser_sky.add_argument("input", type=str,
                             help="Input filename of 2D frame")
     parser_sky.add_argument("-o", "--output", type=str, required=True,
-                            help="Output filename of sky-subtracted 2D image")
+                            help="Output filename of sky-subtracted 2D image [REQUIRED]")
     parser_sky.add_argument("--axis", type=int, default=2,
                             help="Dispersion axis: 1 horizontal, 2: vertical")
     for key, val in parameters['skysub'].items():
@@ -140,7 +140,7 @@ def main():
     parser_crr.add_argument("input", type=str,
                             help="Input filename of 2D spectrum")
     parser_crr.add_argument("-o", "--output", type=str, required=True,
-                            help="Output filename of cleaned image")
+                            help="Output filename of cleaned image [REQUIRED]")
     parser_crr.add_argument('-n', "--niter", type=int, default=4,
                             help="Dispersion axis: 1 horizontal, 2: vertical")
     parser_crr.add_argument('-g', "--gain", type=float, default=0.16,
@@ -160,7 +160,7 @@ def main():
     parser_flux1.add_argument("response", type=str,
                               help="Reference response function from 'PyNOT-response'")
     parser_flux1.add_argument("-o", "--output", type=str, required=True,
-                              help="Output filename of flux-calibrated spectrum")
+                              help="Output filename of flux-calibrated spectrum [REQUIRED]")
 
 
     # -- flux2d :: Flux calibration of 2D spectrum
@@ -171,7 +171,7 @@ def main():
     parser_flux2.add_argument("response", type=str,
                               help="Reference response function from 'PyNOT-response'")
     parser_flux2.add_argument("-o", "--output", type=str, required=True,
-                              help="Output filename of flux-calibrated 2D spectrum")
+                              help="Output filename of flux-calibrated 2D spectrum [REQUIRED]")
 
 
     # -- extract :: Extraction of 1D spectrum from 2D
@@ -180,7 +180,7 @@ def main():
     parser_ext.add_argument("input", type=str,
                             help="Input filename of 2D spectrum")
     parser_ext.add_argument("-o", "--output", type=str, required=True,
-                            help="Output filename of 1D spectrum (FITS Table)")
+                            help="Output filename of 1D spectrum (FITS Table) [REQUIRED]")
     parser_ext.add_argument("--axis", type=int, default=1,
                             help="Dispersion axis: 1 horizontal, 2: vertical")
     parser_ext.add_argument('--auto', action='store_true',
@@ -196,7 +196,7 @@ def main():
     parser_class.add_argument("path", type=str, nargs='+',
                               help="Path (or paths) to raw ALFOSC data to be classified")
     parser_class.add_argument("-o", "--output", type=str, required=True,
-                              help="Filename of file classification table (*.pfc)")
+                              help="Filename of file classification table (*.pfc) [REQUIRED]")
     parser_class.add_argument("-v", "--verbose", action='store_true',
                               help="Print status messages to terminal")
 
@@ -266,7 +266,7 @@ def main():
     elif recipe == 'wave1d':
         from wavecal import wavecal_1d
         print("Running task: 1D Wavelength Calibration")
-        log = wavecal_1d(args.input, args.pixtable, output=args.output, order_wl=args.order,
+        log = wavecal_1d(args.input, args.table, output=args.output, order_wl=args.order,
                          log=args.log, N_out=args.npix, linearize=args.no_int)
 
     elif recipe == 'wave2d':
