@@ -170,7 +170,7 @@ def main(raw_path=None, options_fname=None, verbose=False, interactive=False):
 
     else:
         # Classify files:
-        log.write("Classyfying files in folder: %s" % raw_path)
+        log.write("Classyfying files in folder: %r" % raw_path)
         try:
             database, message = do.classify(raw_path, progress=verbose)
             do.io.save_database(database, dataset_fname)

@@ -83,8 +83,15 @@ def fit_background_image(data, order_bg=3, xmin=0, xmax=None, kappa=10, fwhm_sca
     order_bg : integer  [default=3]
         Order of the Chebyshev polynomium to fit the background
 
-    width : integer  [default=20]
-        Half width in pixels of the trace to mask out
+    xmin, xmax : integer  [default=0, None]
+        Mask out pixels below xmin and above xmax
+
+    fwhm_scale : float  [default=3]
+        Number of FWHM below and above centroid of auto-detected trace
+        that will be masked out during fitting.
+
+    kappa : float  [default=10]
+        Threshold for masking out cosmic rays etc.
 
     Returns
     =======
@@ -141,8 +148,15 @@ def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, kappa=
     order_bg : integer  [default=3]
         Order of the Chebyshev polynomium to fit the background
 
-    width : integer  [default=20]
-        Half width in pixels of the trace to mask out
+    xmin, xmax : integer  [default=0, None]
+        Mask out pixels below xmin and above xmax
+
+    fwhm_scale : float  [default=3]
+        Number of FWHM below and above centroid of auto-detected trace
+        that will be masked out during fitting.
+
+    kappa : float  [default=10]
+        Threshold for masking out cosmic rays etc.
 
     plot_fname : string  [default='']
         Filename of diagnostic plots. If nothing is given, do not plot.

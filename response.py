@@ -59,7 +59,12 @@ def flux_calibrate(input_fname, *, output, response):
     # Load Sensitivity Function:
     resp_tab = fits.getdata(response)
     resp_hdr = fits.getheader(response)
-    assert resp_hdr['ALGRNM'] == hdr['ALGRNM'], "Grisms of input spectrum and response function do not match!"
+    if resp_hdr['ALGRNM'] != hdr['ALGRNM']:
+        msg.append(" [ERROR]  - Grisms of input spectrum and response function do not match!")
+        msg.append("")
+        output_msg = "\n".join(msg)
+        return output_msg
+
     resp_int = np.interp(wl, resp_tab['WAVE'], resp_tab['RESPONSE'])
     # Truncate values less than 20:
     resp_int[resp_int < 20] = 20.
@@ -92,6 +97,16 @@ def flux_calibrate(input_fname, *, output, response):
 def flux_calibrate_1d(input_fname, *, output, response):
     """Apply response function to flux calibrate the input 1D spectrum"""
     msg = list()
+
+    # Load Extinction Table:
+    wl_ext, A0 = np.loadtxt(alfosc.path + '/calib/lapalma.ext', unpack=True)
+    msg.append("          - Loaded average extinction table for La Palma")
+
+    # Load Sensitivity Function:
+    resp_tab = fits.getdata(response)
+    resp_hdr = fits.getheader(response)
+    msg.append("          - Loaded response function: %s" % response)
+
     # Load input data:
     hdu_list = fits.open(input_fname)
     msg.append("          - Loaded image: %s" % input_fname)
@@ -102,20 +117,18 @@ def flux_calibrate_1d(input_fname, *, output, response):
         wl = tab['WAVE']
         spec1d = tab['FLUX']
         err1d = tab['ERR']
-        hdr = tab
-        # Load Extinction Table:
-        wl_ext, A0 = np.loadtxt(alfosc.path + '/calib/lapalma.ext', unpack=True)
-        ext = np.interp(wl, wl_ext, A0)
-        msg.append("          - Loaded average extinction table for La Palma")
 
-        # Load Sensitivity Function:
-        resp_tab = fits.getdata(response)
-        resp_hdr = fits.getheader(response)
-        assert resp_hdr['ALGRNM'] == hdr['ALGRNM'], "Grisms of input spectrum and response function do not match!"
+        if resp_hdr['ALGRNM'] != hdr['ALGRNM']:
+            msg.append(" [ERROR]  - Grisms of input spectrum and response function do not match!")
+            msg.append("")
+            output_msg = "\n".join(msg)
+            return output_msg
+
+        # Interpolate extinction table and response function:
+        ext = np.interp(wl, wl_ext, A0)
         resp_int = np.interp(wl, resp_tab['WAVE'], resp_tab['RESPONSE'])
         # Truncate values less than 20:
         resp_int[resp_int < 20] = 20.
-        msg.append("          - Loaded response function: %s" % response)
 
         airm = hdr['AIRMASS']
         t = hdr['EXPTIME']
@@ -128,7 +141,7 @@ def flux_calibrate_1d(input_fname, *, output, response):
         hdr['RESPONSE'] = response
         msg.append("          - Applied flux calibration to object: %r" % tab.name)
 
-        col_wl = fits.Column(name='WAVE', array=wl, format='D', unit=hdr['CUNIT1'])
+        col_wl = fits.Column(name='WAVE', array=wl, format='D', unit=hdu.columns['WAVE'].unit)
         col_flux = fits.Column(name='FLUX', array=flux1d, format='D', unit=hdr['BUNIT'])
         col_err = fits.Column(name='ERR', array=err1d, format='D', unit=hdr['BUNIT'])
         output_tab = fits.BinTableHDU.from_columns([col_wl, col_flux, col_err], header=hdr)
