@@ -43,6 +43,13 @@ scired:
   gain:        null          # Detector gain, e-/ADU. Read from the header by default
   readnoise:   null          # Detector read-out noise, e-. Read from the header by default
 
+skysub:
+  order_bg:    3             # Polynomial order for sky background subtraction (per row)
+  kappa:       10            # Threshold for rejection of outlying pixels (cosmics etc) in units of std. deviations
+  fwhm_scale:  3             # Mask out auto-identified objects within ±`fwhm_scale`*FWHM around centroid of object
+  xmin:        0             # Mask out pixels below xmin
+  xmax:        null          # Mask out pixels above xmax
+
 extract:
   interactive:  True         # Extract the 1D spectrum using a graphical user interface?
   model_name:   'moffat'     # Profile type for optimal extraction 'moffat' or 'gaussian', otherwise 'tophat'
