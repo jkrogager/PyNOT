@@ -334,6 +334,80 @@ def apply_transform(img2D, pix, fit_table2d, ref_table, err2D=None, mask2D=None,
     return img2D_tr, err2D_tr, mask2D_tr, wl, hdr_tr, output_msg
 
 
+def wavecal_1d(input_fname, pixtable_fname, *, output, order_wl=4, log=False, N_out=None, linearize=True):
+    """Apply wavelength calibration to 1D spectrum"""
+    msg = list()
+
+    pixtable = np.loadtxt(pixtable_fname)
+    msg.append("          - Loaded pixel table: %s" % pixtable)
+    # Load polynomial order from pix table header:
+    # not implemented yet!
+    if log:
+        linearize = True
+
+    # Load input data:
+    hdu_list = fits.open(input_fname)
+    msg.append("          - Loaded spectrum: %s" % input_fname)
+    output_hdu = fits.HDUList()
+    for hdu in hdu_list[1:]:
+        if hdu.columns['WAVE'].unit.lower() in ['angstrom', 'nm', 'a', 'aa']:
+            msg.append(" [ERROR]  - Spectrum is already wavelength calibrated.")
+            msg.append("")
+            output_msg = "\n".join(msg)
+            return output_msg
+        tab = hdu.data
+        hdr = hdu.header
+        pix = tab['WAVE']
+        flux1d = tab['FLUX']
+        err1d = tab['ERR']
+
+        if N_out is None:
+            N_out = len(pix)
+        else:
+            if N_out != len(pix):
+                linearize = True
+
+        # Fit wavelength solution
+        solution = Chebyshev.fit(pixtable[:, 0], pixtable[:, 1], deg=order_wl, domain=[pix.min(), pix.max()])
+        wl = solution(pix)
+        res = np.std(pixtable[:, 1] - solution(pixtable[:, 0]))
+        msg.append("          - Fitting wavelength solution with polynomium of order: %i" % order_wl)
+        msg.append("          - Standard deviation of wavelength residuals: %.3f Å" % res)
+        hdr['CUNIT1'] = 'Angstrom'
+        hdr['WAVERES'] = (np.round(res, 2), "RMS of wavelength residuals")
+        if linearize:
+            if log:
+                msg.append("          - Interpolating spectrum onto logarithmic grid")
+                wl_new = np.logspace(np.log10(wl.min()), np.log10(wl.max()), N_out)
+                dv = np.diff(wl_new)[0] / wl_new[0] * 299792.
+                dlog = np.diff(np.log10(wl_new))[0]
+                msg.append("          - wavelength step: %.3f  [log(Å)]" % dlog)
+                msg.append("          - wavelength step: %.1f  [km/s]" % dv)
+            else:
+                msg.append("          - Interpolating spectrum onto linear grid")
+                wl_new = np.linspace(wl.min(), wl.max(), N_out)
+                dl = np.diff(wl_new)[0]
+                msg.append("          - wavelength step: %.3f  [Å]" % dl)
+            interp_flux, interp_err = spectres.spectres(wl_new, wl, flux1d, spec_errs=err1d, verbose=False, fill=0.)
+        else:
+            msg.append("          - Using raw input grid, no interpolation used.")
+            msg.append("[WARNING] - Wavelength steps may not be constant!")
+            interp_flux = flux1d
+            interp_err = err1d
+
+        col_wl = fits.Column(name='WAVE', array=wl, format='D', unit=hdr['CUNIT1'])
+        col_flux = fits.Column(name='FLUX', array=interp_flux, format='D', unit=hdr['BUNIT'])
+        col_err = fits.Column(name='ERR', array=interp_err, format='D', unit=hdr['BUNIT'])
+        output_tab = fits.BinTableHDU.from_columns([col_wl, col_flux, col_err], header=hdr)
+        output_tab = tab.name
+        output_hdu.append(output_tab)
+
+    output_hdu.writeto(output, overwrite=True)
+    msg.append(" [OUTPUT] - Saving wavelength calibrated 1D spectrum: %s" % output)
+    msg.append("")
+    output_msg = "\n".join(msg)
+    return output_msg
+
 # ============== PLOTTING =====================================================
 
 def plot_2d_pixtable(arc2D_sub, pix, pixtab2d, fit_table2d, filename=''):
