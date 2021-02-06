@@ -129,7 +129,7 @@ class State(dict):
 
 
 
-def main(raw_path=None, options_fname=None, verbose=False, interactive=False):
+def run_pipeline(options_fname, verbose=False, interactive=False):
     log = Report(verbose)
     status = State()
 
@@ -139,15 +139,13 @@ def main(raw_path=None, options_fname=None, verbose=False, interactive=False):
     # -- Parse Options from YAML
     options = get_options(defaults_fname)
 
-    if options_fname:
-        user_options = get_options(options_fname)
-        for section_name, section in user_options.items():
-            if isinstance(section, dict):
-                options[section_name].update(section)
-            else:
-                options[section_name] = section
-        if not raw_path:
-            raw_path = user_options['path']
+    user_options = get_options(options_fname)
+    for section_name, section in user_options.items():
+        if isinstance(section, dict):
+            options[section_name].update(section)
+        else:
+            options[section_name] = section
+    raw_path = user_options['path']
 
     if interactive:
         # Set all interactive steps to True
@@ -468,7 +466,7 @@ def main(raw_path=None, options_fname=None, verbose=False, interactive=False):
                                                                       order=options['response']['order'],
                                                                       interactive=options['response']['interactive'],
                                                                       dispaxis=sci_img.dispaxis, order_wl=order_wl,
-                                                                      order_bg=options['scired']['order_bg'],
+                                                                      order_bg=options['skysub']['order_bg'],
                                                                       rectify_options=options['rectify'],
                                                                       app=app)
                     status['RESPONSE'] = response_fname
@@ -511,8 +509,7 @@ def main(raw_path=None, options_fname=None, verbose=False, interactive=False):
         log.write("Running task: Background Subtraction")
         try:
             bg_msg = auto_fit_background(rect2d_fname, bgsub2d_fname, dispaxis=1,
-                                         kappa=10, fwhm_scale=4, xmin=20,
-                                         order_bg=options['scired']['order_bg'], plot_fname=bgsub_pdf_name)
+                                         plot_fname=bgsub_pdf_name, **options['skysub'])
             log.commit(bg_msg)
         except:
             log.error("Automatic background subtraction failed!")
@@ -522,12 +519,11 @@ def main(raw_path=None, options_fname=None, verbose=False, interactive=False):
 
 
         # Correct Cosmic Rays Hits:
-        if options['scired']['crr']:
+        if options['crr']['niter'] > 0:
             log.write("Running task: Cosmic Ray Rejection")
             crr_fname = os.path.join(output_dir, 'CRR_BGSUB2D_%s.fits' % (sci_img.target_name))
             try:
-                crr_msg = correct_cosmics(bgsub2d_fname, crr_fname, niter=options['scired']['niter'],
-                                          gain=options['scired']['gain'], readnoise=options['scired']['readnoise'])
+                crr_msg = correct_cosmics(bgsub2d_fname, crr_fname, **options['crr'])
                 log.commit(crr_msg)
             except:
                 log.error("Cosmic ray correction failed!")

@@ -211,9 +211,10 @@ def main():
 
     # -- Define Workflow
     recipe = args.recipe
-    log = ['']
+    log = ""
     if recipe == 'spec':
-        main(options_fname=args.options, verbose=args.verbose, interactive=args.interactive)
+        from redux import run_pipeline
+        run_pipeline(options_fname=args.options, verbose=args.verbose, interactive=args.interactive)
 
     elif recipe == 'bias':
         from calibs import combine_bias_frames
