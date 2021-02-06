@@ -27,6 +27,8 @@ from functions import get_version_number, NN_mod_gaussian
 
 __version__ = get_version_number()
 
+code_dir = os.path.dirname(os.path.abspath(__file__))
+calib_dir = os.path.join(code_dir, 'calib/')
 
 # -- Function to call from PyNOT.main
 def create_pixtable(arc_image, grism_name, pixtable_name, linelist_fname, order_wl=4, app=None):
@@ -403,6 +405,7 @@ class GraphicInterface(QMainWindow):
             self.set_reftable_data()
 
     def set_reftable_data(self):
+        self.reftable.clearContents()
         for line in self._full_linelist:
             rowPosition = self.reftable.rowCount()
             self.reftable.insertRow(rowPosition)
@@ -445,6 +448,15 @@ class GraphicInterface(QMainWindow):
                         error_msg = 'Invalid format for slit: %s' % primhdr['ALAPRTNM']
                         QMessageBox.critical(None, 'Invalid Aperture', error_msg)
                         return
+
+            if hdr['CLAMP2'] == 1 or hdr['CLAMP1'] == 1:
+                # Load HeNe linelist
+                linelist_fname = os.path.join(calib_dir, 'HeNe_linelist.dat')
+                load_linelist_fname(linelist_fname)
+            elif hdr['CLAMP4'] == 1:
+                # Load ThAr linelist:
+                linelist_fname = os.path.join(calib_dir, 'ThAr_linelist.dat')
+                load_linelist_fname(linelist_fname)
 
             if self.dispaxis == 1:
                 raw_data = raw_data.T
@@ -909,7 +921,6 @@ if __name__ == '__main__':
     # Launch App:
     qapp = QApplication(sys.argv)
     app = GraphicInterface(arc_fname,
-                           grism_name=grism_name,
                            linelist_fname=linelist_fname,
                            dispaxis=dispaxis)
     app.show()
