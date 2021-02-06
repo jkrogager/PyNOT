@@ -422,7 +422,7 @@ class GraphicInterface(QMainWindow):
 
     def load_spectrum(self, arc_fname=None):
         if arc_fname is False:
-            current_dir = os.path.dirname(os.path.abspath(__file__))
+            current_dir = './'
             filters = "FITS files (*.fits | *.fit)"
             arc_fname = QFileDialog.getOpenFileName(self, 'Open Pixeltable', current_dir, filters)
             arc_fname = str(arc_fname[0])
@@ -449,14 +449,14 @@ class GraphicInterface(QMainWindow):
                         QMessageBox.critical(None, 'Invalid Aperture', error_msg)
                         return
 
-            if hdr['CLAMP2'] == 1 or hdr['CLAMP1'] == 1:
+            if primhdr['CLAMP2'] == 1 or primhdr['CLAMP1'] == 1:
                 # Load HeNe linelist
                 linelist_fname = os.path.join(calib_dir, 'HeNe_linelist.dat')
-                load_linelist_fname(linelist_fname)
-            elif hdr['CLAMP4'] == 1:
+                self.load_linelist_fname(linelist_fname)
+            elif primhdr['CLAMP4'] == 1:
                 # Load ThAr linelist:
                 linelist_fname = os.path.join(calib_dir, 'ThAr_linelist.dat')
-                load_linelist_fname(linelist_fname)
+                self.load_linelist_fname(linelist_fname)
 
             if self.dispaxis == 1:
                 raw_data = raw_data.T
@@ -474,7 +474,7 @@ class GraphicInterface(QMainWindow):
 
     def load_pixtable(self, filename=None):
         if filename is False:
-            current_dir = os.path.dirname(os.path.abspath(__file__))
+            current_dir = './'
             filters = "All files (*)"
             filename = QFileDialog.getOpenFileName(self, 'Open Pixeltable', current_dir, filters)
             filename = str(filename[0])
@@ -503,7 +503,7 @@ class GraphicInterface(QMainWindow):
 
     def save_pixtable(self, fname=None):
         if fname is False:
-            current_dir = os.path.dirname(os.path.abspath(__file__))
+            current_dir = './'
             filters = "All files (*)"
             path = QFileDialog.getSaveFileName(self, 'Save Pixeltable', current_dir, filters)
             fname = str(path[0])
@@ -516,7 +516,9 @@ class GraphicInterface(QMainWindow):
                     QMessageBox.critical(None, 'Not enough lines identified', 'You need to identify at least 3 lines')
                     return False
                 else:
+                    order = int(self.poly_order.text())
                     tab_file.write("# Pixel Table for ALFOSC grism: %s\n" % self.grism_name)
+                    tab_file.write("# order = %i\n#\n" % order)
                     tab_file.write("# Pixel    Wavelength [Å]\n")
                     np.savetxt(tab_file, np.column_stack([pixvals, wavelengths]),
                                fmt=" %8.2f   %8.2f")
@@ -539,7 +541,7 @@ class GraphicInterface(QMainWindow):
         if self.cheb_fit is None:
             return
         if fname is None:
-            current_dir = os.path.dirname(os.path.abspath(__file__))
+            current_dir = './'
             path = QFileDialog.getSaveFileName(self, 'Save Polynomial Model', current_dir)
             fname = str(path[0])
 

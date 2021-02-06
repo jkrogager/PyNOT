@@ -998,7 +998,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
 
     def save_aperture_model(self, index):
         """Save the 2D trace model profile of a given object"""
-        current_dir = os.path.dirname(os.path.abspath(__file__)) + "/aper2d.fits"
+        current_dir = './' + self.output_fname
         filters = "FITS Files (*.fits *.fit)"
         fname, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save 2D Trace Models', current_dir, filters)
         if fname and len(self.trace_models) > 0:
@@ -1018,7 +1018,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
 
     def save_all_aperture_models(self):
         """Save the 2D trace model profile"""
-        current_dir = os.path.dirname(os.path.abspath(__file__))
+        current_dir = './'
         filters = "FITS Files (*.fits *.fit)"
         fname, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save 2D Trace Models', current_dir, filters)
         if fname and len(self.trace_models) > 0:
@@ -1042,8 +1042,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
 
     def save_spectrum_2d(self):
         """Save the background subtracted 2D spectrum"""
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        current_dir += '/skysub_2d.fits'
+        current_dir = './skysub_2d.fits'
         filters = "FITS Files (*.fits *.fit)"
         path, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save 2D', current_dir, filters)
         if path:
@@ -1058,8 +1057,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
 
     def save_spectrum_bg(self):
         """Save the fitted 2D background spectrum"""
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        current_dir += '/sky_2d.fits'
+        current_dir = './skymodel_2d.fits'
         filters = "FITS Files (*.fits *.fit)"
         path, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save 2D', current_dir, filters)
         if path:
@@ -1086,8 +1084,8 @@ class ExtractGUI(QtWidgets.QMainWindow):
             return False
 
         if not fname:
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            basename = current_dir + '/' + self.image2d.header['OBJECT'] + '_ext.fits'
+            current_dir = './'
+            basename = os.path.join(current_dir, self.image2d.header['OBJECT'] + '_ext.fits')
             filters = "FITS Files (*.fits *.fit)"
             fname, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save All Extractions', basename, filters)
 
@@ -1130,7 +1128,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
 
     def load_spectrum(self, fname=None, dispaxis=1):
         if fname is False:
-            current_dir = os.path.dirname(os.path.abspath(__file__))
+            current_dir = './'
             filters = "FITS files (*.fits | *.fit)"
             fname, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Open 2D Spectrum', current_dir, filters)
             fname = str(fname)
@@ -2117,7 +2115,7 @@ class SaveWindow(QtWidgets.QDialog):
         self.parent = parent
 
         # -- Create Filename Selector:
-        basename = './' + parent.image2d.header['OBJECT'] + '_1d.fits'
+        basename = './' + parent.output_fname
         self.fname_editor = QtWidgets.QLineEdit(basename)
         self.fname_editor.setMinimumWidth(200)
         file_selector = QtWidgets.QPushButton("...")
@@ -2133,12 +2131,12 @@ class SaveWindow(QtWidgets.QDialog):
 
         self.format_group = QtWidgets.QButtonGroup(self)
         btn_fits = QtWidgets.QRadioButton("FITS")
-        btn_fits.setChecked(True)
         self.format_group.addButton(btn_fits)
         self.format_group.setId(btn_fits, 0)
         btn_fits.toggled.connect(self.set_fits)
 
         btn_fits_table = QtWidgets.QRadioButton("FITS Table")
+        btn_fits_table.setChecked(True)
         self.format_group.addButton(btn_fits_table)
         self.format_group.setId(btn_fits_table, 1)
         btn_fits_table.toggled.connect(self.set_fits)
