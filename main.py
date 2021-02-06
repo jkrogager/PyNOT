@@ -23,6 +23,11 @@ def main():
     parser = ArgumentParser()
     recipes = parser.add_subparsers(dest='recipe')
 
+    p_break1 = recipes.add_parser('', help="")
+    parser_init = recipes.add_parser('init', help="Initiate a default parameter file")
+    parser_init.add_argument("filename", type=str, nargs='?', default='options.yml',
+                             help="Filename of parameter file, default = options.yml")
+
     # -- BIAS :: Bias Combination
     parser_bias = recipes.add_parser('bias',
                                      help="Combine bias frames")
@@ -35,7 +40,7 @@ def main():
 
     # -- SFLAT :: Spectral Flat Combination
     parser_sflat = recipes.add_parser('sflat',
-                                      help="Combine spectral flat frames")
+                                      help="Combine and normalize spectral flat frames")
     parser_sflat.add_argument("input", type=str,
                               help="Input file containing list of image filenames to combine")
     parser_sflat.add_argument("-o", "--output", type=str, required=True,
@@ -46,9 +51,6 @@ def main():
     for key, val in parameters['flat'].items():
         parser_sflat.add_argument("--%s" % key, type=type(val), default=val)
 
-    # # -- IMFLAT :: Imaging Flat Combination
-    # parser_imflat = recipes.add_parser('imflat',
-    #                                    help="Combine imaging flat frames")
 
     # -- corr :: Raw Correction
     parser_corr = recipes.add_parser('corr',
@@ -85,7 +87,7 @@ def main():
 
     # -- wave1d :: Wavelength Calibrate 1D Image
     parser_wave1 = recipes.add_parser('wave1d',
-                                      help="Apply wavelength calibration to 1D spectra (FITS table)")
+                                      help="Apply wavelength calibration to 1D spectra")
     parser_wave1.add_argument("input", type=str,
                               help="Input filename of 1D spectrum of flux standard star")
     parser_wave1.add_argument("--table", type=str, required=True,
@@ -203,13 +205,29 @@ def main():
 
     # Spectral Redux:
     parser_redux = recipes.add_parser('spec',
-                                      help="Combine imaging flat frames")
+                                      help="Run the full spectroscopic pipeline")
     parser_redux.add_argument("options", type=str,
                               help="Input filename of pipeline configuration in YAML format")
     parser_redux.add_argument("-v", "--verbose", action="store_true",
                               help="Print log to terminal")
     parser_redux.add_argument("-i", "--interactive", action="store_true",
                               help="Use interactive interface throughout")
+
+
+    parser_break = recipes.add_parser('', help="")
+    # -- IMFLAT :: Imaging Flat Combination
+    parser_imflat = recipes.add_parser('imflat',
+                                       help="Combine imaging flat frames")
+    # # Imaging Redux:
+    # parser_redux = recipes.add_parser('phot',
+    #                                   help="Run the full imaging pipeline")
+    # parser_redux.add_argument("options", type=str,
+    #                           help="Input filename of pipeline configuration in YAML format")
+    # parser_redux.add_argument("-v", "--verbose", action="store_true",
+    #                           help="Print log to terminal")
+    # parser_redux.add_argument("-i", "--interactive", action="store_true",
+    #                           help="Use interactive interface throughout")
+
 
     args = parser.parse_args()
 
@@ -337,24 +355,18 @@ def main():
         log = message
         log += "\nSaved file classification database: %s" % args.output
 
-    else:
-        print("\n  Running PyNOT Data Processing Pipeline\n")
-        if not os.path.exists('options.yml'):
-            copy_cmd = "cp %s options.yml" % defaults_fname
+    elif recipe == 'init':
+        print("")
+        print("  PyNOT Data Processing Pipeline ")
+        print(" ================================")
+        print(" version %s\n" % __version__)
+        if not os.path.exists(args.filename):
+            copy_cmd = "cp %s  %s" % (defaults_fname, args.filename)
             os.system(copy_cmd)
-            print(" - Created the default option file: options.yml")
-        message = """
-         - Update the file and run PyNOT as:
-            %] pynot --options options.yml
+            print(" [OUTPUT] - Initiated new parameter file: %s" % args.filename)
+        else:
+            print(" [ERROR]  - File already exists! Cannot overwrite.")
 
-        Otherwise provide a path to the raw data:
-            %] pynot path/to/data
-
-        """
-        print(message)
-
-    # output_message = "\n".join(log)
-    # print(output_message)
     print(log)
 
 
