@@ -139,13 +139,12 @@ def flux_calibrate_1d(input_fname, *, output, response):
 
         hdr['BUNIT'] = 'erg/s/cm2/A'
         hdr['RESPONSE'] = response
-        msg.append("          - Applied flux calibration to object: %r" % tab.name)
+        msg.append("          - Applied flux calibration to object ID: %r" % hdu.name)
 
         col_wl = fits.Column(name='WAVE', array=wl, format='D', unit=hdu.columns['WAVE'].unit)
         col_flux = fits.Column(name='FLUX', array=flux1d, format='D', unit=hdr['BUNIT'])
         col_err = fits.Column(name='ERR', array=err1d, format='D', unit=hdr['BUNIT'])
         output_tab = fits.BinTableHDU.from_columns([col_wl, col_flux, col_err], header=hdr)
-        output_tab = tab.name
         output_hdu.append(output_tab)
 
     output_hdu.writeto(output, overwrite=True)

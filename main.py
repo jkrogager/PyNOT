@@ -28,7 +28,7 @@ def main():
                                      help="Combine bias frames")
     parser_bias.add_argument("input", type=str,
                              help="Input file containing list of image filenames to combine")
-    parser_bias.add_argument("-o", "output", type=str,
+    parser_bias.add_argument("-o", "--output", type=str,
                              help="Output filename of combined bias frame")
     parser_bias.add_argument("--kappa", type=float, default=15,
                              help="Threshold for sigma clipping")
@@ -38,8 +38,10 @@ def main():
                                       help="Combine spectral flat frames")
     parser_sflat.add_argument("input", type=str,
                               help="Input file containing list of image filenames to combine")
-    parser_sflat.add_argument("-o", "output", type=str,
+    parser_sflat.add_argument("-o", "--output", type=str,
                               help="Output filename of combined bias frame")
+    parser_sflat.add_argument("--axis", type=int, default=2,
+                              help="Dispersion axis: 1 horizontal, 2: vertical")
     # Define based on default options:
     for key, val in parameters['flat'].items():
         parser_sflat.add_argument("--%s" % key, type=type(val), default=val)
@@ -53,7 +55,7 @@ def main():
                                      help="Apply bias subtraction, flat field correction and trimming")
     parser_corr.add_argument("input", type=str,
                              help="Input file containing list of image filenames to combine")
-    parser_corr.add_argument("-o", "output", type=str,
+    parser_corr.add_argument("-o", "--output", type=str,
                              help="Output filename")
     parser_corr.add_argument("--bias", type=str, required=True,
                              help="Filename of combined bias frame")
@@ -61,8 +63,8 @@ def main():
                              help="Filename of combined flat frame")
 
 
-    # -- id :: Identify Arc Lines
-    parser_id = recipes.add_parser('id',
+    # -- identify :: Identify Arc Lines
+    parser_id = recipes.add_parser('identify',
                                    help="Interactive identification of arc lines")
     parser_id.add_argument("arc", type=str,
                            help="Input filename of arc line image")
@@ -143,8 +145,11 @@ def main():
                             help="Dispersion axis: 1 horizontal, 2: vertical")
     parser_crr.add_argument('-g', "--gain", type=float, default=0.16,
                             help="Detector gain, default for ALFOSC CCD14: 0.16 e-/ADU")
-    parser_crr.add_argument('-r', "--rdnoise", type=float, default=4.3,
+    parser_crr.add_argument('-r', "--readnoise", type=float, default=4.3,
                             help="Detector read noise, default for ALFOSC CCD14: 4.3 e-")
+    for key, val in parameters['crr'].items():
+        if key not in ['niter', 'gain', 'readnoise']:
+            parser_crr.add_argument("--%s" % key, type=type(val), default=val)
 
 
     # -- flux1d :: Flux calibration of 1D spectrum
@@ -178,8 +183,8 @@ def main():
                             help="Output filename of 1D spectrum (FITS Table)")
     parser_ext.add_argument("--axis", type=int, default=1,
                             help="Dispersion axis: 1 horizontal, 2: vertical")
-    parser_ext.add_argument('-i', "--interactive", action='store_true',
-                            help="Dispersion axis: 1 horizontal, 2: vertical")
+    parser_ext.add_argument('--auto', action='store_true',
+                            help="Use automatic extraction instead of interactive GUI")
     parameters['extract'].pop('interactive')
     for key, val in parameters['extract'].items():
         parser_ext.add_argument("--%s" % key, type=type(val), default=val)
@@ -226,7 +231,7 @@ def main():
         from calibs import combine_flat_frames, normalize_spectral_flat
         print("Running task: Spectral flat field combination and normalization")
         flatcombine, log = combine_flat_frames(args.input, output='', mbias=args.mbias, mode='spec',
-                                               dispaxis=args.dispaxis, kappa=args.kappa)
+                                               dispaxis=args.axis, kappa=args.kappa)
 
         _, log = normalize_spectral_flat(flatcombine, args.output, dispaxis=args.axis,
                                          lower=args.lower, upper=args.upper, order=args.order,
@@ -288,8 +293,11 @@ def main():
     elif recipe == 'crr':
         from scired import correct_cosmics
         print("Running task: Cosmic Ray Rejection")
-        log = correct_cosmics(args.input, args.output, niter=args.niter,
-                              gain=args.gain, readnoise=args.rdnoise)
+        options = copy(vars(args))
+        vars_to_remove = ['recipe', 'input', 'output']
+        for varname in vars_to_remove:
+            options.pop(varname)
+        log = correct_cosmics(args.input, args.output, **options)
 
     elif recipe == 'flux1d':
         from response import flux_calibrate_1d
@@ -309,16 +317,16 @@ def main():
         for varname in vars_to_remove:
             options.pop(varname)
 
-        if args.interactive:
+        if args.auto:
+            from extraction import auto_extract
+            print("Running task: 1D Extraction")
+            log = auto_extract(args.input, args.output, dispaxis=args.axis,
+                               pdf_fname="extract_diagnostics.pdf", **options)
+        else:
             app = QtWidgets.QApplication(sys.argv)
             gui = ExtractGUI(args.input, output_fname=args.output, dispaxis=args.axis, **options)
             gui.show()
             app.exit(app.exec_())
-        else:
-            from extraction import auto_extract
-            print("Running task: 1D Extraction")
-            log = auto_extract(args.input, args.output, dispaxis=args.dispaxis,
-                               pdf_fname="extract_diagnostics.pdf", **options)
 
     elif recipe == 'classify':
         import data_organizer as do
