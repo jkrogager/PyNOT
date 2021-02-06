@@ -17,7 +17,13 @@ SPEC_OBJECT : SHSTAT == OPEN and CLAMP3 == 0 and CLAMP2 == 0 and CLAMP1 == 0 and
 
 FOCUS : ALGRNM == Focus_Pyr
 
-IMG_OBJECT : SHSTAT == OPEN and CLAMP3 == 0 and CLAMP2 == 0 and CLAMP1 == 0 and CLAMP4 == 0 and ALGRNM == Open and ALAPRTNM == Open and IMAGETYP != FLAT
+ACQ_IMG : SHSTAT == OPEN and CLAMP3 == 0 and CLAMP2 == 0 and CLAMP1 == 0 and CLAMP4 == 0 and ALGRNM == Open and ALAPRTNM == Open and IMAGETYP != FLAT and OBJECT == ALFOSC target acquisition
+FLAT_TEST : SHSTAT == OPEN and CLAMP3 == 0 and CLAMP2 == 0 and CLAMP1 == 0 and CLAMP4 == 0 and ALGRNM == Open and ALAPRTNM == Open and IMAGETYP != FLAT and OBJECT == EasyFlat count test
+
+IMG_OBJECT : SHSTAT == OPEN and CLAMP3 == 0 and CLAMP2 == 0 and CLAMP1 == 0 and CLAMP4 == 0 and ALGRNM == Open and ALAPRTNM == Open and IMAGETYP != FLAT and OBS_MODE == IMAGING and OBJECT != EasyFlat count test and OBJECT != ALFOSC target acquisition
+
 IMG_FLAT : IMAGETYP == FLAT and OBS_MODE == IMAGING
-# ACQ_IMG : SHSTAT == OPEN and ALGRNM == Open and ALAPRTNM == Open
+
+#FLAT_TEST : IMAGETYP != FLAT and OBS_MODE == IMAGING and OBJECT == EasyFlat count test
+#ACQ_IMG : SHSTAT == OPEN and ALGRNM == Open and ALAPRTNM == Open and OBJECT == ALFOSC target acquisition
 SLIT_IMG : SHSTAT == OPEN and ALGRNM == Open and ALAPRTNM != Open
