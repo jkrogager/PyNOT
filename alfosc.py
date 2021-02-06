@@ -36,16 +36,10 @@ slits = ['Ech_0.7', 'Ech_0.8', 'Ech_1.0', 'Ech_1.2', 'Ech_1.6',
 # --- Data taken from: ftp://ftp.stsci.edu/cdbs/current_calspec/
 standard_star_files = glob.glob(path + '/calib/std/*.dat')
 standard_star_files = [basename(fname) for fname in standard_star_files]
+# List of star names in lowercase:
 standard_stars = [fname.strip('.dat') for fname in standard_star_files]
 
-# Old static implementation:
-# standard_stars = ['bd174708', 'bd262606',
-#                   'bd332642', 'feige110',
-#                   'feige34', 'gd153', 'gd71',
-#                   'hd19445', 'hd84937', 'hd93521',
-#                   'he3', 'hiltner600', 'wolf1346']
-
-
+# Look-up table from TCS targetnames -> star names
 standard_star_names = {'SP0305+261': 'HD19445',
                        'SP0644+375': 'He3',
                        'SP0946+139': 'HD84937',

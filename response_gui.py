@@ -86,7 +86,7 @@ class ResponseGUI(QtWidgets.QMainWindow):
 
         # Fitting Parameters:
         self.star_chooser = QtWidgets.QComboBox()
-        self.all_names = ["%s : %s" % item for item in alfosc.standard_star_names.items()] + ['']
+        self.all_names = sorted([name.upper() for name in alfosc.standard_stars] + [''])
         self.star_chooser.addItems(self.all_names)
         self.star_chooser.setCurrentText(star_name)
         self.star_chooser.currentTextChanged.connect(self.set_star)
@@ -316,11 +316,16 @@ class ResponseGUI(QtWidgets.QMainWindow):
             self.airmass_edit.setEnabled(False)
         else:
             self.airmass_edit.setEnabled(True)
-        if 'OBJECT' in hdr:
-            for entry_name in self.all_names:
-                if hdr['OBJECT'] in entry_name:
-                    self.star_chooser.setCurrentText(entry_name)
-                    break
+
+        if 'TCSTGT' in hdr:
+            TCSname = hdr['TCSTGT']
+            if TCSname in alfosc.standard_star_names:
+                star_name = alfosc.standard_star_names[TCSname]
+                self.star_chooser.setCurrentText(star_name.upper())
+        elif 'OBJECT' in hdr:
+            object_name = hdr['OBJECT']
+            if object_name.upper() in self.all_names:
+                self.star_chooser.setCurrentText(object_name.upper())
 
         if self.ref_tab is not None:
             self.calculate_flux_in_bins()
@@ -329,8 +334,7 @@ class ResponseGUI(QtWidgets.QMainWindow):
 
 
     def set_star(self, text):
-        entry_name = str(text).lower()
-        star_name = entry_name.split(':')[1].strip()
+        star_name = str(text).lower()
         self.ref_tab = np.loadtxt(alfosc.path+'/calib/std/%s.dat' % star_name)
         self.calculate_flux_in_bins()
         self.calculate_response_bins()
