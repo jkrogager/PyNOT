@@ -333,7 +333,7 @@ def wavecal_1d(input_fname, pixtable_fname, *, output, order_wl=4, log=False, N_
     msg = list()
 
     pixtable = np.loadtxt(pixtable_fname)
-    msg.append("          - Loaded pixel table: %s" % pixtable)
+    msg.append("          - Loaded pixel table: %s" % pixtable_fname)
     # Load polynomial order from pix table header:
     # not implemented yet!
     if log:
@@ -344,7 +344,8 @@ def wavecal_1d(input_fname, pixtable_fname, *, output, order_wl=4, log=False, N_
     msg.append("          - Loaded spectrum: %s" % input_fname)
     output_hdu = fits.HDUList()
     for hdu in hdu_list[1:]:
-        if hdu.columns['WAVE'].unit.lower() in ['angstrom', 'nm', 'a', 'aa']:
+        wl_unit = hdu.columns['WAVE'].unit
+        if wl_unit and wl_unit.lower() in ['angstrom', 'nm', 'a', 'aa']:
             msg.append(" [ERROR]  - Spectrum is already wavelength calibrated.")
             msg.append("")
             output_msg = "\n".join(msg)
@@ -382,18 +383,25 @@ def wavecal_1d(input_fname, pixtable_fname, *, output, order_wl=4, log=False, N_
                 wl_new = np.linspace(wl.min(), wl.max(), N_out)
                 dl = np.diff(wl_new)[0]
                 msg.append("          - wavelength step: %.3f  [Å]" % dl)
+
+            if np.diff(wl)[0] < 0:
+                # Wavelengths are decreasing: Flip arrays
+                flux1d = flux1d[::-1]
+                wl = wl[::-1]
+                err1d = err1d[::-1]
             interp_flux, interp_err = spectres.spectres(wl_new, wl, flux1d, spec_errs=err1d, verbose=False, fill=0.)
+            final_wl = wl_new
         else:
             msg.append("          - Using raw input grid, no interpolation used.")
             msg.append("[WARNING] - Wavelength steps may not be constant!")
+            final_wl = wl
             interp_flux = flux1d
             interp_err = err1d
 
-        col_wl = fits.Column(name='WAVE', array=wl, format='D', unit=hdr['CUNIT1'])
+        col_wl = fits.Column(name='WAVE', array=final_wl, format='D', unit=hdr['CUNIT1'])
         col_flux = fits.Column(name='FLUX', array=interp_flux, format='D', unit=hdr['BUNIT'])
         col_err = fits.Column(name='ERR', array=interp_err, format='D', unit=hdr['BUNIT'])
         output_tab = fits.BinTableHDU.from_columns([col_wl, col_flux, col_err], header=hdr)
-        output_tab = tab.name
         output_hdu.append(output_tab)
 
     output_hdu.writeto(output, overwrite=True)
