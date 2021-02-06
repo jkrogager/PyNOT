@@ -194,7 +194,7 @@ def fit_2dwave_solution(pixtab2d, deg=5):
     return fit_table2d.T
 
 
-def apply_transform(img2D, pix, fit_table2d, ref_table, err2D=None, mask2D=None, header={}, order_wl=4, log=False, N_out=None, kind='cubic', fill_value='extrapolate', interpolate=True):
+def apply_transform(img2D, pix, fit_table2d, ref_table, err2D=None, mask2D=None, header={}, order_wl=4, log=False, N_out=None, interpolate=True):
     """
     Apply 2D wavelength transformation to the input image
 
@@ -229,12 +229,6 @@ def apply_transform(img2D, pix, fit_table2d, ref_table, err2D=None, mask2D=None,
         Number of output pixels along dispersion axis.
         If `None` is given, the default is to use the same number
         of pixels as in the input image.
-
-    kind : string
-        Keyword argument of scipy.interpolate.interp1d
-
-    fill_value : string or float
-        Keyword argument of scipy.interpolate.interp1d
 
     interpolate : bool  [default=True]
         Interpolate the image onto new grid or use sub-pixel shifting
@@ -451,8 +445,8 @@ def format_table2D_residuals(pixtab2d, fit_table2d, ref_table):
 # ============== MAIN ===========================================================
 
 def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_bg=5, order_2d=5,
-            order_wl=4, log=False, N_out=None, interpolate=True, kind='linear', fill_value='extrapolate',
-            binning=1, dispaxis=2, fit_window=20, plot=True, overwrite=True, verbose=False, overscan=50):
+            order_wl=4, log=False, N_out=None, interpolate=True, binning=1, dispaxis=2, fit_window=20,
+            plot=True, overwrite=True, verbose=False, overscan=50):
 
     msg = list()
     arc2D = fits.getdata(arc_fname)
@@ -535,8 +529,7 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
     msg.append("          - Interpolating input image onto rectified wavelength solution")
     transform_output = apply_transform(img2D, pix_in, fit_table2d, ref_table,
                                        err2D=err2D, mask2D=mask2D, header=hdr, order_wl=order_wl,
-                                       log=log, N_out=N_out, kind=kind,
-                                       fill_value=fill_value, interpolate=interpolate)
+                                       log=log, N_out=N_out, interpolate=interpolate)
     img2D_corr, err2D_corr, mask2D, wl, hdr_corr, trans_msg = transform_output
     msg.append(trans_msg)
     hdr.add_comment('PyNOT version %s' % __version__)

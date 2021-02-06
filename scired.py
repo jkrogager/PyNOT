@@ -232,7 +232,26 @@ def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, kappa=
     return output_msg
 
 
-def correct_cosmics(input_fname, output_fname, niter=4, gain=None, readnoise=None):
+def correct_cosmics(input_fname, output_fname, niter=4, gain=None, readnoise=None, sigclip=4.5, sigfrac=0.3, objlim=5.0, satlevel=113500.0, cleantype='meanmask'):
+    """
+    Detect and Correct Cosmic Ray Hits based on the method by van Dokkum (2001)
+    The corrected frame is saved to a FITS file.
+
+    Parameters
+    ----------
+    input_fname : string
+        Input filename of 2D image
+
+    output_fname : string
+        Filename of corrected 2D image
+
+    For details on other parameters, see `astroscrappy.detect_cosmics`
+
+    Returns
+    -------
+    output_msg : string
+        Log of messages from the function call
+    """
     msg = list()
     msg.append("          - Cosmic Ray Rejection using Astroscrappy (based on van Dokkum 2001)")
     sci = fits.getdata(input_fname)
@@ -261,7 +280,9 @@ def correct_cosmics(input_fname, output_fname, niter=4, gain=None, readnoise=Non
             readnoise = hdr['READNOISE']
             msg.append("          - Read READNOISE from FITS header: %.2f" % readnoise)
 
-    crr_mask, sci = detect_cosmics(sci, gain=gain, readnoise=readnoise, niter=niter, pssl=sky_level)
+    crr_mask, sci = detect_cosmics(sci, gain=gain, readnoise=readnoise, niter=niter, pssl=sky_level,
+                                   sigclip=sigclip, sigfrac=sigfrac, objlim=objlim, satlevel=satlevel,
+                                   cleantype=cleantype)
     # Corrected image is in ELECTRONS!! Convert back to ADUs:
     sci = sci/gain - sky_level
 
