@@ -513,6 +513,8 @@ class GraphicInterface(QMainWindow):
             return False
 
     def update_cache(self):
+        if self.grism_name == '':
+            QMessageBox.critical(None, "No grism name defined", "The grism name has not been defined.")
         msg = "Are you sure you want to update the PyNOT pixel table for %s" % self.grism_name
         messageBox = QMessageBox()
         messageBox.setText(msg)
@@ -902,15 +904,12 @@ if __name__ == '__main__':
 
     arc_fname = args.filename
     linelist_fname = args.lines
-    tab_fname = ''
-    grism_name = ''
     dispaxis = args.axis
 
     # Launch App:
     qapp = QApplication(sys.argv)
     app = GraphicInterface(arc_fname,
                            grism_name=grism_name,
-                           pixtable=tab_fname,
                            linelist_fname=linelist_fname,
                            dispaxis=dispaxis)
     app.show()
