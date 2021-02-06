@@ -302,9 +302,7 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname, output='', overscan=50,
         Filename of normalized flat field image
 
     output : string  [default='']
-        Output filename for final backgroung subtracted image.
-        If not given, the output filename will be determined from
-        OBJECT header keyword.
+        Output filename
 
     overscan : int  [default=50]
         Number of pixels in overscan at the edge of the CCD.
@@ -366,9 +364,88 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname, output='', overscan=50,
     output_msg = "\n".join(msg)
 
     return output_msg
-    # # Pass the corrected 2D spectrum to extraction and calibration:
-    # extract_and_calibrate(output, arc_frame, bin_size=loc_binsize, xmin=loc_xmin,
-    #                       xmax=loc_xmax, do_opt_extract=opt_ext, interact=loc_interact,
-    #                       background=ext_background, center_order=center_order,
-    #                       FWHM0=FWHM0, trimx=trimx, trimy=trimy, wl_order=wl_order,
-    #                       aper_cen=aper_cen, sensitivity=sensitivity, show=show)
+
+
+
+def correct_raw_file(input_fname, *, output, bias_fname, flat_fname='', overscan=50, overwrite=True):
+    """
+    Perform bias subtraction and flat field correction
+    NOTE: Add trimming parameters!!
+
+    Parameters
+    ==========
+
+    input_fname : string
+        Input filename of raw ALFOSC image
+
+    output : string
+        Output filename
+
+    bias_fname : string
+        Filename of bias image to subtract from `sci_raw`
+
+    flat_fname : string
+        Filename of normalized flat field image,
+        If not given, no flat field correction is performed
+
+
+    overscan : int  [default=50]
+        Number of pixels in overscan at the edge of the CCD.
+        The overscan region will be trimmed.
+
+    overwrite : boolean  [default=True]
+        Overwrite existing output file if True.
+
+    Returns
+    -------
+    output_msg : string
+        Log of status messages
+    """
+    msg = list()
+    mbias = fits.getdata(bias_fname)
+    msg.append("          - Loaded BIAS image: %s" % bias_fname)
+    mflat = fits.getdata(flat_fname)
+    mflat[mflat == 0] = 1
+    msg.append("          - Loaded FLAT field image: %s" % flat_fname)
+
+    sci = (sci_raw - mbias)/mflat
+
+    # Trim overscan
+    sci, hdr = trim_overscan(sci, hdr, overscan=overscan)
+
+    # Calculate error image:
+    if hdr['CCDNAME'] == 'CCD14':
+        hdr['GAIN'] = 0.16
+    gain = hdr['GAIN']
+    readnoise = hdr['RDNOISE']
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        err = np.sqrt(gain*sci + readnoise**2) / gain
+    msg.append("          - Created noise image")
+    msg.append("          - Gain=%.2f  and Read Noise=%.2f" % (gain, readnoise))
+
+    # Fix NaN values from negative pixel values:
+    err_NaN = np.isnan(err)
+    err[err_NaN] = readnoise/gain
+    msg.append("          - Correcting NaNs in noise image: %i pixel(s)" % np.sum(err_NaN))
+    hdr['DATAMIN'] = np.nanmin(sci)
+    hdr['DATAMAX'] = np.nanmax(sci)
+    hdr['EXTNAME'] = 'DATA'
+
+    mask = np.zeros_like(sci, dtype=int)
+    msg.append("          - Empty pixel mask created")
+    mask_hdr = fits.Header()
+    mask_hdr.add_comment("0 = Good Pixels")
+    mask_hdr.add_comment("1 = Cosmic Ray Hits")
+
+    sci_ext = fits.PrimaryHDU(sci, header=hdr)
+    err_ext = fits.ImageHDU(err, header=hdr, name='ERR')
+    mask_ext = fits.ImageHDU(mask, header=mask_hdr, name='MASK')
+    output_HDU = fits.HDUList([sci_ext, err_ext, mask_ext])
+    output_HDU.writeto(output, overwrite=overwrite)
+    msg.append("          - Successfully corrected the image.")
+    msg.append(" [OUTPUT] - Saving output: %s" % output)
+    msg.append("")
+    output_msg = "\n".join(msg)
+
+    return output_msg
