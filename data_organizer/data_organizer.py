@@ -77,12 +77,13 @@ def get_binning_from_hdr(hdr):
 
 
 def get_filter(hdr):
-    filter = None
+    filter = 'Open'
     for keyword in ['FAFLTNM', 'FBFLTNM', 'ALFLTNM']:
         if 'open' in hdr[keyword].lower():
             pass
         else:
             filter = hdr[keyword]
+            break
     return filter
 
 
