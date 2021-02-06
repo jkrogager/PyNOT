@@ -94,7 +94,7 @@ def main():
                               help="Pixeltable of line identification from 'PyNOT-identify' [REQUIRED]")
     parser_wave1.add_argument("-o", "--output", type=str, required=True,
                               help="Output filename of wavelength calibrated 1D spectrum (FITS table) [REQUIRED]")
-    parser_wave1.add_argument("--order", type=int, default=5,
+    parser_wave1.add_argument("--order_wl", type=int, default=5,
                               help="Polynomial order for fitting wavelength solution")
     parser_wave1.add_argument("--log", action='store_true',
                               help="Create logarithmically binned spectrum")
@@ -117,10 +117,13 @@ def main():
                               help="Output filename of rectified, wavelength calibrated 2D image [REQUIRED]")
     parser_wave2.add_argument("--axis", type=int, default=2,
                               help="Dispersion axis: 1 horizontal, 2: vertical")
-    parser_wave2.add_argument("--order", type=int, default=5,
+    parser_wave2.add_argument("--order_wl", type=int, default=5,
                               help="Order of Chebyshev polynomium for wavelength solution")
     for key, val in parameters['rectify'].items():
-        parser_wave2.add_argument("--%s" % key, type=type(val), default=val)
+        if val is None:
+            parser_wave2.add_argument("--%s" % key, type=int, default=val)
+        else:
+            parser_wave2.add_argument("--%s" % key, type=type(val), default=val)
 
 
     # -- skysub :: Sky Subtraction of 2D Image
@@ -133,8 +136,10 @@ def main():
     parser_sky.add_argument("--axis", type=int, default=2,
                             help="Dispersion axis: 1 horizontal, 2: vertical")
     for key, val in parameters['skysub'].items():
-        parser_sky.add_argument("--%s" % key, type=type(val), default=val)
-
+        if val is None:
+            parser_sky.add_argument("--%s" % key, type=int, default=val)
+        else:
+            parser_sky.add_argument("--%s" % key, type=type(val), default=val)
 
     # -- crr :: Cosmic Ray Rejection and Correction
     parser_crr = recipes.add_parser('crr',
@@ -189,7 +194,10 @@ def main():
                             help="Use automatic extraction instead of interactive GUI")
     parameters['extract'].pop('interactive')
     for key, val in parameters['extract'].items():
-        parser_ext.add_argument("--%s" % key, type=type(val), default=val)
+        if val is None:
+            parser_ext.add_argument("--%s" % key, type=int, default=val)
+        else:
+            parser_ext.add_argument("--%s" % key, type=type(val), default=val)
 
 
     # -- classify :: Classify ALFOSC Files
@@ -284,17 +292,17 @@ def main():
     elif recipe == 'wave1d':
         from wavecal import wavecal_1d
         print("Running task: 1D Wavelength Calibration")
-        log = wavecal_1d(args.input, args.table, output=args.output, order_wl=args.order,
+        log = wavecal_1d(args.input, args.table, output=args.output, order_wl=args.order_wl,
                          log=args.log, N_out=args.npix, linearize=args.no_int)
 
     elif recipe == 'wave2d':
         from wavecal import rectify
         print("Running task: 2D Rectification and Wavelength Calibration")
         options = copy(vars(args))
-        vars_to_remove = ['recipe', 'input', 'arc', 'table', 'output', 'dir', 'axis']
+        vars_to_remove = ['recipe', 'input', 'arc', 'table', 'output', 'axis']
         for varname in vars_to_remove:
             options.pop(varname)
-        log = rectify(args.input, args.arc, args.table, output=args.output, fig_dir=args.dir,
+        log = rectify(args.input, args.arc, args.table, output=args.output, fig_dir='./',
                       dispaxis=args.axis, **options)
 
     elif recipe == 'skysub':
