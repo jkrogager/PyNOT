@@ -51,7 +51,6 @@ def save_database(database, output_fname):
             for line in file_list:
                 output.write(' ' + line_fmt % tuple(line) + '\n')
             output.write("\n")
-            print(filetype)
 
 
 def load_database(input_fname):
