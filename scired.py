@@ -46,7 +46,7 @@ import os
 import warnings
 
 from astroscrappy import detect_cosmics
-from alfosc import create_pixel_array
+from alfosc import create_pixel_array, get_alfosc_header
 from functions import mad, get_version_number
 
 
@@ -318,10 +318,10 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname, output='', overscan=50,
     """
     msg = list()
     mbias = fits.getdata(bias_fname)
-    msg.append("          - Loaded BIAS image: %s" % bias_fname)
+    msg.append("          - Loaded bias image: %s" % bias_fname)
     mflat = fits.getdata(flat_fname)
     mflat[mflat == 0] = 1
-    msg.append("          - Loaded FLAT field image: %s" % flat_fname)
+    msg.append("          - Loaded flat field image: %s" % flat_fname)
 
     sci = (sci_raw - mbias)/mflat
 
@@ -401,12 +401,21 @@ def correct_raw_file(input_fname, *, output, bias_fname, flat_fname='', overscan
     output_msg : string
         Log of status messages
     """
+
     msg = list()
+
+    hdr = get_alfosc_header(input_fname)
+    sci_raw = fits.getdata(input_fname)
+    msg.append("          - Loaded input image: %s" % input_fname)
     mbias = fits.getdata(bias_fname)
-    msg.append("          - Loaded BIAS image: %s" % bias_fname)
-    mflat = fits.getdata(flat_fname)
-    mflat[mflat == 0] = 1
-    msg.append("          - Loaded FLAT field image: %s" % flat_fname)
+    msg.append("          - Loaded bias image: %s" % bias_fname)
+    if flat_fname:
+        mflat = fits.getdata(flat_fname)
+        mflat[mflat == 0] = 1
+        msg.append("          - Loaded flat field image: %s" % flat_fname)
+    else:
+        mflat = 1.
+        msg.append("          - Not flat field image provided. No correction applied!")
 
     sci = (sci_raw - mbias)/mflat
 
@@ -431,6 +440,7 @@ def correct_raw_file(input_fname, *, output, bias_fname, flat_fname='', overscan
     hdr['DATAMIN'] = np.nanmin(sci)
     hdr['DATAMAX'] = np.nanmax(sci)
     hdr['EXTNAME'] = 'DATA'
+    hdr['AUTHOR'] = 'PyNOT version %s' % __version__
 
     mask = np.zeros_like(sci, dtype=int)
     msg.append("          - Empty pixel mask created")
