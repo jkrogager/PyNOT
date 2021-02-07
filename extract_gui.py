@@ -742,8 +742,11 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.canvas_spsf.setFocusPolicy(QtCore.Qt.ClickFocus)
         self.spsf_mpl_toolbar = NavigationToolbar(self.canvas_spsf, self)
         self.spsf_mpl_toolbar.setFixedHeight(20)
-        self.spsf_mpl_toolbar.setFixedWidth(400)
+        # self.spsf_mpl_toolbar.setFixedWidth(400)
         self.axis_spsf = self.fig_spsf.add_subplot(111)
+        self.axis_spsf.axhline(0., color='k', ls=':', alpha=0.7, lw=0.9)
+        self.spsf_data_line = None
+        self.spsf_bg_line = None
 
         # List of Trace Models:
         self.list_widget = QtWidgets.QListWidget()
@@ -1147,6 +1150,9 @@ class ExtractGUI(QtWidgets.QMainWindow):
             for spec in self.data1d:
                 del spec
         self.axis_spsf.clear()
+        self.axis_spsf.axhline(0., color='k', ls=':', alpha=0.7, lw=0.9)
+        self.spsf_data_line = None
+        self.spsf_bg_line = None
         self.axis_2d.clear()
         self.axis_2d_bg.clear()
         self.axis_1d.clear()
@@ -1192,8 +1198,8 @@ class ExtractGUI(QtWidgets.QMainWindow):
             msg = "Load data before defining an object trace"
             QtWidgets.QMessageBox.critical(None, 'No data loaded', msg)
             return
-        self.axis_spsf.lines[0]
-        x_data, SPSF = self.axis_spsf.lines[0].get_data()
+
+        x_data, SPSF = self.spsf_data_line.get_data()
         imin = np.argmin(np.abs(x_data - center))
         height = SPSF[imin]
         trace_model = TraceModel(center, height, self.axis_spsf, shape=self.image2d.data.shape,
@@ -1251,6 +1257,19 @@ class ExtractGUI(QtWidgets.QMainWindow):
                 bg_model = Chebyshev.fit(y[this_mask], column[this_mask], bg_order, domain=(y.min(), y.max()))
                 self.background.model2d[:, i] = bg_model(y)
                 self.progress.setValue(i+1)
+
+            # Fit SPSF and plot line:
+            x_data, SPSF = self.spsf_data_line.get_data()
+            mask = np.zeros_like(SPSF, dtype=bool)
+            for y1, y2 in self.background.ranges:
+                mask += (x_data >= y1) & (x_data <= y2)
+            spsf_bg_fit = Chebyshev.fit(x_data[mask], SPSF[mask], bg_order, domain=(x_data.min(), x_data.max()))
+            spsf_bg_model = spsf_bg_fit(x_data)
+            if self.spsf_bg_line is not None:
+                self.spsf_bg_line.set_data(x_data, spsf_bg_model)
+            else:
+                self.spsf_bg_line, = self.axis_spsf.plot(x_data, spsf_bg_model, color='Blue', alpha=0.7, lw=1.5, ls='--')
+            self.canvas_spsf.draw()
 
         self.update_2d()
 
@@ -1437,10 +1456,10 @@ class ExtractGUI(QtWidgets.QMainWindow):
     def update_spsf(self):
         xmin, xmax, ymin, ymax = self.get_limits()
         SPSF = np.nanmedian(self.image2d.data[ymin:ymax, xmin:xmax], axis=1)
-        if len(self.axis_spsf.lines) == 0:
-            self.axis_spsf.plot(self.image2d.y[ymin:ymax], SPSF, color='k', lw=0.7)
+        if self.spsf_data_line is None:
+            self.spsf_data_line, = self.axis_spsf.plot(self.image2d.y[ymin:ymax], SPSF, color='k', lw=0.7)
         else:
-            self.axis_spsf.lines[0].set_data(self.image2d.y[ymin:ymax], SPSF)
+            self.spsf_data_line.set_data(self.image2d.y[ymin:ymax], SPSF)
         vmin = np.median(SPSF) - 10.*mad(SPSF)
         vmax = np.max(SPSF) + 10.*mad(SPSF)
         self.axis_spsf.set_ylim(vmin, vmax)
