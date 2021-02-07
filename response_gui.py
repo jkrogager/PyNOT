@@ -67,6 +67,7 @@ class ResponseGUI(QtWidgets.QMainWindow):
         self.response = None
         self.filename = fname
         self.output_fname = output_fname
+        self.first_time_open = True
         # Extinction table attributes:
         self.ext_fname = alfosc.path + '/calib/lapalma.ext'
         try:
@@ -294,6 +295,10 @@ class ResponseGUI(QtWidgets.QMainWindow):
             filters = "FITS files (*.fits | *.fit)"
             fname, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Open 1D Spectrum', current_dir, filters)
             fname = str(fname)
+            if self.first_time_open:
+                print(" [INFO] - Don't worry about the warning above. It's an OS warning that can not be suppressed.")
+                print("          Everything works as it should")
+                self.first_time_open = False
 
         if not os.path.exists(fname):
             return

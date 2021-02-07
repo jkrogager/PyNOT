@@ -649,6 +649,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.output_fname = output_fname
         self.dispaxis = 1
         self.settings = default_settings
+        self.first_time_open = True
 
         self.model_type = 'Moffat'
         self.data1d = list()
@@ -782,6 +783,8 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.vmax_edit.returnPressed.connect(self.update_2d)
         self.vminmax_btn = QtWidgets.QPushButton("Update Plot")
         self.vminmax_btn.clicked.connect(self.update_2d)
+        self.vminmax_reset_btn = QtWidgets.QPushButton("Reset ranges")
+        self.vminmax_reset_btn.clicked.connect(lambda x: self.update_value_range())
         self.vmin_edit.setValidator(QtGui.QDoubleValidator())
         self.vmax_edit.setValidator(QtGui.QDoubleValidator())
         self.bg_fit_btn = QtWidgets.QPushButton("Fit Background")
@@ -793,6 +796,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
         row_imvals.addWidget(gui_label("v<sub>max</sub> =", color='#111111'))
         row_imvals.addWidget(self.vmax_edit)
         row_imvals.addWidget(self.vminmax_btn)
+        row_imvals.addWidget(self.vminmax_reset_btn)
         row_imvals.addStretch(1)
         row_imvals.addWidget(self.bg_fit_btn)
 
@@ -1136,6 +1140,10 @@ class ExtractGUI(QtWidgets.QMainWindow):
             filters = "FITS files (*.fits | *.fit)"
             fname, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Open 2D Spectrum', current_dir, filters)
             fname = str(fname)
+            if self.first_time_open:
+                print(" [INFO] - Don't worry about the warning above. It's an OS warning that can not be suppressed.")
+                print("          Everything works as it should")
+                self.first_time_open = False
 
         if not os.path.exists(fname):
             return
@@ -1165,6 +1173,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.xmax_edit.setText("%i" % self.image2d.data.shape[1])
         self.ymax_edit.setText("%i" % self.image2d.data.shape[0])
         self.update_2d()
+        self.update_value_range()
         self.update_spsf()
         self.localize_trace()
         self.axis_1d.set_xlabel("Wavelength  [%s]" % self.image2d.wl_unit)
@@ -1549,6 +1558,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
         if vmax is not None:
             self.axis_2d.images[0].set_clim(vmax=vmax)
             self.axis_2d_bg.images[0].set_clim(vmax=vmax)
+        self.canvas_2d.draw()
 
     def localize_trace(self):
         if self.image2d is not None:

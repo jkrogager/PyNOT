@@ -165,6 +165,7 @@ class GraphicInterface(QMainWindow):
         self._full_linelist = [['', '']]
         self.state = None
         self.message = ""
+        self.first_time_open = True
 
         # Create Toolbar and Menubar
         toolbar = QToolBar()
@@ -396,6 +397,10 @@ class GraphicInterface(QMainWindow):
             filters = "All files (*)"
             linelist_fname = QFileDialog.getOpenFileName(self, 'Open Linelist', current_dir, filters)
             linelist_fname = str(linelist_fname[0])
+            if self.first_time_open:
+                print(" [INFO] - Don't worry about the warning above. It's an OS warning that can not be suppressed.")
+                print("          Everything works as it should")
+                self.first_time_open = False
 
         if linelist_fname:
             self.linelist = np.loadtxt(linelist_fname, usecols=(0,))
@@ -424,6 +429,10 @@ class GraphicInterface(QMainWindow):
             filters = "FITS files (*.fits | *.fit)"
             arc_fname = QFileDialog.getOpenFileName(self, 'Open Pixeltable', current_dir, filters)
             arc_fname = str(arc_fname[0])
+            if self.first_time_open:
+                print(" [INFO] - Don't worry about the warning above. It's an OS warning that can not be suppressed.")
+                print("          Everything works as it should")
+                self.first_time_open = False
 
         if arc_fname:
             self.arc_fname = arc_fname
@@ -476,6 +485,10 @@ class GraphicInterface(QMainWindow):
             filters = "All files (*)"
             filename = QFileDialog.getOpenFileName(self, 'Open Pixeltable', current_dir, filters)
             filename = str(filename[0])
+            if self.first_time_open:
+                print(" [INFO] - Don't worry about the warning above. It's an OS warning that can not be suppressed.")
+                print("          Everything works as it should")
+                self.first_time_open = False
 
         if filename:
             self._main.setUpdatesEnabled(False)
