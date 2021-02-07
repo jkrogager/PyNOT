@@ -1,3 +1,5 @@
+### PyNOT Spectroscopic Pipeline -- Parameter File
+
 # Give the path to the raw data:
 # either as a single directory or a list of directories
 path:
