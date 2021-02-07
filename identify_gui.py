@@ -44,8 +44,6 @@ def create_pixtable(arc_image, grism_name, pixtable_name, linelist_fname, order_
     base_name, ext = os.path.splitext(fname)
     output_pixtable = "%s_arcID_%s.tab" % (base_name, grism_name)
     # Launch App:
-    # global app
-    # app = QApplication.instance()
     if app is None:
         app = QApplication(sys.argv)
     gui = GraphicInterface(arc_image,

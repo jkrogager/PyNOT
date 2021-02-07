@@ -266,15 +266,7 @@ def run_pipeline(options_fname, verbose=False, interactive=False):
                 pixtab_fname = options[grism_name+'_pixtab']
             else:
                 pixtab_fname = os.path.join(calib_dir, '%s_pixeltable.dat' % grism_name)
-            # Check arc line type:
-            file_type = database.file_database[arc_fname]
-            if 'HeNe' in file_type:
-                linelist_fname = os.path.join(calib_dir, 'HeNe_linelist.dat')
-            elif 'ThAr' in file_type:
-                linelist_fname = os.path.join(calib_dir, 'ThAr_linelist.dat')
-            else:
-                log.error("No reference linelist found! Something went wrong!")
-                linelist_fname = ''
+            linelist_fname = ''
             log.write("Input arc line frame: %s" % arc_fname)
             poly_order, saved_pixtab_fname, msg = create_pixtable(arc_fname, grism_name,
                                                                   pixtab_fname, linelist_fname,
@@ -411,15 +403,7 @@ def run_pipeline(options_fname, verbose=False, interactive=False):
                     pixtab_fname = options[grism_name+'_pixtab']
                 else:
                     pixtab_fname = os.path.join(calib_dir, '%s_pixeltable.dat' % grism)
-
-                file_type = database.file_database[arc_fname]
-                if 'HeNe' in file_type:
-                    linelist_fname = os.path.join(calib_dir, 'HeNe_linelist.dat')
-                elif 'ThAr' in file_type:
-                    linelist_fname = os.path.join(calib_dir, 'ThAr_linelist.dat')
-                else:
-                    log.error("No reference linelist found! Something went wrong!")
-                    linelist_fname = ''
+                linelist_fname = ''
                 order_wl, pixtable, msg = create_pixtable(arc_fname, grism,
                                                           pixtab_fname, linelist_fname,
                                                           order_wl=options['identify']['order_wl'],
