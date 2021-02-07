@@ -46,6 +46,7 @@ import os
 import warnings
 
 from astroscrappy import detect_cosmics
+
 from alfosc import create_pixel_array, get_alfosc_header
 from functions import mad, get_version_number
 
