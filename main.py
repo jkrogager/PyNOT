@@ -186,8 +186,8 @@ def main():
                                     help="Extract 1D spectrum from 2D")
     parser_ext.add_argument("input", type=str,
                             help="Input filename of 2D spectrum")
-    parser_ext.add_argument("-o", "--output", type=str, required=True,
-                            help="Output filename of 1D spectrum (FITS Table) [REQUIRED]")
+    parser_ext.add_argument("-o", "--output", type=str,
+                            help="Output filename of 1D spectrum (FITS Table)")
     parser_ext.add_argument("--axis", type=int, default=1,
                             help="Dispersion axis: 1 horizontal, 2: vertical")
     parser_ext.add_argument('--auto', action='store_true',
@@ -375,7 +375,8 @@ def main():
         else:
             print(" [ERROR]  - File already exists! Cannot overwrite.")
 
-    print(log)
+    if log:
+        print(log)
 
 
 if __name__ == '__main__':

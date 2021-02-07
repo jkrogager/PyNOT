@@ -658,6 +658,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.picked_object = None
         self.state = None
         self.bg_value1 = None
+        self.xmask = list()
 
         # SPSF controls:
         self.add_btn = QtWidgets.QPushButton("Add Object")
@@ -698,7 +699,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.model_chooser = QtWidgets.QComboBox()
         self.model_chooser.addItems(["Moffat", "Gaussian", "Tophat"])
         self.model_chooser.setCurrentText(model_name.title())
-        self.model_chooser.currentTextChanged.connect(self.model_change)
+        # self.model_chooser.currentTextChanged.connect(self.model_change)
 
         self.bins_edit = QtWidgets.QLineEdit("%i" % dx)
         self.bins_edit.setValidator(QtGui.QIntValidator(0, 9999))
@@ -1560,6 +1561,23 @@ class ExtractGUI(QtWidgets.QMainWindow):
         #     self.canvas_spsf.draw()
         pass
 
+    def update_xmask_in_points(self):
+        # Clear old shapes:
+        for item in self.xmask:
+            item.remove()
+        self.xmask = list()
+        xmin, xmax, ymin, ymax = self.get_limits()
+        if xmin > 0 or xmax < self.image2d.data.shape[1]+1:
+            # Define new shaded areas:
+            for ax in self.axes_points:
+                xlims = ax.get_xlim()
+                vspan1 = ax.axvspan(xlims[0], xmin, color='0.3', alpha=0.15)
+                vspan2 = ax.axvspan(xmax, xlims[1], color='0.3', alpha=0.15)
+                ax.set_xlim(*xlims)
+                self.xmask.append(vspan1)
+                self.xmask.append(vspan2)
+            self.canvas_points.draw()
+
     def fit_trace(self):
         if self.image2d is None:
             return
@@ -1718,7 +1736,8 @@ class ExtractGUI(QtWidgets.QMainWindow):
                         ax.set_ylabel(r"$\%s$" % parname)
                     if not ax.is_last_row():
                         ax.set_xticklabels("")
-        self.canvas_points.figure.tight_layout()
+        # self.canvas_points.figure.tight_layout()
+        self.update_xmask_in_points()
         self.canvas_points.draw()
         self.canvas_2d.draw()
 
