@@ -74,6 +74,8 @@ def main():
                            help="Linelist, automatically loaded if possible")
     parser_id.add_argument("--axis", type=int, default=2,
                            help="Dispersion axis: 1 horizontal, 2: vertical")
+    parser_id.add_argument("-o", "--output", type=str, default='',
+                           help="Output filename of arc line identification table")
 
 
     # -- response :: Calculate Response Function
@@ -81,8 +83,8 @@ def main():
                                      help="Interactive determination of instrument response function")
     parser_resp.add_argument("input", type=str,
                              help="Input filename of 1D spectrum of flux standard star")
-    parser_resp.add_argument("-o", "--output", type=str, required=True,
-                             help="Output filename of response function [REQUIRED]")
+    parser_resp.add_argument("-o", "--output", type=str, default='',
+                             help="Output filename of response function")
 
 
     # -- wave1d :: Wavelength Calibrate 1D Image
@@ -94,7 +96,7 @@ def main():
                               help="Pixeltable of line identification from 'PyNOT-identify' [REQUIRED]")
     parser_wave1.add_argument("-o", "--output", type=str, required=True,
                               help="Output filename of wavelength calibrated 1D spectrum (FITS table) [REQUIRED]")
-    parser_wave1.add_argument("--order_wl", type=int, default=5,
+    parser_wave1.add_argument("--order_wl", type=int,
                               help="Polynomial order for fitting wavelength solution")
     parser_wave1.add_argument("--log", action='store_true',
                               help="Create logarithmically binned spectrum")
@@ -186,7 +188,7 @@ def main():
                                     help="Extract 1D spectrum from 2D")
     parser_ext.add_argument("input", type=str,
                             help="Input filename of 2D spectrum")
-    parser_ext.add_argument("-o", "--output", type=str,
+    parser_ext.add_argument("-o", "--output", type=str, default='',
                             help="Output filename of 1D spectrum (FITS Table)")
     parser_ext.add_argument("--axis", type=int, default=1,
                             help="Dispersion axis: 1 horizontal, 2: vertical")
@@ -276,7 +278,8 @@ def main():
         app = QtWidgets.QApplication(sys.argv)
         gui = GraphicInterface(args.arc,
                                linelist_fname=args.lines,
-                               dispaxis=args.axis)
+                               dispaxis=args.axis,
+                               output=args.output)
         gui.show()
         app.exit(app.exec_())
 

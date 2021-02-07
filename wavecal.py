@@ -328,14 +328,39 @@ def apply_transform(img2D, pix, fit_table2d, ref_table, err2D=None, mask2D=None,
     return img2D_tr, err2D_tr, mask2D_tr, wl, hdr_tr, output_msg
 
 
-def wavecal_1d(input_fname, pixtable_fname, *, output, order_wl=4, log=False, N_out=None, linearize=True):
+def get_order_from_file(pixtable_fname):
+    """Find the polynomial degree used when creating the pixel table"""
+    order_wl = 4
+    found = False
+    with open(pixtable_fname) as tab_file:
+        while True:
+            line = tab_file.readline()
+            if line[0] != '#':
+                # Reached the end of the header
+                break
+            elif 'order' in line:
+                order_str = line.split('=')[1]
+                order_wl = int(order_str.strip())
+                found = True
+                break
+    return order_wl, found
+
+
+def wavecal_1d(input_fname, pixtable_fname, *, output, order_wl=None, log=False, N_out=None, linearize=True):
     """Apply wavelength calibration to 1D spectrum"""
     msg = list()
 
     pixtable = np.loadtxt(pixtable_fname)
     msg.append("          - Loaded pixel table: %s" % pixtable_fname)
-    # Load polynomial order from pix table header:
-    # not implemented yet!
+    if order_wl is None:
+        order_wl, found_in_file = get_order_from_file(pixtable_fname)
+        if found_in_file:
+            msg.append("          - Loaded polynomial order from file: %i" % order_wl)
+        else:
+            msg.append("          - Using default polynomial order: %i" % order_wl)
+    else:
+        msg.append("          - Using polynomial order: %i" % order_wl)
+
     if log:
         linearize = True
 
