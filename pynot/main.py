@@ -8,11 +8,12 @@ To create a default parameter file, run:
     %] pynot init
 """
 
-from argparse import ArgumentParser
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, HelpFormatter
 from copy import copy
 import os
 import sys
 import numpy as np
+import warnings
 
 from pynot.functions import get_options, get_option_descr, get_version_number
 
@@ -48,8 +49,18 @@ def set_default_pars(parser, *, section, default_type, ignore_pars=[]):
             parser.add_argument("--%s" % key, type=value_type, default=val, help=par_descr)
 
 
+def set_help_width(max_width=30):
+    """Return a wider HelpFormatter, if possible."""
+    try:
+        # https://stackoverflow.com/a/5464440
+        return lambda prog: ArgumentDefaultsHelpFormatter(prog, max_help_position=max_width)
+    except TypeError:
+        warnings.warn("argparse help formatter failed, falling back.")
+        return ArgumentDefaultsHelpFormatter
+
+
 def main():
-    parser = ArgumentParser()
+    parser = ArgumentParser(prog='pynot')
     recipes = parser.add_subparsers(dest='recipe')
 
     p_break1 = recipes.add_parser('', help="")
@@ -58,7 +69,7 @@ def main():
                              help="Filename of parameter file, default = options.yml")
 
     # -- BIAS :: Bias Combination
-    parser_bias = recipes.add_parser('bias',
+    parser_bias = recipes.add_parser('bias', formatter_class=set_help_width(31),
                                      help="Combine bias frames")
     parser_bias.add_argument("input", type=str,
                              help="Input file containing list of image filenames to combine")
@@ -68,7 +79,7 @@ def main():
                              help="Threshold for sigma clipping")
 
     # -- SFLAT :: Spectral Flat Combination
-    parser_sflat = recipes.add_parser('sflat',
+    parser_sflat = recipes.add_parser('sflat', formatter_class=set_help_width(31),
                                       help="Combine and normalize spectral flat frames")
     parser_sflat.add_argument("input", type=str,
                               help="Input file containing list of image filenames to combine")
@@ -81,7 +92,7 @@ def main():
 
 
     # -- corr :: Raw Correction
-    parser_corr = recipes.add_parser('corr',
+    parser_corr = recipes.add_parser('corr', formatter_class=set_help_width(31),
                                      help="Apply bias subtraction, flat field correction and trimming")
     parser_corr.add_argument("input", type=str,
                              help="Input file containing list of image filenames to combine")
@@ -94,7 +105,7 @@ def main():
 
 
     # -- identify :: Identify Arc Lines
-    parser_id = recipes.add_parser('identify',
+    parser_id = recipes.add_parser('identify', formatter_class=set_help_width(31),
                                    help="Interactive identification of arc lines")
     parser_id.add_argument("arc", type=str,
                            help="Input filename of arc line image")
@@ -107,7 +118,7 @@ def main():
 
 
     # -- response :: Calculate Response Function
-    parser_resp = recipes.add_parser('response',
+    parser_resp = recipes.add_parser('response', formatter_class=set_help_width(31),
                                      help="Interactive determination of instrument response function")
     parser_resp.add_argument("input", type=str,
                              help="Input filename of 1D spectrum of flux standard star")
@@ -116,7 +127,7 @@ def main():
 
 
     # -- wave1d :: Wavelength Calibrate 1D Image
-    parser_wave1 = recipes.add_parser('wave1d',
+    parser_wave1 = recipes.add_parser('wave1d', formatter_class=set_help_width(31),
                                       help="Apply wavelength calibration to 1D spectra")
     parser_wave1.add_argument("input", type=str,
                               help="Input filename of 1D spectrum of flux standard star")
@@ -135,7 +146,7 @@ def main():
 
 
     # -- wave2d :: Rectify and Wavelength Calibrate 2D Image
-    parser_wave2 = recipes.add_parser('wave2d',
+    parser_wave2 = recipes.add_parser('wave2d', formatter_class=set_help_width(31),
                                       help="Rectify 2D image and apply wavelength calibration")
     parser_wave2.add_argument("input", type=str,
                               help="Input filename of 1D spectrum of flux standard star")
@@ -154,7 +165,7 @@ def main():
 
 
     # -- skysub :: Sky Subtraction of 2D Image
-    parser_sky = recipes.add_parser('skysub',
+    parser_sky = recipes.add_parser('skysub', formatter_class=set_help_width(31),
                                     help="Sky subtraction of 2D image")
     parser_sky.add_argument("input", type=str,
                             help="Input filename of 2D frame")
@@ -167,17 +178,17 @@ def main():
 
 
     # -- crr :: Cosmic Ray Rejection and Correction
-    parser_crr = recipes.add_parser('crr',
+    parser_crr = recipes.add_parser('crr', formatter_class=set_help_width(31),
                                     help="Identification and correction of Cosmic Ray Hits")
     parser_crr.add_argument("input", type=str,
                             help="Input filename of 2D spectrum")
     parser_crr.add_argument("-o", "--output", type=str, required=True,
                             help="Output filename of cleaned image [REQUIRED]")
     parser_crr.add_argument('-n', "--niter", type=int, default=4,
-                            help="Dispersion axis: 1 horizontal, 2: vertical")
-    parser_crr.add_argument('-g', "--gain", type=float, default=0.16,
+                            help="Number of iterations")
+    parser_crr.add_argument("--gain", type=float, default=0.16,
                             help="Detector gain, default for ALFOSC CCD14: 0.16 e-/ADU")
-    parser_crr.add_argument('-r', "--readnoise", type=float, default=4.3,
+    parser_crr.add_argument("--readnoise", type=float, default=4.3,
                             help="Detector read noise, default for ALFOSC CCD14: 4.3 e-")
     # Define parameters based on default values:
     set_default_pars(parser_crr, section='crr', default_type=int,
@@ -185,7 +196,7 @@ def main():
 
 
     # -- flux1d :: Flux calibration of 1D spectrum
-    parser_flux1 = recipes.add_parser('flux1d',
+    parser_flux1 = recipes.add_parser('flux1d', formatter_class=set_help_width(31),
                                       help="Flux calibration of 1D spectrum")
     parser_flux1.add_argument("input", type=str,
                               help="Input filename of 1D spectrum")
@@ -196,7 +207,7 @@ def main():
 
 
     # -- flux2d :: Flux calibration of 2D spectrum
-    parser_flux2 = recipes.add_parser('flux2d',
+    parser_flux2 = recipes.add_parser('flux2d', formatter_class=set_help_width(31),
                                       help="Flux calibration of 2D spectrum")
     parser_flux2.add_argument("input", type=str,
                               help="Input filename of 2D spectrum")
@@ -207,7 +218,7 @@ def main():
 
 
     # -- extract :: Extraction of 1D spectrum from 2D
-    parser_ext = recipes.add_parser('extract',
+    parser_ext = recipes.add_parser('extract', formatter_class=set_help_width(31),
                                     help="Extract 1D spectrum from 2D")
     parser_ext.add_argument("input", type=str,
                             help="Input filename of 2D spectrum")
@@ -223,7 +234,7 @@ def main():
 
 
     # -- classify :: Classify ALFOSC Files
-    parser_class = recipes.add_parser('classify',
+    parser_class = recipes.add_parser('classify', formatter_class=set_help_width(31),
                                       help="Classify ALFOSC files")
     parser_class.add_argument("path", type=str, nargs='+',
                               help="Path (or paths) to raw ALFOSC data to be classified")
@@ -234,7 +245,7 @@ def main():
 
 
     # Spectral Redux:
-    parser_redux = recipes.add_parser('spex',
+    parser_redux = recipes.add_parser('spex', formatter_class=set_help_width(30),
                                       help="Run the full spectroscopic pipeline")
     parser_redux.add_argument("params", type=str,
                               help="Input filename of pipeline configuration in YAML format")
