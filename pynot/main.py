@@ -14,12 +14,13 @@ import os
 import sys
 import numpy as np
 
-from pynot.functions import get_options, get_version_number
+from pynot.functions import get_options, get_option_descr, get_version_number
 
 code_dir = os.path.dirname(os.path.abspath(__file__))
 calib_dir = os.path.join(code_dir, 'calib/')
 defaults_fname = os.path.join(calib_dir, 'default_options.yml')
 parameters = get_options(defaults_fname)
+parameter_descr = get_option_descr(defaults_fname)
 
 __version__ = get_version_number()
 
@@ -30,6 +31,21 @@ def print_credits():
     print("  version %s\n" % __version__)
     print("")
 
+
+def set_default_pars(parser, *, section, default_type, ignore_pars=[]):
+    for key, val in parameters[section].items():
+        if key in parameter_descr[section]:
+            par_descr = parameter_descr[section][key]
+        else:
+            par_descr = ''
+
+        if val is None:
+            value_type = default_type
+        else:
+            value_type = type(val)
+
+        if key not in ignore_pars:
+            parser.add_argument("--%s" % key, type=value_type, default=val, help=par_descr)
 
 
 def main():
@@ -60,9 +76,8 @@ def main():
                               help="Output filename of combined bias frame  [REQUIRED]")
     parser_sflat.add_argument("--axis", type=int, default=2,
                               help="Dispersion axis: 1 horizontal, 2: vertical")
-    # Define based on default options:
-    for key, val in parameters['flat'].items():
-        parser_sflat.add_argument("--%s" % key, type=type(val), default=val)
+    # Define parameters based on default values:
+    set_default_pars(parser_sflat, section='flat', default_type=int)
 
 
     # -- corr :: Raw Correction
@@ -134,11 +149,8 @@ def main():
                               help="Dispersion axis: 1 horizontal, 2: vertical")
     parser_wave2.add_argument("--order_wl", type=int, default=5,
                               help="Order of Chebyshev polynomium for wavelength solution")
-    for key, val in parameters['rectify'].items():
-        if val is None:
-            parser_wave2.add_argument("--%s" % key, type=int, default=val)
-        else:
-            parser_wave2.add_argument("--%s" % key, type=type(val), default=val)
+    # Define parameters based on default values:
+    set_default_pars(parser_wave2, section='rectify', default_type=int)
 
 
     # -- skysub :: Sky Subtraction of 2D Image
@@ -150,11 +162,9 @@ def main():
                             help="Output filename of sky-subtracted 2D image [REQUIRED]")
     parser_sky.add_argument("--axis", type=int, default=2,
                             help="Dispersion axis: 1 horizontal, 2: vertical")
-    for key, val in parameters['skysub'].items():
-        if val is None:
-            parser_sky.add_argument("--%s" % key, type=int, default=val)
-        else:
-            parser_sky.add_argument("--%s" % key, type=type(val), default=val)
+    # Define parameters based on default values:
+    set_default_pars(parser_sky, section='skysub', default_type=int)
+
 
     # -- crr :: Cosmic Ray Rejection and Correction
     parser_crr = recipes.add_parser('crr',
@@ -169,9 +179,9 @@ def main():
                             help="Detector gain, default for ALFOSC CCD14: 0.16 e-/ADU")
     parser_crr.add_argument('-r', "--readnoise", type=float, default=4.3,
                             help="Detector read noise, default for ALFOSC CCD14: 4.3 e-")
-    for key, val in parameters['crr'].items():
-        if key not in ['niter', 'gain', 'readnoise']:
-            parser_crr.add_argument("--%s" % key, type=type(val), default=val)
+    # Define parameters based on default values:
+    set_default_pars(parser_crr, section='crr', default_type=int,
+                     ignore_pars=['niter', 'gain', 'readnoise'])
 
 
     # -- flux1d :: Flux calibration of 1D spectrum
@@ -207,12 +217,9 @@ def main():
                             help="Dispersion axis: 1 horizontal, 2: vertical")
     parser_ext.add_argument('--auto', action='store_true',
                             help="Use automatic extraction instead of interactive GUI")
-    parameters['extract'].pop('interactive')
-    for key, val in parameters['extract'].items():
-        if val is None:
-            parser_ext.add_argument("--%s" % key, type=int, default=val)
-        else:
-            parser_ext.add_argument("--%s" % key, type=type(val), default=val)
+    # Define parameters based on default values:
+    set_default_pars(parser_ext, section='extract', default_type=int,
+                     ignore_pars=['interactive'])
 
 
     # -- classify :: Classify ALFOSC Files

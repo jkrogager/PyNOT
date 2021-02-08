@@ -18,6 +18,54 @@ def get_options(option_fname):
     return options
 
 
+def get_indent(x):
+    if not x.startswith(' '):
+        return 0
+    else:
+        return get_indent(x[1:]) + 1
+
+
+def get_option_descr(opt_fname):
+    """Get the parameter descriptions from YAML file"""
+    with open(opt_fname) as opt_file:
+        opt_lines = opt_file.readlines()
+
+    all_comments = {}
+    for num, line in enumerate(opt_lines):
+        if line[0] == '#':
+            continue
+
+        try:
+            key, val = line.split(':')[:2]
+        except:
+            continue
+
+        base_indent = get_indent(key)
+        if base_indent == 0:
+            # Section header:
+            section = {}
+            indent = get_indent(opt_lines[num+1])
+            if indent == 0:
+                continue
+            sub_lines = opt_lines[num+1:]
+            i = 0
+            while get_indent(sub_lines[i]) == indent:
+                sub_line = sub_lines[i]
+                par, value = sub_line.split(':')[:2]
+                par = par.strip()
+                if '#' in value:
+                    comment = value.split('#')[1]
+                    comment = comment.strip()
+                else:
+                    comment = ''
+                section[par] = comment
+                i += 1
+                if i >= len(sub_lines):
+                    break
+            all_comments[key.strip()] = section
+    return all_comments
+
+
 def mad(img):
     """Calculate Median Absolute Deviation from the median. This is a robust variance estimator.
     For a Gaussian distribution: sigma ≈ 1.4826 * MAD
