@@ -4,6 +4,8 @@
 
 PyNOT handles long-slit spectroscopic data (an extension for imaging data is currently being developed). The pipeline is implemented entirely in Python and can be run directly from the terminal. The main workflow is mostly automated (and can in fact be run fully automated) and includes a graphical user interface for certain tasks (such as line identification for wavelength calibration and spectral 1D extraction).
 
+A special thank you goes out to Prof. Johan Fynbo for helpful discussions and feedback, and for introducing me to the Nordic Optical Telescope in the first place (back in 2012).
+
 
 ## Installation
 The pipeline can be installed using [pip](https://www.pypi.org) and requires the following packages : `astropy`, `astroscrappy`, `lmfit`, `matplotlib`, `numpy`, `PyQt5`, `PyYAML`, `scipy` and `spectres`.
