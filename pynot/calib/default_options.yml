@@ -13,7 +13,7 @@ dataset:                     # The PyNOT File Classification (*.pfc)
 
 # [Static Calibrations]
 # Note: these will be applied to all objects in the pipeline!
-mbias: 'MASTER_BIAS.fits'    # Static master bias frame
+mbias:                       # Static master bias frame
 mflat:                       # Static normalized flat field
 
 # [Recipe Options]
