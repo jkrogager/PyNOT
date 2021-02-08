@@ -6,6 +6,7 @@ PyNOT handles long-slit spectroscopic data (an extension for imaging data is cur
 
 A special thank you goes out to Prof. Johan Fynbo for helpful discussions and feedback, and for introducing me to the Nordic Optical Telescope in the first place (back in 2012).
 
+<span style=“color:red;”> The pipeline is currently on a testing stage! Feel free to test it on your own data and let me know if you find any issues. I'll respond as fast as possible. </span>
 
 ## Installation
 The pipeline can be installed using [pip](https://www.pypi.org):
