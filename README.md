@@ -8,8 +8,8 @@ A special thank you goes out to Prof. Johan Fynbo for helpful discussions and fe
 
 ```diff
 - The pipeline is currently in a testing stage!
-Feel free to test it on your own data and let me know
-if you find any issues. I'll respond as fast as possible.
+  Feel free to test it on your own data and let me know if you find any issues.
++ I'll respond as fast as possible.
 ```
 
 ## Installation
