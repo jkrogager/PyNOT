@@ -1,4 +1,4 @@
-# PyNOT
+# PyNOT-redux
  A Data Processing Pipeline for ALFOSC at the Nordic Optical Telescope
 
 
@@ -15,7 +15,7 @@ A special thank you goes out to Prof. Johan Fynbo for helpful discussions and fe
 ## Installation
 The pipeline can be installed using [pip](https://www.pypi.org):
 
-    ]% pip install PyNOT
+    ]% pip install PyNOT-redux
 
 and requires the following packages : `astropy`, `astroscrappy`, `lmfit`, `matplotlib`, `numpy`, `PyQt5`, `PyYAML`, `scipy` and `spectres`.
 

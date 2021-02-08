@@ -25,7 +25,7 @@ python_version_requirement = '>=3.7'
 programming_language = 'Programming Language :: Python :: 3'
 
 setup(
-    name='PyNOT',
+    name='PyNOT-redux',
 
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
@@ -38,6 +38,7 @@ setup(
 
     description='Data Reduction Pipeline for NOT/ALFOSC',
     long_description=long_description,
+    long_description_content_type="text/markdown",
 
     # The project's main homepage.
     url='https://github.com/jkrogager/PyNOT',
