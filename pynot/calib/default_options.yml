@@ -79,5 +79,5 @@ extract:
 response:
   order:        3            # Spline degree for smoothing the response function [1 ≤ order ≤ 5]
   smoothing:    0.02         # Smoothing scale of the spline interpolation.
-  interactive:  False        # Interactively filter and fit the response function
+  interactive:  True        # Interactively filter and fit the response function
   force:        False        # Overwrite existing response function?
