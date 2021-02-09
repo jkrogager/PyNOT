@@ -57,7 +57,10 @@ def combine_bias_frames(bias_frames, output='', kappa=15, overwrite=True):
     bias = list()
     for frame in bias_frames:
         msg.append("          - Loaded bias frame: %s" % frame)
-        bias.append(pf.getdata(frame))
+        raw_img = pf.getdata(frame)
+        if len(bias) > 1:
+            assert raw_img.shape == bias[-1].shape, "Images must have same shape!"
+        bias.append(raw_img)
 
     mask = np.zeros_like(bias[0], dtype=int)
     median_img0 = np.median(bias, 0)

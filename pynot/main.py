@@ -288,8 +288,8 @@ def main():
     elif recipe == 'bias':
         from pynot.calibs import combine_bias_frames
         print("Running task: Bias combination")
-        input_list = np.loadtxt(args.input, dtype=str)
-        log = combine_bias_frames(input_list, args.output, kappa=args.kappa)
+        input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
+        _, log = combine_bias_frames(input_list, args.output, kappa=args.kappa)
 
     elif recipe == 'sflat':
         from pynot.calibs import combine_flat_frames, normalize_spectral_flat
@@ -395,11 +395,12 @@ def main():
 
     elif recipe == 'classify':
         from pynot.data import organizer as do
+        from pynot.data import io
         print_credits()
         # Classify files:
         print("Classyfying files...")
         database, message = do.classify(args.path, progress=args.verbose)
-        do.io.save_database(database, args.output)
+        io.save_database(database, args.output)
         log = message
         log += "\nSaved file classification database: %s" % args.output
 

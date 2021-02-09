@@ -115,8 +115,10 @@ def median_filter_data(x, kappa=5., window=51):
         Any reject pixels will have a value of `False`.
     """
     med_x = median_filter(x, window)
-    MAD = np.nanmedian(np.abs(x - med_x))
-    mask = np.abs(x - med_x) < kappa*MAD
+    noise = np.nanmedian(np.abs(x - med_x)) * 1.48
+    if noise == 0:
+        noise = np.nanstd(x - med_x)
+    mask = np.abs(x - med_x) < kappa*noise
     return (med_x, mask)
 
 
@@ -184,10 +186,11 @@ def fit_2dwave_solution(pixtab2d, deg=5):
             print("degree:", deg)
             print("domain: %r  %r" % (col.min(), col.max()))
             raise
+        finally:
+            np.savetxt('pixtable_2d_dump.dat', pixtab2d)
 
         # Insert back into the fit_table
-        fit_col = cheb_polyfit(col)
-        fit_table2d[num] = fit_col
+        fit_table2d[num] = cheb_polyfit(col)
 
     # Transpose back to original orientation of the pixel table
     return fit_table2d.T

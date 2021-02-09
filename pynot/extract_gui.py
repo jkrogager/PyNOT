@@ -163,12 +163,9 @@ def get_FWHM(y, x=None):
     zero_crossings = (signs[0:-2] != signs[1:-1])
     zero_crossings_i = np.where(zero_crossings)[0]
 
-    if np.sum(zero_crossings) > 2:
-        raise ValueError('Invalid profile! More than 2 crossings detected.')
-    elif np.sum(zero_crossings) < 2:
-        raise ValueError('Invalid profile! Less than 2 crossings detected.')
-    else:
-        pass
+    if np.sum(zero_crossings) != 2:
+        print("[WARNING] - automatic determination of FWHM failed. Using default of 5 pixels")
+        return 5
 
     halfmax_x = list()
     for i in zero_crossings_i:

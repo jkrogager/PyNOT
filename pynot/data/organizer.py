@@ -18,6 +18,8 @@ std_fname = os.path.join(os.path.split(code_dir)[0], 'calib/std/namelist.txt')
 calib_namelist = np.loadtxt(std_fname, dtype=str)
 calib_names = calib_namelist[:, 1]
 
+alfosc_rulefile = os.path.join(code_dir, 'alfosc.rules')
+
 def occurence(inlist):
     """
     Counts the number of occurences of each number in the input list.
@@ -222,7 +224,7 @@ def classify_file(fname, rules):
     return matches, msg
 
 
-def classify(data_in, rule_file='/Users/krogager/coding/PyNOT/data_organizer/alfosc.rules', progress=True):
+def classify(data_in, rule_file=alfosc_rulefile, progress=True):
     """
     The input can be a single .fits file, a string given the path to a directory,
     a list of .fits files, or a list of directories.
