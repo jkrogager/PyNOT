@@ -21,13 +21,12 @@ bias:
   kappa:  15                 # Threshold for sigma clipping in Flat combiniation
 
 flat:
-  kappa:  5                  # Threshold for sigma clipping in Flat combiniation
-  lower:  0                  # Upper boundary on pixels used for spectral shape fitting
-  upper:  2050               # Upper boundary on pixels used for spectral shape fitting
-  order:  24                 # Polynomial order for fit to spectral shape
-  sigma:  5                  # Kernel width for Gaussian smoothing
-  plot:   True               # Make diagnostic plots?
-  show:   False              # Show plots and block pipeline until figures are closed?
+  kappa:          5          # Threshold for sigma clipping in Flat combiniation
+  order:          24         # Order for Chebyshev polynomial to fit to the spatial profile (per row/col)
+  savgol_window:  51         # Window width in pixels for Savitzky--Golay filter of spatial profile
+  med_window:     5          # Window width of median filter along spectral axis before fitting the spatial profile
+  edge_threshold: 10         # The detection threshold for automatic edge detection
+  edge_window:    21         # The Savitzky--Golay window used for automatic edge detection
 
 identify:
   interactive: True          # Identify lines interactively using a graphical interface

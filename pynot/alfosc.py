@@ -58,11 +58,13 @@ standard_star_names = {'SP0305+261': 'HD19445',
 def get_alfosc_header(fname):
     with fits.open(fname) as hdu:
         primhdr = hdu[0].header
-        imghdr = hdu[1].header
-        primhdr.update(imghdr)
+        if len(hdu) > 1:
+            imghdr = hdu[1].header
+            primhdr.update(imghdr)
     if primhdr['INSTRUME'] != 'ALFOSC_FASU':
         print("[WARNING] - FITS file not originating from NOT/ALFOSC!")
     return primhdr
+
 
 def create_pixel_array(hdr, dispaxis):
     """Load reference array from header using CRVAL, CDELT, CRPIX along dispersion axis"""

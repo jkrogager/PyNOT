@@ -24,7 +24,6 @@ def get_indent(x):
     else:
         return get_indent(x[1:]) + 1
 
-
 def get_option_descr(opt_fname):
     """Get the parameter descriptions from YAML file"""
     with open(opt_fname) as opt_file:
@@ -64,6 +63,7 @@ def get_option_descr(opt_fname):
                     break
             all_comments[key.strip()] = section
     return all_comments
+
 
 
 def mad(img):

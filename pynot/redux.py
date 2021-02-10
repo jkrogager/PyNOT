@@ -382,7 +382,12 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
         # Combine Flat Frames matched for CCD setup, grism, slit and filter:
         flat_frames = sci_img.match_files(database['SPEC_FLAT'], grism=True, slit=True, filter=True)
         if options['mflat']:
-            norm_flat_fname = options['mflat']
+            if options['mflat'] is None:
+                norm_flat_fname = ''
+            elif options['mflat'].lower() in ['none', 'null']:
+                norm_flat_fname = ''
+            else:
+                norm_flat_fname = options['mflat']
             log.write("Using static master flat frame: %s" % options['mflat'])
         elif len(flat_frames) == 0:
             log.error("No flat frames provided!")
