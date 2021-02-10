@@ -417,10 +417,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                 log.write("Running task: Spectral Flat Normalization")
                 _, norm_msg = normalize_spectral_flat(comb_flat_fname, output=norm_flat_fname,
                                                       fig_dir=output_dir, dispaxis=sci_img.dispaxis,
-                                                      lower=options['flat']['lower'], upper=options['flat']['upper'],
-                                                      order=options['flat']['order'], sigma=options['flat']['sigma'],
-                                                      plot=options['flat']['plot'], show=options['flat']['show'],
-                                                      overwrite=True)
+                                                      **options['flat'])
                 log.commit(norm_msg)
                 log.add_linebreak()
                 status['master_flat'] = norm_flat_fname

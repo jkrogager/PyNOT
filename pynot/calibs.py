@@ -257,7 +257,7 @@ def detect_flat_edges(img, dispaxis=2, savgol_window=21, threshold=10):
 
 
 def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=2, overscan=50, order=24, savgol_window=51,
-                            med_window=5, edge_threshold=10, edge_window=21, plot=True, overwrite=True):
+                            med_window=5, edge_threshold=10, edge_window=21, plot=True, overwrite=True, **kwargs):
     """
     Normalize spectral flat field for long-slit observations. Parameters are optimized
     for NOT/ALFOSC spectra with horizontal slits, i.e., vertical spectra [axis=2],
