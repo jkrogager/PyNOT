@@ -83,6 +83,8 @@ def main():
                                       help="Combine and normalize spectral flat frames")
     parser_sflat.add_argument("input", type=str,
                               help="Input file containing list of image filenames to combine")
+    parser_sflat.add_argument("--bias", type=str, required=True,
+                              help="Filename of combined bias frame  [REQUIRED]")
     parser_sflat.add_argument("-o", "--output", type=str, required=True,
                               help="Output filename of combined bias frame  [REQUIRED]")
     parser_sflat.add_argument("--axis", type=int, default=2,
@@ -294,12 +296,15 @@ def main():
     elif recipe == 'sflat':
         from pynot.calibs import combine_flat_frames, normalize_spectral_flat
         print("Running task: Spectral flat field combination and normalization")
-        flatcombine, log = combine_flat_frames(args.input, output='', mbias=args.mbias, mode='spec',
+        input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
+        flatcombine, log = combine_flat_frames(input_list, output='', mbias=args.bias, mode='spec',
                                                dispaxis=args.axis, kappa=args.kappa)
 
-        _, log = normalize_spectral_flat(flatcombine, args.output, dispaxis=args.axis,
-                                         lower=args.lower, upper=args.upper, order=args.order,
-                                         sigma=args.sigma, show=False)
+        options = copy(vars(args))
+        vars_to_remove = ['recipe', 'input', 'output', 'axis', 'bias', 'kappa']
+        for varname in vars_to_remove:
+            options.pop(varname)
+        _, log = normalize_spectral_flat(flatcombine, args.output, dispaxis=args.axis, **options)
 
     elif recipe == 'corr':
         from pynot.scired import correct_raw_file

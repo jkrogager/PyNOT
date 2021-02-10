@@ -67,8 +67,10 @@ def trim_overscan(img, hdr, overscan=50):
     y1 = min(ylimits)
     y2 = max(ylimits)+1
     img_trim = img[y1:y2, x1:x2]
-    hdr['CRPIX1'] += x1
-    hdr['CRPIX2'] += y1
+    hdr['CRVAL1'] += x1
+    hdr['NAXIS1'] = img_trim.shape[1]
+    hdr['CRVAL2'] += y1
+    hdr['NAXIS2'] = img_trim.shape[0]
     return img_trim, hdr
 
 
@@ -318,7 +320,7 @@ def correct_cosmics(input_fname, output_fname, niter=4, gain=None, readnoise=Non
     return output_msg
 
 
-def raw_correction(sci_raw, hdr, bias_fname, flat_fname, output='', overscan=50, overwrite=True):
+def raw_correction(sci_raw, hdr, bias_fname, flat_fname='', output='', overscan=50, overwrite=True):
     """
     Perform bias subtraction, flat field correction, and cosmic ray rejection
 
@@ -334,8 +336,8 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname, output='', overscan=50,
     bias_fname : string
         Filename of bias image to subtract from `sci_raw`
 
-    flat_fname : string
-        Filename of normalized flat field image
+    flat_fname : string  [default='']
+        Filename of normalized flat field image. If none is given, no flat field correction will be applied
 
     output : string  [default='']
         Output filename
@@ -354,109 +356,26 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname, output='', overscan=50,
     """
     msg = list()
     mbias = fits.getdata(bias_fname)
-    msg.append("          - Loaded bias image: %s" % bias_fname)
-    mflat = fits.getdata(flat_fname)
-    mflat[mflat == 0] = 1
-    msg.append("          - Loaded flat field image: %s" % flat_fname)
-
-    sci = (sci_raw - mbias)/mflat
-
-    # Trim overscan
-    sci, hdr = trim_overscan(sci, hdr, overscan=overscan)
-
-    # Calculate error image:
-    if hdr['CCDNAME'] == 'CCD14':
-        hdr['GAIN'] = 0.16
-    gain = hdr['GAIN']
-    readnoise = hdr['RDNOISE']
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-        err = np.sqrt(gain*sci + readnoise**2) / gain
-    msg.append("          - Created noise image")
-    msg.append("          - Gain=%.2f  and Read Noise=%.2f" % (gain, readnoise))
-
-    # Fix NaN values from negative pixel values:
-    err_NaN = np.isnan(err)
-    err[err_NaN] = readnoise/gain
-    msg.append("          - Correcting NaNs in noise image: %i pixel(s)" % np.sum(err_NaN))
-    hdr['DATAMIN'] = np.nanmin(sci)
-    hdr['DATAMAX'] = np.nanmax(sci)
-    hdr['EXTNAME'] = 'DATA'
-
-    mask = np.zeros_like(sci, dtype=int)
-    msg.append("          - Empty pixel mask created")
-    mask_hdr = fits.Header()
-    mask_hdr.add_comment("0 = Good Pixels")
-    mask_hdr.add_comment("1 = Cosmic Ray Hits")
-
-    sci_ext = fits.PrimaryHDU(sci, header=hdr)
-    err_ext = fits.ImageHDU(err, header=hdr, name='ERR')
-    mask_ext = fits.ImageHDU(mask, header=mask_hdr, name='MASK')
-    output_HDU = fits.HDUList([sci_ext, err_ext, mask_ext])
-    output_HDU.writeto(output, overwrite=overwrite)
-    msg.append("          - Successfully corrected the image.")
-    msg.append(" [OUTPUT] - Saving output: %s" % output)
-    msg.append("")
-    output_msg = "\n".join(msg)
-
-    return output_msg
-
-
-
-def correct_raw_file(input_fname, *, output, bias_fname, flat_fname='', overscan=50, overwrite=True):
-    """
-    Perform bias subtraction and flat field correction
-    NOTE: Add trimming parameters!!
-
-    Parameters
-    ==========
-
-    input_fname : string
-        Input filename of raw ALFOSC image
-
-    output : string
-        Output filename
-
-    bias_fname : string
-        Filename of bias image to subtract from `sci_raw`
-
-    flat_fname : string
-        Filename of normalized flat field image,
-        If not given, no flat field correction is performed
-
-
-    overscan : int  [default=50]
-        Number of pixels in overscan at the edge of the CCD.
-        The overscan region will be trimmed.
-
-    overwrite : boolean  [default=True]
-        Overwrite existing output file if True.
-
-    Returns
-    -------
-    output_msg : string
-        Log of status messages
-    """
-
-    msg = list()
-
-    hdr = get_alfosc_header(input_fname)
-    sci_raw = fits.getdata(input_fname)
-    msg.append("          - Loaded input image: %s" % input_fname)
-    mbias = fits.getdata(bias_fname)
+    bias_hdr = get_alfosc_header(bias_fname)
     msg.append("          - Loaded bias image: %s" % bias_fname)
     if flat_fname:
         mflat = fits.getdata(flat_fname)
         mflat[mflat == 0] = 1
+        flat_hdr = get_alfosc_header(flat_fname)
         msg.append("          - Loaded flat field image: %s" % flat_fname)
     else:
         mflat = 1.
         msg.append("          - Not flat field image provided. No correction applied!")
 
-    sci = (sci_raw - mbias)/mflat
+    # Trim overscan of raw image:
+    # - Trimming again of processed images doesn't change anything,
+    # - so do it just in case the input has not been trimmed
+    sci_raw, hdr = trim_overscan(sci_raw, hdr, overscan=overscan)
+    mbias, bias_hdr = trim_overscan(mbias, bias_hdr, overscan=overscan)
+    mflat, flat_hdr = trim_overscan(mflat, flat_hdr, overscan=overscan)
 
-    # Trim overscan
-    sci, hdr = trim_overscan(sci, hdr, overscan=overscan)
+    # Correct image:
+    sci = (sci_raw - mbias)/mflat
 
     # Calculate error image:
     if hdr['CCDNAME'] == 'CCD14':
@@ -493,5 +412,25 @@ def correct_raw_file(input_fname, *, output, bias_fname, flat_fname='', overscan
     msg.append(" [OUTPUT] - Saving output: %s" % output)
     msg.append("")
     output_msg = "\n".join(msg)
+
+    return output_msg
+
+
+
+def correct_raw_file(input_fname, *, output, bias_fname, flat_fname='', overscan=50, overwrite=True):
+    """
+    Wrapper for `raw_correction` using file input instead of image input
+
+    Returns
+    -------
+    output_msg : string
+        Log of status messages
+    """
+    hdr = get_alfosc_header(input_fname)
+    sci_raw = fits.getdata(input_fname)
+    msg = "          - Loaded input image: %s" % input_fname
+
+    output_msg = raw_correction(sci_raw, hdr, bias_fname, flat_fname, output=output, overscan=overscan, overwrite=overwrite)
+    output_msg = msg + '\n' + output_msg
 
     return output_msg
