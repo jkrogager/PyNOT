@@ -22,8 +22,17 @@ def _save_database_old(database, output_fname):
         output.write("\n".join(sorted_output))
 
 
+def get_binning_from_hdr(hdr):
+    binx = hdr['DETXBIN']
+    biny = hdr['DETYBIN']
+    read = hdr['FPIX']
+    ccd_setup = "%ix%i_%i" % (binx, biny, read)
+    return ccd_setup
+
+
 def get_header_info(fname):
     primhdr = fits.getheader(fname)
+    imhdr = fits.getheader(fname, 1)
     if primhdr['INSTRUME'] != 'ALFOSC_FASU':
         raise ValueError("[WARNING] - FITS file not originating from NOT/ALFOSC!")
     object = primhdr['OBJECT']
@@ -31,7 +40,8 @@ def get_header_info(fname):
     grism = primhdr['ALGRNM']
     slit = primhdr['ALAPRTNM']
     filter = get_filter(primhdr)
-    return object, exptime, grism, slit, filter
+    shape = "%ix%i" % (imhdr['NAXIS1'], imhdr['NAXIS2'])
+    return object, exptime, grism, slit, filter, shape
 
 
 def save_database(database, output_fname):
@@ -42,12 +52,14 @@ def save_database(database, output_fname):
             output.write("# %s:\n" % filetype)
             file_list = list()
             for fname in sorted(files):
-                object, exptime, grism, slit, filter = get_header_info(fname)
-                file_list.append((fname, filetype, object, exptime, grism, slit, filter))
+                object, exptime, grism, slit, filter, shape = get_header_info(fname)
+                file_list.append((fname, filetype, object, exptime, grism, slit, filter, shape))
             file_list = np.array(file_list, dtype=str)
+            header_names = ('FILENAME', 'TYPE', 'OBJECT', 'EXPTIME', 'GRISM', 'SLIT', 'FILTER', 'SHAPE')
             max_len = np.max(veclen(file_list), 0)
+            max_len = np.max([max_len, [len(n) for n in header_names]], 0)
             line_fmt = "  ".join(["%-{}s".format(n) for n in max_len])
-            header = line_fmt % ('FILENAME', 'TYPE', 'OBJECT', 'EXPTIME', 'GRISM', 'SLIT', 'FILTER')
+            header = line_fmt % header_names
             output.write('#' + header + '\n')
             for line in file_list:
                 output.write(' ' + line_fmt % tuple(line) + '\n')
