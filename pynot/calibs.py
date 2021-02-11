@@ -60,10 +60,10 @@ def combine_bias_frames(bias_frames, output='', kappa=15, overwrite=True, oversc
         msg.append("          - Loaded bias frame: %s" % frame)
         raw_img = pf.getdata(frame)
         bias_hdr = alfosc.get_alfosc_header(frame)
-        bias, bias_hdr = trim_overscan(raw_img, bias_hdr, overscan)
+        trim_bias, bias_hdr = trim_overscan(raw_img, bias_hdr, overscan)
         if len(bias) > 1:
-            assert raw_img.shape == bias[-1].shape, "Images must have same shape!"
-        bias.append(raw_img)
+            assert trim_bias.shape == bias[0].shape, "Images must have same shape!"
+        bias.append(trim_bias)
     msg.append("          - Trimming overscan of bias images: %i!" % overscan)
 
     mask = np.zeros_like(bias[0], dtype=int)
