@@ -2,6 +2,7 @@ import glob
 import numpy as np
 from os.path import basename, dirname, abspath
 from astropy.io import fits
+from astropy.table import Table
 
 # path = '/Users/krogager/coding/PyNOT'
 path = dirname(abspath(__file__))
@@ -53,6 +54,10 @@ standard_star_names = {'SP0305+261': 'HD19445',
                        'SP0642+021': 'Hiltner600',
                        'GD71': 'GD71',
                        'GD153': 'GD153'}
+
+
+filter_table = Table.read(path + '/calib/alfosc_filters.dat', format='ascii.fixed_width')
+filter_translate = {long: short for long, short in filter_table['name', 'short_name']}
 
 
 def get_alfosc_header(fname):

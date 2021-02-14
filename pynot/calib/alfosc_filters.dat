@@ -1,0 +1,147 @@
+|  id |             name |   short_name |   wave |  FWHM | Tmax |                                                               comment
+|   1 |     U_Bes 366_52 |  U_HiRAC_366 |  366.0 |  52.0 | 52.0 |                                               HiRAC special, with rlb
+|   2 |    B_Bes 428_105 |  B_HiRAC_428 |  428.0 | 105.0 | 62.0 |                                                         HiRAC special
+|   3 |     V_Bes 535_76 |  V_HiRAC_535 |  535.0 |  76.0 | 77.0 |                                                         HiRAC special
+|   4 |    R_Bes 631_121 |  R_HiRAC_631 |  631.0 | 121.0 | 71.0 |                                                         HiRAC special
+|   5 |    i_int 810_125 |    i_int_810 |  810.0 | 125.0 | 87.0 |                                                         HiRAC special
+|   6 |     U_Bes 363_56 |    U_Bes_363 |  363.0 |  56.0 | 62.0 |     StanCam fixed set-up, Bessell U with rlb,focus reference R-filter
+|   7 |     U_Bes 362_60 |    U         |  362.0 |  60.0 | 60.0 |                               ALFOSC fixed set-up. Bessell U with rlb
+|   8 |    B_Bes 429_106 |    B_Bes_429 |  429.0 | 106.0 | 61.0 |                        StanCam fixed set-up, focus reference R-filter
+|   9 |    V_Bes 543_103 |    V_Bes_543 |  543.0 | 103.0 | 82.0 |                        StanCam fixed set-up, focus reference R-filter
+|  10 |    R_Bes 641_148 |    R_Bes_641 |  641.0 | 148.0 | 79.0 |              Bessell R, StanCam fixed set-up, focus refernce R-filter
+|  11 |     I_Bes 728_LP |    I_Bes_728 |  728.0 |       | 96.0 |                                                     Bessell I, cut-on
+|  12 |    i_int 797_157 |    i         |  797.0 | 157.0 | 91.0 |                                   ALFOSC fixed set-up, interference i
+|  13 |    i_int 793_170 |    i_int_793 |  793.0 | 170.0 | 80.0 |        StanCam fixed set-up, interference i, focus reference R filter
+|  14 |    r_Gun 680_102 |    r_Gun_680 |  680.0 | 102.0 | 86.0 |                                                interference r, Gunn r
+|  15 |     u_Str 351_34 |    u_Str_351 |  351.0 |  34.0 | 52.0 |                                                           Stromgren u
+|  16 |     v_Str 411_18 |    v_Str_411 |  411.0 |  18.0 | 66.0 |                                                           Stromgren v
+|  17 |     b_Str 467_18 |    b_Str_467 |  467.0 |  18.0 | 89.0 |                                                           Stromgren b
+|  18 |     y_Str 547_22 |    y_Str_547 |  547.0 |  22.0 | 86.0 |                                                           Stromgren y
+|  19 |       Hbet 485_4 |     Hbeta_N  |  485.4 |   4.0 | 70.0 |                                                          Hbeta narrow
+|  20 |      Hbet 485_13 |     Hbeta_W  |  485.4 |  13.3 | 81.0 |                                                            Hbeta wide
+|  21 |       Halp 656_3 |     Halpha_N |  656.4 |   3.3 | 66.0 |                                                        H alpha narrow
+|  22 |      Halp 658_18 |     Halpha_W |  657.7 |  18.0 | 77.0 |                                    H alpha wide, stiff in FASU holder
+|  23 |      [SII] 403_3 |      SII_403 |  403.3 |   3.5 | 46.0 |                                                           Miller blue
+|  24 |            407_3 |        407_3 |  406.6 |   3.0 | 48.0 |                                                           Miller blue
+|  25 |    [SII] 1020_10 |     SII_1020 | 1020.0 |  10.0 | 85.0 |                                                             Miller IR
+|  26 |          1033_10 |      1033_10 | 1033.0 |  10.0 | 87.0 |                                                             Miller IR
+|  27 |    B_Bes 432_107 |    B_Bes_432 |  432.4 | 106.6 | 53.0 |                                                              B filter
+|  28 |         V 539_71 |        V_539 |  539.0 |  71.0 | 60.0 |                                                         V-like filter
+|  29 |      Halp 656_16 |     Halp_656 |  656.0 |  11.3 | 62.0 |       H wide, edge bad, StanCam fixed set-up,focus reference R filter
+|  30 |      [OII] 373_5 |      OII_373 |  372.6 |   5.1 | 25.0 |                                                            [OII] line
+|  31 |    [NeIII] 387_4 |    NeIII_387 |  387.1 |   4.2 | 34.0 |                                                          [NeIII] line
+|  32 |       Hdel 410_4 |   Hdelta_410 |  410.2 |   4.2 | 45.0 |                                                         H(delta) line
+|  33 |       Hgam 434_3 |   Hgamma_434 |  434.5 |   2.9 | 48.0 |                                                         H(gamma) line
+|  34 |        HeI 448_6 |      HeI_448 |  447.6 |   5.6 | 45.0 |                                                              HeI line
+|  35 |       HeII 470_6 |     HeII_470 |  469.6 |   5.7 | 60.0 |                                                             HeII line
+|  36 |     b_Str 472_20 |    b_Str_472 |  472.0 |  19.8 | 74.0 |                                                           Stromgren b
+|  37 |       Hbet 487_5 |    Hbeta_487 |  487.3 |   4.5 | 58.0 |                                                                 Hbeta
+|  38 |      Hbet 489_10 |  Hbeta_489_W |  488.9 |  10.2 | 74.0 |                                                            Hbeta wide
+|  39 |       Hbet 487_4 |  Hbeta_487_N |  487.4 |   3.9 | 57.0 |                                                          Hbeta narrow
+|  40 |     [OIII] 501_4 |    OIII_5010 |  501.0 |   4.3 | 56.0 |                                                           [OIII] line
+|  41 |            506_5 |        506_5 |  506.1 |   4.9 | 69.0 |                                                          [OIII]rs 5nm
+|  42 |            511_5 |        511_5 |  511.1 |   4.9 | 59.0 |                                                         [OIII]rs 10nm
+|  43 |          515.9_4 |      515.9_4 |  515.9 |   4.3 | 56.0 |                                                         [OIII]rs 15nm
+|  44 |     y_Str 552_18 |    y_Str_552 |  551.6 |  18.4 | 75.0 |                                                           Stromgren y
+|  45 |        HeI 588_6 |      HeI_588 |  587.9 |   5.6 | 70.0 |                                                              HeI line
+|  46 |         Eu 619_2 |       Eu_619 |  618.8 |   2.5 | 49.0 |                                                 Eu line, Ring mounted
+|  47 |       [OI] 631_4 |       OI_631 |  630.8 |   4.5 | 77.0 |                                                             [OI] line
+|  48 |            635_4 |        635_4 |  635.3 |   4.5 | 62.0 |                                                           [OI] rs 5nm
+|  49 |            661_5 |        661_5 |  661.0 |   5.0 | 76.0 |                                                              H rs 5nm
+|  50 |            665_5 |        665_5 |  665.3 |   5.5 | 80.0 |                                                             H rs 10nm
+|  51 |            670_4 |        670_4 |  670.3 |   4.5 | 76.0 |                                                             H rs 15nm
+|  52 |      [SII] 672_6 |      SII_672 |  672.5 |   6.0 | 71.0 |                                                            [SII] line
+|  53 |            674_5 |        674_5 |  674.5 |   5.0 | 74.0 |                                                             H rs 20nm
+|  54 |            679_4 |        679_4 |  678.8 |   4.5 | 73.0 |                                                             H rs 25nm
+|  55 |            684_5 |        684_5 |  684.0 |   5.0 | 70.0 |                                                             H rs 30nm
+|  56 |            688_6 |        688_6 |  688.3 |   6.5 | 77.0 |                                                             H rs 35nm
+|  57 |            692_5 |        692_5 |  692.5 |   5.5 | 72.0 |                                                             H rs 40nm
+|  58 |            696_5 |        696_5 |  696.5 |   5.0 | 71.0 |                                                             H rs 45nm
+|  59 |        HeI 727_2 |      HeI_727 |  727.3 |   2.5 | 59.0 |                                                               special
+|  60 |            751_5 |        751_5 |  750.8 |   5.5 | 79.0 |                                                               special
+|  61 |            892_5 |        892_5 |  892.4 |   5.3 | 58.0 |                                                               special
+|  62 |            948_5 |        948_5 |  948.0 |   5.0 | 51.0 |                                                               special
+|  63 |     v_Str 412_19 |    v_Str_412 |  411.7 |  18.8 | 62.0 |                                                           Stromgren v
+|  64 |       Halp 656_5 |       Halpha |  656.2 |   4.6 | 68.0 |                                                                Halpha
+|  65 |            504_4 |        504_4 |  504.5 |   3.7 | 58.0 |                                                         [OIII] rs 4nm
+|  66 |            510_4 |        510_4 |  510.5 |   3.7 | 55.0 |                                                       [OIII] rs 10 nm
+|  67 |           521_10 |       521_10 |  521.4 |  10.5 | 77.0 |                                                       [OIII] rs 20 nm
+|  68 |            664_4 |        664_4 |  664.0 |   4.0 | 66.0 |                                                           Hal rs 8 nm
+|  69 |            670_3 |        670_3 |  670.0 |   3.0 | 50.0 |                                                          Hal rs 15 nm
+|  70 |            667_5 |        667_5 |  667.0 |   5.0 | 72.0 |                                          Hal rs 11 nm , FILTER BROKEN
+|  71 |    BG25-O 390_MP |   BG25-O_390 |  393.0 |       | 84.0 |                                            standard, FWHM_blue 125 nm
+|  72 |       UG1 360_MP |      UG1_360 |  360.0 |       | 67.0 |                                              standard, FWHM_blue=63nm
+|  73 |     GG385 380_LP |    GG385_380 |  380.0 |       | 90.0 |                                                                cut-on
+|  74 |    B_Bes 440_100 |    B         |  440.0 | 100.0 | 68.0 |                                                   ALFOSC fixed set-up
+|  75 |     V_Bes 530_80 |    V         |  530.0 |  80.0 | 85.0 |                                                   ALFOSC fixed set-up
+|  76 |    R_Bes 650_130 |    R         |  650.0 | 130.0 | 81.0 |                                                   ALFOSC fixed set-up
+|  77 |            662_4 |        662_4 |  662.1 |   3.9 | 66.0 |                     Halpha red continuum, ghosts , variable, up to 3%
+|  78 |      [NII] 658_4 |      NII_658 |  658.3 |   3.6 | 74.0 |                                                            [NII] line
+|  79 |       HeII 469_3 |     HeII_469 |  468.7 |   3.5 | 69.0 |                                                             HeII line
+|  80 |        NaD 589_5 |      NaD_589 |  589.3 |   5.0 | 89.0 |                                                       NaD line, SOFIN
+|  81 |     [SIII] 953_3 |     SIII_953 |  953.1 |   3.0 | 62.0 |                                                           [SIII] line
+|  82 |   u'_SDSS 350_65 |   u_SDSS_350 |  350.0 |  65.0 | 79.0 |                                                        spare SDSS set
+|  83 |  g'_SDSS 480_145 |   g_SDSS_480 |  480.0 | 145.0 | 92.0 | StanCam fixed set-up, does not fit in ALFOSC,focus reference R filter
+|  84 |  r'_SDSS 625_140 |   r_SDSS_625 |  625.0 | 140.0 | 94.0 |                                spare SDSS set, does not fit in ALFOSC
+|  85 |  i'_SDSS 770_160 |   i_SDSS_770 |  770.0 | 160.0 | 95.0 |                                spare SDSS set, does not fit in ALFOSC
+|  86 |   z'_SDSS 840_LP |   z_SDSS_840 |  840.0 |       | 92.0 |                 StanCam fixed set-up, cut-on,focus reference R-filter
+|  87 |       [OI] 630_3 |       OI_630 |  630.0 |   3.0 | 80.0 |                                                             [OI] line
+|  88 |      [OII] 372_3 |      OII_372 |  372.8 |   3.2 | 27.0 |                                                            [OII] line
+|  89 |      [NII] 575_3 |      NII_575 |  575.5 |   3.0 | 78.0 |                                                            [NII] line
+|  90 |     [OIII] 501_3 |    OIII_5007 |  500.7 |   3.0 | 82.0 |                                                           [OIII] line
+|  91 |      [SII] 673_1 |      SII_673 |  673.1 |   1.0 | 71.0 |                                                            [SII] line
+|  92 |          550_275 |      550_275 |  550.0 | 275.0 | 92.0 |                             Sky contrast, similar to Gaia G BP-filter
+|  93 |     GG375 375_LP |    GG375_375 |  375.0 |       | 88.0 |                                                                cut-on
+|  94 |     WG345 356_LP |    WG345_356 |  356.0 |       | 88.0 |                                                                cut-on
+|  95 |           674_LP |       674_LP |  674.0 |       | 91.0 |                                                                cut-on
+|  96 |           776_LP |       776_LP |  776.0 |       | 88.0 |                                                                cut-on
+|  97 |            357_2 |        357_2 |  356.7 |   2.0 | 38.0 |                              redshifted Lyman alpha, J.Fynbo's filter
+|  98 |            358_2 |        358_2 |  357.8 |   2.5 | 48.0 |                              redshifted Lyman alpha, J.Fynbo's filter
+|  99 |            369_4 |        369_4 |  369.4 |   4.0 | 61.0 |                              redshifted Lyman alpha, J.Fynbo's filter
+| 100 |     GG420 416_LP |    GG420_416 |  416.0 |       | 94.0 |                                                                cut-on
+| 101 |     GG475 480_LP |    GG475_480 |  480.0 |       | 95.0 |                                                                cut-on
+| 102 |     OG515 518_LP |    OG515_518 |  518.0 |       | 92.0 |                                                                cut-on
+| 103 |     OG575 566_LP |    OG575_566 |  566.0 |       | 91.0 |                                                                cut-on
+| 104 |     U_Bes 361_62 |    U_Bes_361 |  361.0 |  62.0 | 66.0 |                                                             Bessell U
+| 105 |    B_Bes 428_108 |    B_Bes_428 |  428.0 | 108.0 | 73.0 |                                                             Bessell B
+| 106 |     V_Bes 536_89 |    V_Bes_536 |  536.0 |  89.0 | 81.0 |                                                             Bessell V
+| 107 |    R_Bes 646_124 |    R_Bes_646 |  646.0 | 124.0 | 73.0 |                                                             Bessell R
+| 108 |    I_int 817_163 |    I_int_817 |  817.0 | 163.0 | 97.0 |                                                        interference i
+| 109 |   u'_SDSS 353_55 |       u_SDSS |  353.0 |  55.0 | 74.0 |                                                  FASU standard set-up
+| 110 |  r'_SDSS 618_148 |       r_SDSS |  618.0 | 148.0 | 90.0 |                                                  FASU standard set-up
+| 111 |  i'_SDSS 771_171 |       i_SDSS |  771.0 | 171.0 | 91.0 |                                                  FASU standard set-up
+| 112 |   z'_SDSS 832_LP |       z_SDSS |  832.0 |       | 97.0 |                                          FASU standard set-up, cut-on
+| 113 |            494_5 |        494_5 |  494.2 |   5.1 | 86.0 |                                                    G. Ostlin's filter
+| 114 |     u_Str 347_38 |  u_Str_347IC |  347.0 |  38.0 | 55.0 |                    u Stromgren, IJAF/CUO filter: please contact staff
+| 115 |     v_Str 412_18 |  v_Str_412IC |  412.0 |  18.0 | 58.0 |                    v Stromgren, IJAF/CUO filter: please contact staff
+| 116 |     b_Str 468_19 |  b_Str_468IC |  468.0 |  19.0 | 66.0 |                    b Stromgren, IJAF/CUO filter: please contact staff
+| 117 |     y_Str 547_21 |  y_Str_547IC |  547.0 |  21.0 | 58.0 |                    y Stromgren, IJAF/CUO filter: please contact staff
+| 118 |     Hb_Str 485_4 | Hb_Str_485IC |  485.3 |   3.7 | 51.0 |        H-beta narrow Stromgren, IJAF/CUO filter: please contact staff
+| 119 |    Hb_Str 487_14 | Hb_Str_487IC |  486.8 |  14.3 | 58.0 |          H-beta wide Stromgren, IJAF/CUO filter: please contact staff
+| 120 |  g'_SDSS 480_145 |       g_SDSS |  480.0 | 145.0 | 92.0 |                                                  FASU standard set-up
+| 121 |            406_6 |        406_6 |  405.8 |   5.8 | 64.0 |                          Univ of Iceland filter: please contact staff
+| 122 |            363_6 |        363_6 |  362.7 |   5.8 | 51.0 |                         Univ. of Iceland filter: please contact staff
+| 123 |      [SII] 672_5 |   SII_672_UA |  671.6 |   5.0 | 82.0 |                                 Univ. of Aarhus: please contact staff
+| 124 |   Sort13 554_166 |   Sort13_554 |  554.0 | 166.0 | 91.0 |                                            Order sorter for grism #13
+| 125 |           633_26 |       633_26 |  633.0 |  26.0 | 91.0 |           Halpha_continuum, G. Ostlin's filter : please contact staff
+| 126 |     WG280 280_LP |    WG280_280 |  280.0 |       |      |                              cut-on, clear filter in STANCAM for FIES
+| 127 |          515.6_4 |      515.6_4 |  515.6 |   4.0 |      |                                 Univ. of Aarhus: please contact staff
+| 128 |            551_4 |        551_4 |  550.7 |   4.0 |      |                                 Univ. of Aarhus: please contact staff
+| 129 |            489_5 |        489_5 |  489.5 |   5.0 | 84.0 |          H_beta redshifted, G. Ostlin's filter : please contact staff
+| 130 |            381_8 |        381_8 |  381.2 |   8.0 | 38.0 |
+| 131 |            410_6 |        410_6 |  410.2 |   6.0 | 53.0 |
+| 132 |          463_248 |      463_248 |  463.0 | 248.0 | 92.5 |                                                     red cutoff filter
+| 133 |            401_7 |        401_7 |  401.3 |   6.4 | 72.5 |                                                     G.Ostlin's filter
+| 134 |            391_7 |        391_7 |  391.7 |   6.3 | 76.0 |                                                     G.Ostlin's filter
+| 135 |           458_66 |       458_66 |  458.0 |  66.0 | 90.0 |                                                     G.Ostlin's filter
+| 136 |            397_6 |        397_6 |  396.5 |   6.3 | 85.0 |                                                     G.Ostlin's filter
+| 137 |            410_7 |        410_7 |  410.0 |   7.2 | 76.0 |                                                     G.Ostlin's filter
+| 138 |   Halp_656_3_OSN |   Halpha_656 |  656.3 |   1.0 | 84.0 |                             IAA/OSN filter #H01: Please contact staff
+| 139 |  [NII]_658_4_OSN |  NII_658_OSN |  658.4 |   1.0 | 77.0 |                             IAA/OSN filter #E16: Please contact staff
+| 140 | [OIII]_500_7_OSN | OIII_500_OSN |  500.7 |   5.0 | 70.0 |                             IAA/OSN filter #E10: Please contact staff
+| 141 | [HeII]_469_1_OSN | HeII_469_OSN |  469.1 |   5.0 | 57.0 |                             IAA/OSN filter #E07: Please contact staff
+| 142 |  [OII]_373_1_OSN |  OII_373_OSN |  373.1 |   5.0 | 25.0 |                             IAA/OSN filter #E01: Please contact staff
+| 143 |  [SII]_671_1_OSN |  SII_671_OSN | 671.34 |  1.02 | 47.4 |                             IAA/OSN filter #E17: Please contact staff
+| 144 |  [SII]_672_1_OSN |  SII_672_OSN | 672.46 |   1.0 | 44.8 |                             IAA/OSN filter #E19: Please contact staff
+| 301 |           ING065 |       ING065 |        |       |      |
+| 302 |           ING066 |       ING066 |        |       |      |
