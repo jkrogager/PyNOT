@@ -355,7 +355,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
         extract_pdf_fname = os.path.join(output_dir, 'extract1D_details.pdf')
 
         # Combine Bias Frames matched for CCD setup:
-        bias_frames = sci_img.match_files(database['BIAS'])
+        bias_frames = sci_img.match_files(database['BIAS'], date=False)
         if options['mbias']:
             master_bias_fname = options['mbias']
             log.write("Using static master bias frame: %s" % options['mbias'])
@@ -380,7 +380,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
 
         # Combine Flat Frames matched for CCD setup, grism, slit and filter:
-        flat_frames = sci_img.match_files(database['SPEC_FLAT'], grism=True, slit=True, filter=True)
+        flat_frames = sci_img.match_files(database['SPEC_FLAT'], date=False, grism=True, slit=True, filter=True)
         if options['mflat']:
             if options['mflat'] is None:
                 norm_flat_fname = ''

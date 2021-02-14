@@ -281,7 +281,7 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
         try:
             msg.append("          - Starting Graphical User Interface for Spectral Extraction")
             extract_gui.run_gui(bgsub2d_fname, output_fname=ext1d_output,
-                                app=app, order=order, smoothing=smoothing)
+                                app=app, order_center=5, order_width=5, smoothing=smoothing, dx=20)
             msg.append(" [OUTPUT] - Writing fits table: %s" % ext1d_output)
         except:
             msg.append("Unexpected error: %r" % sys.exc_info()[0])

@@ -164,15 +164,17 @@ def get_FWHM(y, x=None):
     zero_crossings_i = np.where(zero_crossings)[0]
 
     if np.sum(zero_crossings) != 2:
-        print("[WARNING] - automatic determination of FWHM failed. Using default of 5 pixels")
-        return 5
+        msg = "[WARNING] - automatic determination of FWHM failed. Using default of 5 pixels"
+        fwhm = 5
+        return fwhm, msg
 
     halfmax_x = list()
     for i in zero_crossings_i:
         x_i = x[i] + (x[i+1] - x[i]) * ((half - y[i]) / (y[i+1] - y[i]))
         halfmax_x.append(x_i)
     fwhm = halfmax_x[1] - halfmax_x[0]
-    return fwhm
+    msg = ''
+    return fwhm, msg
 
 
 def color_shade(color, amount=1.2):
@@ -632,7 +634,7 @@ options_descriptions = {'BACKGROUND_POLY_ORDER': "Polynomial Order of Rows in Ba
 
 
 class ExtractGUI(QtWidgets.QMainWindow):
-    def __init__(self, fname=None, dispaxis=1, model_name='moffat', dx=50, width_scale=2., xmin=0, xmax=None, ymin=0, ymax=None, order_center=3, order_width=0, parent=None, locked=False, output_fname='', **kwargs):
+    def __init__(self, fname=None, dispaxis=1, model_name='moffat', dx=25, width_scale=2., xmin=0, xmax=None, ymin=0, ymax=None, order_center=3, order_width=0, parent=None, locked=False, output_fname='', **kwargs):
         QtWidgets.QMainWindow.__init__(self, parent)
         self.setWindowTitle('PyNOT: Extract')
         self._main = QtWidgets.QWidget()
@@ -1672,7 +1674,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
                         trace_model.set_data(x_binned, mu, alpha=alpha, beta=beta)
                         # Set extraction limits to ±2xFWHM:
                         profile = NN_moffat(trace_model.y, np.median(mu), np.median(alpha), np.median(beta), 0.)
-                        fwhm = get_FWHM(profile)
+                        fwhm, msg = get_FWHM(profile)
                         lower = trace_model.cen - 2*fwhm
                         upper = trace_model.cen + 2*fwhm
                         trace_model.set_centroid(np.median(mu))
@@ -1683,7 +1685,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
                         trace_model.set_data(x_binned, mu, sigma=sig)
                         # Set extraction limits to ±2xFWHM:
                         profile = NN_gaussian(trace_model.y, np.median(mu), np.median(sig), 0.)
-                        fwhm = get_FWHM(profile)
+                        fwhm, msg = get_FWHM(profile)
                         lower = trace_model.cen - 2*fwhm
                         upper = trace_model.cen + 2*fwhm
                         trace_model.set_centroid(np.median(mu))
@@ -1781,8 +1783,11 @@ class ExtractGUI(QtWidgets.QMainWindow):
                 pars_table = np.column_stack([lower_array, upper_array])
                 for num, pars in enumerate(pars_table):
                     P_i = tophat(model.y, *pars)
-                    model.model2d[:, num] = P_i
-                model.model2d /= np.sum(model.model2d, axis=0)
+                    if np.sum(P_i) == 0:
+                        model.model2d[:, num] = P_i
+                    else:
+                        model.model2d[:, num] = P_i / np.sum(P_i)
+                # model.model2d /= np.sum(model.model2d, axis=0)
 
             else:
                 domain = (0., np.max(model.x))
@@ -1826,13 +1831,17 @@ class ExtractGUI(QtWidgets.QMainWindow):
                 dhigh = np.abs(model.cen - upper)
                 for num, pars in enumerate(pars_table):
                     P_i = model_function(model.y, *pars)
-                    if model.model_type != 'tophat':
+                    # if model.model_type != 'tophat':
+                    if model.model_type != '':
                         il = int(pars[0] - dlow)
                         ih = int(pars[0] + dhigh)
                         P_i[:il] = 0.
                         P_i[ih:] = 0.
-                    model.model2d[:, num] = P_i
-                model.model2d /= np.sum(model.model2d, axis=0)
+                    if np.sum(P_i) == 0:
+                        model.model2d[:, num] = P_i
+                    else:
+                        model.model2d[:, num] = P_i / np.sum(P_i)
+                # model.model2d /= np.sum(model.model2d, axis=0)
 
         if plot is True:
             self.plot_trace_2d()
@@ -1902,6 +1911,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
             M = np.ones_like(img2d)
 
             with warnings.catch_warnings():
+                P = P / np.sum(P, axis=0)
                 warnings.simplefilter('ignore')
                 data1d = np.sum(M*P*img2d/V, axis=0) / np.sum(M*P**2/V, axis=0)
                 err1d = np.sqrt(np.sum(M*P, axis=0) / np.sum(M*P**2/V, axis=0))
@@ -2297,10 +2307,16 @@ class SaveWindow(QtWidgets.QDialog):
             model2d = None
 
         if file_format == 0:
+            if fname[-5:] != '.fits':
+                fname = fname + '.fits'
             saved, msg = save_fits_spectrum(fname, wl, flux, err, hdr, bg, aper=model2d)
         elif file_format == 1:
+            if fname[-5:] != '.fits':
+                fname = fname + '.fits'
             saved, msg = save_fitstable_spectrum(fname, wl, flux, err, hdr, bg, aper=model2d)
         elif file_format == 2:
+            if fname[-4:] != '.dat':
+                fname = fname + '.dat'
             saved, msg = save_ascii_spectrum(fname, wl, flux, err, hdr, bg)
         else:
             saved = False
@@ -2428,17 +2444,17 @@ class ModelPropertiesWindow(QtWidgets.QDialog):
             alpha = self.trace_model.fit['alpha']
             beta = self.trace_model.fit['beta']
             profile = NN_moffat(self.trace_model.y, np.median(mu), np.median(alpha), np.median(beta), 0.)
-            self.fwhm = get_FWHM(profile)
+            self.fwhm, _ = get_FWHM(profile)
         elif new_model_type == 'gaussian':
             mu = self.trace_model.fit['mu']
             sigma = self.trace_model.fit['sigma']
             profile = NN_gaussian(self.trace_model.y, np.median(mu), np.median(sigma), 0.)
-            self.fwhm = get_FWHM(profile)
+            self.fwhm, _ = get_FWHM(profile)
         else:
             SPSF = self.parent.axis_spsf.lines[0].get_ydata()
             SPSF -= np.median(SPSF)
             SPSF[SPSF < 0] = 0.
-            self.fwhm = get_FWHM(SPSF)
+            self.fwhm, _ = get_FWHM(SPSF)
         self.fwhm_label.setText("FWHM = %.1f" % self.fwhm)
 
 
