@@ -84,15 +84,15 @@ def trim_overscan(img, hdr, overscan=50, mode='spec'):
     return img_trim, hdr
 
 
-def trim_filter_edge(fname, output='', output_dir='', overscan=50, savgol_window=21, threshold=10):
+def detect_filter_edge(fname, overscan=50, savgol_window=21, threshold=10, left=50, right=5, bottom=60, top=50, **kwargs):
     """Automatically detect edges and trim them"""
     # Get median profile along slit:
-    msg = list()
     img = fits.getdata(fname)
     hdr = get_alfosc_header(fname)
     if 'OVERSCAN' not in hdr:
         img, hdr = trim_overscan(img, hdr, overscan=overscan, mode='img')
-    msg.append("          - Loaded file: %s" % fname)
+    else:
+        overscan = 0
     x_1d = np.nanmedian(img, axis=0)
     y_1d = np.nanmedian(img, axis=1)
 
@@ -108,17 +108,26 @@ def trim_filter_edge(fname, output='', output_dir='', overscan=50, savgol_window
             sig_tmp = np.std(deriv)
             noise = np.std(deriv[deriv < 3*sig_tmp])
         edges, props = signal.find_peaks(deriv, height=threshold*noise)
+        if len(edges) > 2:
+            edges, props = signal.find_peaks(deriv, height=2*threshold*noise)
+            if len(edges) > 2:
+                raise ValueError("More than 2 edges detected!")
         edges_xy.append(edges)
-        print(edges)
 
     x1, x2 = edges_xy[0]
-    x1 += 5 + overscan
-    x2 -= 5
+    x1 += overscan + left
+    x2 -= right
     y1, y2 = edges_xy[1]
-    y1 += 5
-    y2 -= 5
-    msg.append("          - Detected edges on X-axis: %i  ;  %i" % (x1, x2))
-    msg.append("          - Detected edges on Y-axis: %i  ;  %i" % (y1, y2))
+    y1 += bottom
+    y2 -= top
+    return (x1, x2, y1, y2)
+
+
+def trim_filter_edge(fname, x1, x2, y1, y2, output='', output_dir=''):
+    """Automatically detect edges and trim them"""
+    # Get median profile along slit:
+    msg = list()
+    msg.append("          - Loaded file: %s" % fname)
 
     if output == '':
         basename = os.path.basename(fname)
@@ -143,7 +152,7 @@ def trim_filter_edge(fname, output='', output_dir='', overscan=50, savgol_window
             hdr['NAXIS2'] = data_trim.shape[0]
             hdu.data = data_trim
             hdu.header = hdr
-    hdu_list.writeto(output, overwrite=True)
+        hdu_list.writeto(output, overwrite=True)
     msg.append(" [OUTPUT] - Saving trimmed image: %s" % output)
     msg.append("")
     output_msg = "\n".join(msg)
@@ -335,7 +344,8 @@ def correct_cosmics(input_fname, output_fname, niter=4, gain=None, readnoise=Non
     msg = list()
     msg.append("          - Cosmic Ray Rejection using Astroscrappy (based on van Dokkum 2001)")
     sci = fits.getdata(input_fname)
-    hdr = get_alfosc_header(input_fname)
+    hdr = fits.getheader(input_fname)
+    hdr['EXTNAME'] = 'DATA'
     msg.append("          - Loaded input image: %s" % input_fname)
     with fits.open(input_fname) as hdu:
         if 'SKY' in hdu:
@@ -480,6 +490,17 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname='', output='', overscan=
     mask_hdr = fits.Header()
     mask_hdr.add_comment("0 = Good Pixels")
     mask_hdr.add_comment("1 = Cosmic Ray Hits")
+    for key in ['CRPIX1', 'CRPIX2', 'CRVAL1', 'CRVAL2', 'CTYPE1', 'CTYPE2', 'CUNIT1', 'CUNIT2']:
+        mask_hdr[key] = hdr[key]
+
+    if mode == 'spec':
+        mask_hdr['CDELT1'] = hdr['CDELT1']
+        mask_hdr['CDELT2'] = hdr['CDELT2']
+    else:
+        mask_hdr['CD1_1'] = hdr['CD1_1']
+        mask_hdr['CD1_2'] = hdr['CD1_2']
+        mask_hdr['CD2_1'] = hdr['CD2_1']
+        mask_hdr['CD2_2'] = hdr['CD2_2']
 
     sci_ext = fits.PrimaryHDU(sci, header=hdr)
     err_ext = fits.ImageHDU(err, header=hdr, name='ERR')

@@ -75,6 +75,8 @@ def get_filter(hdr):
         else:
             filter = hdr[keyword]
             break
+    if '  ' in filter:
+        filter = filter.replace('  ', ' ')
     return filter
 
 

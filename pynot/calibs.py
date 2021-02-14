@@ -63,6 +63,8 @@ def combine_bias_frames(bias_frames, output='', kappa=15, overwrite=True, oversc
         if mode == 'spec':
             trim_bias, bias_hdr = trim_overscan(raw_img, bias_hdr, overscan)
             msg.append("          - Trimming overscan of bias images: %i!" % overscan)
+        else:
+            trim_bias = raw_img
         if len(bias) > 1:
             assert trim_bias.shape == bias[0].shape, "Images must have same shape!"
         bias.append(trim_bias)
@@ -177,7 +179,8 @@ def combine_flat_frames(raw_frames, output, mbias='', mode='spec', dispaxis=2,
 
         else:
             flat = flat - bias
-            peak_val = np.median(flat, 1)
+            pad = np.max(flat.shape) // 4
+            peak_val = np.median(flat[pad:-pad, pad:-pad])
             flats.append(flat/peak_val)
             flat_peaks.append(peak_val)
             msg.append("          - Loaded Imaging Flat file: %s   median=%.1f" % (fname, peak_val))

@@ -87,7 +87,7 @@ A default reduction would require the following steps:
 
 
 2. Create a parameter file:
-    `pynot init night1.yml`
+    `pynot init spex night1.yml`
 
   This will initiate a new parameter file with default values. All available parameters of the steps of the pipeline are laid out in this file. Open the file with your favorite text editor and insert the name of the PFC table under the parameter `dataset` and edit any other values as you see fit. A short description of the parameters is given in the file. For more detail, see the full documentation.
 

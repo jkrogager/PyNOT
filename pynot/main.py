@@ -19,9 +19,13 @@ from pynot.functions import get_options, get_option_descr, get_version_number
 
 code_dir = os.path.dirname(os.path.abspath(__file__))
 calib_dir = os.path.join(code_dir, 'calib/')
-defaults_fname = os.path.join(calib_dir, 'default_options.yml')
-parameters = get_options(defaults_fname)
-parameter_descr = get_option_descr(defaults_fname)
+defaults_fname_spec = os.path.join(calib_dir, 'default_options.yml')
+defaults_fname_phot = os.path.join(calib_dir, 'default_options_img.yml')
+parameters = get_options(defaults_fname_spec)
+parameter_descr = get_option_descr(defaults_fname_spec)
+
+img_parameters = get_options(defaults_fname_phot)
+img_parameter_descr = get_option_descr(defaults_fname_phot)
 
 __version__ = get_version_number()
 
@@ -33,10 +37,17 @@ def print_credits():
     print("")
 
 
-def set_default_pars(parser, *, section, default_type, ignore_pars=[]):
-    for key, val in parameters[section].items():
-        if key in parameter_descr[section]:
-            par_descr = parameter_descr[section][key]
+def set_default_pars(parser, *, section, default_type, ignore_pars=[], mode='spec'):
+    if mode == 'spec':
+        params = parameters[section]
+        descriptions = parameter_descr[section]
+    else:
+        params = img_parameters[section]
+        descriptions = img_parameter_descr[section]
+
+    for key, val in params.items():
+        if key in descriptions:
+            par_descr = descriptions[key]
         else:
             par_descr = ''
 
@@ -65,6 +76,8 @@ def main():
 
     p_break1 = recipes.add_parser('', help="")
     parser_init = recipes.add_parser('init', help="Initiate a default parameter file")
+    parser_init.add_argument("mode", type=str, choices=['spex', 'phot'],
+                             help="Create parameter file for spectroscopy or imaging?")
     parser_init.add_argument("filename", type=str, nargs='?', default='options.yml',
                              help="Filename of parameter file, default = options.yml")
 
@@ -263,15 +276,38 @@ def main():
     # -- IMFLAT :: Imaging Flat Combination
     parser_imflat = recipes.add_parser('imflat',
                                        help="Combine imaging flat frames")
-    # # Imaging Redux:
-    # parser_redux = recipes.add_parser('phot',
-    #                                   help="Run the full imaging pipeline")
-    # parser_redux.add_argument("options", type=str,
-    #                           help="Input filename of pipeline configuration in YAML format")
-    # parser_redux.add_argument("-v", "--verbose", action="store_true",
-    #                           help="Print log to terminal")
-    # parser_redux.add_argument("-i", "--interactive", action="store_true",
-    #                           help="Use interactive interface throughout")
+
+    # Imaging Redux:
+    parser_phot = recipes.add_parser('phot',
+                                     help="Run the full imaging pipeline")
+    parser_phot.add_argument("params", type=str,
+                             help="Input filename of pipeline configuration in YAML format")
+    parser_phot.add_argument("-v", "--verbose", action="store_true",
+                             help="Print log to terminal")
+
+    parser_imcomb = recipes.add_parser('imcombine',
+                                       help="Combine images")
+    parser_imcomb.add_argument("input", type=str,
+                               help="List of filenames to combine")
+    parser_imcomb.add_argument("output", type=str,
+                               help="Filename of combined image")
+    parser_imcomb.add_argument("--log", type=str, default='',
+                               help="Filename of image combination log")
+    parser_imcomb.add_argument("--fringe", type=str, default='',
+                               help="Filename of normalized fringe image")
+    set_default_pars(parser_imcomb, section='combine', default_type=int, mode='img')
+
+
+    parser_fringe = recipes.add_parser('fringe',
+                                       help="Combine images")
+    parser_fringe.add_argument("input", type=str,
+                               help="List of filenames to combine")
+    parser_fringe.add_argument("output", type=str,
+                               help="Filename of normalized fringe image")
+    parser_fringe.add_argument("--fig", type=str, default='',
+                               help="Filename of figure showing fringe image")
+    parser_fringe.add_argument("--sigma", type=float, default=3,
+                               help="Masking threshold  (default = 3.0)")
 
 
     args = parser.parse_args()
@@ -411,6 +447,11 @@ def main():
 
     elif recipe == 'init':
         print_credits()
+        if args.mode == 'spex':
+            defaults_fname = defaults_fname_spec
+        else:
+            defaults_fname = defaults_fname_phot
+
         if not os.path.exists(args.filename):
             copy_cmd = "cp %s  %s" % (defaults_fname, args.filename)
             os.system(copy_cmd)
@@ -424,6 +465,26 @@ def main():
         print("  Imaging pipeline and recipes has not been implemented yet.")
         print("  Stay tuned...")
         print("")
+
+    elif recipe == 'phot':
+        from pynot.phot_redux import run_pipeline
+        print_credits()
+        run_pipeline(options_fname=args.params,
+                     verbose=args.verbose)
+
+    elif recipe == 'imcombine':
+        from pynot.phot import image_combine
+        input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
+        options = copy(vars(args))
+        vars_to_remove = ['recipe', 'input', 'output', 'log', 'fringe']
+        for varname in vars_to_remove:
+            options.pop(varname)
+        log = image_combine(input_list, output=args.output, log_name=args.log, fringe_image=args.fringe, **options)
+
+    elif recipe == 'fringe':
+        from pynot.phot import create_fringe_image
+        input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
+        log = create_fringe_image(input_list, output=args.output, fig_fname=args.fig, threshold=args.sigma)
 
     if log:
         print(log)

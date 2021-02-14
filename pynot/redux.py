@@ -56,7 +56,7 @@ class Report(object):
 
     def commit(self, text):
         if self.verbose:
-            print(text)
+            print(text, end='', flush=True)
         self.lines.append(text)
 
     def error(self, text):

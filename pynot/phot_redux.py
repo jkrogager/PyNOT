@@ -12,14 +12,10 @@ import numpy as np
 from pynot import alfosc
 from pynot.data import io
 from pynot.data import organizer as do
-from pynot.calibs import combine_bias_frames, combine_flat_frames, normalize_spectral_flat
-from pynot.extraction import auto_extract
-from pynot import extract_gui
+from pynot.phot import image_combine, create_fringe_image
+from pynot.calibs import combine_bias_frames, combine_flat_frames
 from pynot.functions import get_options, get_version_number
-from pynot.wavecal import rectify
-from pynot.identify_gui import create_pixtable
-from pynot.scired import raw_correction, auto_fit_background, correct_cosmics, trim_filter_edge
-from pynot.response import calculate_response, flux_calibrate
+from pynot.scired import raw_correction, correct_cosmics, trim_filter_edge, detect_filter_edge
 
 from PyQt5.QtWidgets import QApplication
 
@@ -33,7 +29,7 @@ class Report(object):
     def __init__(self, verbose=False):
         self.verbose = verbose
         self.time = datetime.datetime.now()
-        self.fname = 'pynot_%s.log' % self.time.strftime('%d%b%Y-%Hh%Mm%S')
+        self.fname = 'pynot_img_%s.log' % self.time.strftime('%d%b%Y-%Hh%Mm%S')
         self.remarks = list()
         self.lines = list()
         self.header = """
@@ -57,7 +53,7 @@ class Report(object):
 
     def commit(self, text):
         if self.verbose:
-            print(text)
+            print(text, end='', flush=True)
         self.lines.append(text)
 
     def error(self, text):
@@ -166,7 +162,7 @@ def run_pipeline(options_fname, verbose=False):
     object_filelist = database['IMG_OBJECT']
     raw_image_list = list(map(do.RawImage, object_filelist))
 
-    object_images = defaultdict(lambda x: defaultdict(list))
+    object_images = defaultdict(lambda: defaultdict(list))
     for sci_img in raw_image_list:
         object_images[sci_img.target_name][sci_img.filter].append(sci_img)
 
@@ -200,7 +196,7 @@ def run_pipeline(options_fname, verbose=False):
     else:
         log.write("Running task: Bias Combination")
         try:
-            _, bias_msg = combine_bias_frames(bias_frames, output=master_bias_fname,
+            _, bias_msg = combine_bias_frames(bias_frames, output=master_bias_fname, mode='img',
                                               kappa=options['bias']['kappa'], overwrite=True)
             log.commit(bias_msg)
             log.add_linebreak()
@@ -212,19 +208,33 @@ def run_pipeline(options_fname, verbose=False):
 
 
     master_flat = {}
+    filter_edges = {}
     log.write("Running task: Imaging Flat Combination")
     for filter_raw, flat_frames in flat_images_for_filter.items():
         filter_name = alfosc.filter_translate[filter_raw]
+        log.write("Combining images for filter: %s" % filter_name)
         comb_flat_fname = os.path.join(output_base, 'FLAT_%s.fits' % filter_name)
         try:
             _, flat_msg = combine_flat_frames(flat_frames, comb_flat_fname, mbias=master_bias_fname,
                                               kappa=options['flat']['kappa'], overwrite=True,
                                               mode='img')
             log.commit(flat_msg)
-            log.add_linebreak()
             master_flat[filter_raw] = comb_flat_fname
         except:
             log.error("Flat field combination failed for filter: %s" % filter_name)
+            log.fatal_error()
+            print("Unexpected error:", sys.exc_info()[0])
+            raise
+
+        # Detect image region:
+        try:
+            x1, x2, y1, y2 = detect_filter_edge(comb_flat_fname, **options['trim'])
+            log.write("Detected edges on X-axis: %i  ;  %i" % (x1, x2))
+            log.write("Detected edges on Y-axis: %i  ;  %i" % (y1, y2))
+            log.add_linebreak()
+            filter_edges[filter_raw] = (x1, x2, y1, y2)
+        except:
+            log.error("Automatic edge detection failed!")
             log.fatal_error()
             print("Unexpected error:", sys.exc_info()[0])
             raise
@@ -246,16 +256,16 @@ def run_pipeline(options_fname, verbose=False):
         # Create working directory:
         if ' ' in target_name:
             target_name = target_name.replace(' ', '_')
-        output_dir = os.path.join(output_base, target_name)
-        if not os.path.exists(output_dir):
-            os.mkdir(output_dir)
+        output_obj_base = os.path.join(output_base, target_name)
+        if not os.path.exists(output_obj_base):
+            os.mkdir(output_obj_base)
 
         log.write("Target Name: %s" % target_name, prefix=' [TARGET] - ')
 
         for filter_raw, image_list in images_per_filter.items():
             # Create working directory:
             filter_name = alfosc.filter_translate[filter_raw]
-            output_dir = os.path.join(output_dir, filter_name)
+            output_dir = os.path.join(output_obj_base, filter_name)
             if not os.path.exists(output_dir):
                 os.mkdir(output_dir)
             log.write("Filter : %s" % filter_name)
@@ -274,9 +284,10 @@ def run_pipeline(options_fname, verbose=False):
                 # Bias correction, Flat correction
                 flat_fname = master_flat[sci_img.filter]
                 try:
-                    output_msg = raw_correction(sci_img.data, sci_img.header, master_bias_fname, flat_fname,
-                                                output=corrected_fname, overwrite=True, overscan=50)
+                    _ = raw_correction(sci_img.data, sci_img.header, master_bias_fname, flat_fname,
+                                       output=corrected_fname, overwrite=True, overscan=50, mode='img')
                     # log.commit(output_msg)
+                    log.commit("          - bias/flat ")
                     # log.add_linebreak()
                 except:
                     log.error("Bias and flat field correction failed!")
@@ -285,9 +296,10 @@ def run_pipeline(options_fname, verbose=False):
                     raise
 
                 # Trim edges:
+                image_region = filter_edges[filter_raw]
                 try:
-                    trim_msg = trim_filter_edge(corrected_fname, output=trim_fname,
-                                                overscan=50, savgol_window=21, threshold=10)
+                    _ = trim_filter_edge(corrected_fname, *image_region, output=trim_fname)
+                    log.commit(" trim ")
                 except:
                     log.error("Image trim failed!")
                     log.fatal_error()
@@ -297,9 +309,11 @@ def run_pipeline(options_fname, verbose=False):
                 # Correct Cosmic Rays Hits:
                 if options['crr']['niter'] > 0:
                     try:
-                        crr_msg = correct_cosmics(trim_fname, crr_fname, **options['crr'])
+                        log.commit(" crr ")
+                        _ = correct_cosmics(trim_fname, crr_fname, **options['crr'])
                         # log.commit(crr_msg)
                         # log.add_linebreak()
+                        log.commit("  [done]")
                         corrected_images.append(crr_fname)
                     except:
                         log.error("Cosmic ray correction failed!")
@@ -308,65 +322,44 @@ def run_pipeline(options_fname, verbose=False):
                         raise
                 else:
                     corrected_images.append(trim_fname)
+                log.commit("\n")
+
+            log.add_linebreak()
 
 
-        # Combine individual images for a given filter:
-        log.write("Running task: Image Combination")
-        try:
-            output_msg = image_combine(corrected_images, output='combined_%s.fits' % filter_name)
-        except:
-            log.error("Image combination failed!")
-            log.fatal_error()
-            print("Unexpected error:", sys.exc_info()[0])
-            raise
+            # Create Fringe image:
+            if options['skysub']['defringe']:
+                fringe_fname = os.path.join(output_dir, 'fringe_image.fits')
+                fringe_pdf_fname = os.path.join(output_dir, 'fringe_image.pdf')
+                try:
+                    msg = create_fringe_image(corrected_images, output=fringe_fname, fig_fname=fringe_pdf_fname,
+                                              threshold=3)
+                    log.commit(msg)
+                    log.add_linebreak()
+                except:
+                    log.error("Image combination failed!")
+                    log.fatal_error()
+                    print("Unexpected error:", sys.exc_info()[0])
+                    raise
+            else:
+                fringe_fname = ''
 
-        log.write("Creating fringe image")
 
-
-
-
-        # Flux Calibration:
-        if status['RESPONSE']:
-            log.write("Running task: Flux Calibration")
-            response_fname = status['RESPONSE']
+            # Combine individual images for a given filter:
+            log.write("Running task: Image Combination")
+            combined_fname = os.path.join(output_obj_base, '%s_%s.fits' % (target_name, filter_name))
+            comb_log_name = os.path.join(output_dir, 'filelist_%s.txt' % target_name)
             try:
-                flux_msg = flux_calibrate(crr_fname, output=flux2d_fname, response=response_fname)
-                log.commit(flux_msg)
-                log.add_linebreak()
-                status['FLUX2D'] = flux2d_fname
-            except:
-                log.error("Flux calibration failed!")
-                log.fatal_error()
-                print("Unexpected error:", sys.exc_info()[0])
-                raise
-        else:
-            status['FLUX2D'] = crr_fname
-
-
-        # Extract 1D spectrum:
-        log.write("Running task: 1D Extraction")
-        extract_fname = status['FLUX2D']
-        if options['extract']['interactive']:
-            try:
-                log.write("Starting Graphical User Interface")
-                extract_gui.run_gui(extract_fname, output_fname=flux1d_fname,
-                                    app=app, **options['extract'])
-                log.write("Writing fits table: %s" % flux1d_fname, prefix=" [OUTPUT] - ")
-            except:
-                log.error("Interactive 1D extraction failed!")
-                log.fatal_error()
-                print("Unexpected error:", sys.exc_info()[0])
-                raise
-        else:
-            try:
-                ext_msg = auto_extract(extract_fname, flux1d_fname, dispaxis=1, pdf_fname=extract_pdf_fname,
-                                       **options['extract'])
-                log.commit(ext_msg)
+                output_msg = image_combine(corrected_images, output=combined_fname, log_name=comb_log_name,
+                                           fringe_image=fringe_fname, **options['combine'])
+                log.commit(output_msg)
                 log.add_linebreak()
             except:
-                log.error("Spectral 1D extraction failed!")
+                log.error("Image combination failed!")
                 log.fatal_error()
                 print("Unexpected error:", sys.exc_info()[0])
                 raise
 
-        log.exit()
+            # log.write("Creating fringe image")
+
+    log.exit()
