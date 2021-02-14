@@ -40,7 +40,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from astropy.io import fits
 from scipy.ndimage import median_filter
-from scipy.signal import find_peaks
+from scipy import signal
 from numpy.polynomial import Chebyshev
 import os
 import warnings
@@ -54,10 +54,15 @@ from pynot.functions import mad, get_version_number
 __version__ = get_version_number()
 
 
-def trim_overscan(img, hdr, overscan=50):
+def trim_overscan(img, hdr, overscan=50, mode='spec'):
+    """Trim the overscan regions on either side in X and on top in Y"""
     # Trim overscan
-    X = create_pixel_array(hdr, 1)
-    Y = create_pixel_array(hdr, 2)
+    if mode == 'spec':
+        X = create_pixel_array(hdr, 1)
+        Y = create_pixel_array(hdr, 2)
+    else:
+        X = np.arange(img.shape[1]) + 1
+        Y = np.arange(img.shape[0]) + 1
     img_region_x = (X >= overscan) & (X <= 2148-overscan)
     xlimits = img_region_x.nonzero()[0]
     img_region_y = (Y <= 2102-overscan)
@@ -67,11 +72,83 @@ def trim_overscan(img, hdr, overscan=50):
     y1 = min(ylimits)
     y2 = max(ylimits)+1
     img_trim = img[y1:y2, x1:x2]
-    hdr['CRVAL1'] += x1
+    if mode == 'spec':
+        hdr['CRVAL1'] += x1
+        hdr['CRVAL2'] += y1
+
+    else:
+        hdr['CRPIX1'] -= x1
+        hdr['CRPIX2'] -= y1
     hdr['NAXIS1'] = img_trim.shape[1]
-    hdr['CRVAL2'] += y1
     hdr['NAXIS2'] = img_trim.shape[0]
     return img_trim, hdr
+
+
+def trim_filter_edge(fname, output='', output_dir='', overscan=50, savgol_window=21, threshold=10):
+    """Automatically detect edges and trim them"""
+    # Get median profile along slit:
+    msg = list()
+    img = fits.getdata(fname)
+    hdr = get_alfosc_header(fname)
+    if 'OVERSCAN' not in hdr:
+        img, hdr = trim_overscan(img, hdr, overscan=overscan, mode='img')
+    msg.append("          - Loaded file: %s" % fname)
+    x_1d = np.nanmedian(img, axis=0)
+    y_1d = np.nanmedian(img, axis=1)
+
+    # Calculate the absolute value of the derivative:
+    deriv_x = np.fabs(signal.savgol_filter(x_1d, savgol_window, 1, deriv=1))
+    deriv_y = np.fabs(signal.savgol_filter(y_1d, savgol_window, 1, deriv=1))
+
+    # Find peaks of the derivative:
+    edges_xy = list()
+    for deriv in [deriv_x, deriv_y]:
+        noise = 1.48*mad(deriv)
+        if noise == 0:
+            sig_tmp = np.std(deriv)
+            noise = np.std(deriv[deriv < 3*sig_tmp])
+        edges, props = signal.find_peaks(deriv, height=threshold*noise)
+        edges_xy.append(edges)
+        print(edges)
+
+    x1, x2 = edges_xy[0]
+    x1 += 5 + overscan
+    x2 -= 5
+    y1, y2 = edges_xy[1]
+    y1 += 5
+    y2 -= 5
+    msg.append("          - Detected edges on X-axis: %i  ;  %i" % (x1, x2))
+    msg.append("          - Detected edges on Y-axis: %i  ;  %i" % (y1, y2))
+
+    if output == '':
+        basename = os.path.basename(fname)
+        output = 'trim_' + basename
+
+    if output_dir != '':
+        if not os.path.exists(output_dir):
+            os.mkdir(output_dir)
+        output = os.path.join(output_dir, output)
+
+    with fits.open(fname) as hdu_list:
+        for hdu in hdu_list:
+            if hdu.data is None:
+                continue
+
+            data = hdu.data
+            hdr = hdu.header
+            data_trim = data[y1:y2, x1:x2]
+            hdr['CRPIX1'] -= x1
+            hdr['NAXIS1'] = data_trim.shape[1]
+            hdr['CRPIX2'] -= y1
+            hdr['NAXIS2'] = data_trim.shape[0]
+            hdu.data = data_trim
+            hdu.header = hdr
+    hdu_list.writeto(output, overwrite=True)
+    msg.append(" [OUTPUT] - Saving trimmed image: %s" % output)
+    msg.append("")
+    output_msg = "\n".join(msg)
+
+    return output_msg
 
 
 def fit_background_image(data, order_bg=3, xmin=0, xmax=None, kappa=10, fwhm_scale=3):
@@ -108,7 +185,7 @@ def fit_background_image(data, order_bg=3, xmin=0, xmax=None, kappa=10, fwhm_sca
         xmax = len(x) + xmax
     SPSF = np.nanmedian(data, 0)
     noise = 1.5*mad(SPSF)
-    peaks, properties = find_peaks(SPSF, prominence=kappa*noise, width=3)
+    peaks, properties = signal.find_peaks(SPSF, prominence=kappa*noise, width=3)
     mask = (x >= xmin) & (x <= xmax)
     for num, center in enumerate(peaks):
         width = properties['widths'][num]
@@ -174,7 +251,7 @@ def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, kappa=
     """
     msg = list()
     data = fits.getdata(data_fname)
-    hdr = fits.getheader(data_fname)
+    hdr = get_alfosc_header(data_fname)
     if 'DISPAXIS' in hdr:
         dispaxis = hdr['DISPAXIS']
 
@@ -258,7 +335,7 @@ def correct_cosmics(input_fname, output_fname, niter=4, gain=None, readnoise=Non
     msg = list()
     msg.append("          - Cosmic Ray Rejection using Astroscrappy (based on van Dokkum 2001)")
     sci = fits.getdata(input_fname)
-    hdr = fits.getheader(input_fname)
+    hdr = get_alfosc_header(input_fname)
     msg.append("          - Loaded input image: %s" % input_fname)
     with fits.open(input_fname) as hdu:
         if 'SKY' in hdu:
@@ -320,7 +397,7 @@ def correct_cosmics(input_fname, output_fname, niter=4, gain=None, readnoise=Non
     return output_msg
 
 
-def raw_correction(sci_raw, hdr, bias_fname, flat_fname='', output='', overscan=50, overwrite=True):
+def raw_correction(sci_raw, hdr, bias_fname, flat_fname='', output='', overscan=50, overwrite=True, mode='spec'):
     """
     Perform bias subtraction, flat field correction, and cosmic ray rejection
 
@@ -370,9 +447,9 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname='', output='', overscan=
     # Trim overscan of raw image:
     # - Trimming again of processed images doesn't change anything,
     # - so do it just in case the input has not been trimmed
-    sci_raw, hdr = trim_overscan(sci_raw, hdr, overscan=overscan)
-    mbias, bias_hdr = trim_overscan(mbias, bias_hdr, overscan=overscan)
-    mflat, flat_hdr = trim_overscan(mflat, flat_hdr, overscan=overscan)
+    sci_raw, hdr = trim_overscan(sci_raw, hdr, overscan=overscan, mode=mode)
+    mbias, bias_hdr = trim_overscan(mbias, bias_hdr, overscan=overscan, mode=mode)
+    mflat, flat_hdr = trim_overscan(mflat, flat_hdr, overscan=overscan, mode=mode)
 
     # Correct image:
     sci = (sci_raw - mbias)/mflat
@@ -396,6 +473,7 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname='', output='', overscan=
     hdr['DATAMAX'] = np.nanmax(sci)
     hdr['EXTNAME'] = 'DATA'
     hdr['AUTHOR'] = 'PyNOT version %s' % __version__
+    hdr['OVERSCAN'] = 'TRIMMED'
 
     mask = np.zeros_like(sci, dtype=int)
     msg.append("          - Empty pixel mask created")

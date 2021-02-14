@@ -24,7 +24,7 @@ from pynot.scired import trim_overscan
 __version__ = get_version_number()
 
 
-def combine_bias_frames(bias_frames, output='', kappa=15, overwrite=True, overscan=50):
+def combine_bias_frames(bias_frames, output='', kappa=15, overwrite=True, overscan=50, mode='spec'):
     """Combine individual bias frames to create a 'master bias' frame.
     The combination is performed using robust sigma-clipping and
     median combination. Bad pixels are subsequently replaced by the
@@ -60,11 +60,12 @@ def combine_bias_frames(bias_frames, output='', kappa=15, overwrite=True, oversc
         msg.append("          - Loaded bias frame: %s" % frame)
         raw_img = pf.getdata(frame)
         bias_hdr = alfosc.get_alfosc_header(frame)
-        trim_bias, bias_hdr = trim_overscan(raw_img, bias_hdr, overscan)
+        if mode == 'spec':
+            trim_bias, bias_hdr = trim_overscan(raw_img, bias_hdr, overscan)
+            msg.append("          - Trimming overscan of bias images: %i!" % overscan)
         if len(bias) > 1:
             assert trim_bias.shape == bias[0].shape, "Images must have same shape!"
         bias.append(trim_bias)
-    msg.append("          - Trimming overscan of bias images: %i!" % overscan)
 
     mask = np.zeros_like(bias[0], dtype=int)
     median_img0 = np.median(bias, 0)
@@ -153,8 +154,9 @@ def combine_flat_frames(raw_frames, output, mbias='', mode='spec', dispaxis=2,
     if mbias and exists(mbias):
         bias = pf.getdata(mbias)
         bias_hdr = alfosc.get_alfosc_header(mbias)
-        bias, bias_hdr = trim_overscan(bias, bias_hdr, overscan)
-        msg.append("          - Trimming overscan of bias image: %i!" % overscan)
+        if mode == 'spec':
+            bias, bias_hdr = trim_overscan(bias, bias_hdr, overscan)
+            msg.append("          - Trimming overscan of bias image: %i!" % overscan)
     else:
         msg.append("[WARNING] - No master bias frame provided!")
         bias = 0.
@@ -164,20 +166,21 @@ def combine_flat_frames(raw_frames, output, mbias='', mode='spec', dispaxis=2,
     for fname in raw_frames:
         hdr = alfosc.get_alfosc_header(fname)
         flat = pf.getdata(fname)
-        flat, hdr = trim_overscan(flat, hdr, overscan)
-        flat = flat - bias
         if mode == 'spec':
+            flat, hdr = trim_overscan(flat, hdr, overscan)
+            flat = flat - bias
             peak_val = np.max(np.mean(flat, dispaxis-1))
             flats.append(flat/peak_val)
             flat_peaks.append(peak_val)
             msg.append("          - Loaded Spectral Flat file: %s   mode=%.1f" % (fname, peak_val))
+            msg.append("          - Trimming overscan of Flat images: %i!" % overscan)
 
         else:
+            flat = flat - bias
             peak_val = np.median(flat, 1)
             flats.append(flat/peak_val)
             flat_peaks.append(peak_val)
             msg.append("          - Loaded Imaging Flat file: %s   median=%.1f" % (fname, peak_val))
-    msg.append("          - Trimming overscan of Flat image: %i!" % overscan)
 
     mask = np.zeros_like(flats[0], dtype=int)
     median_img0 = np.median(flats, 0)
@@ -188,7 +191,7 @@ def combine_flat_frames(raw_frames, output, mbias='', mode='spec', dispaxis=2,
         masked_flats.append(np.ma.masked_where(this_mask, img))
         mask += 1*this_mask
     msg.append("          - Standard deviation of raw median image: %.1f ADUs" % sig)
-    msg.append("          - Masking outlying pixels using a threshold of  kappa=%.1f" % kappa)
+    msg.append("          - Masking outlying pixels using a threshold of kappa=%.1f" % kappa)
     msg.append("          - Total number of masked pixels: %i" % np.sum(mask > 0))
     msg.append("          - Median value of combined flat: %i" % np.sum(mask > 0))
 
