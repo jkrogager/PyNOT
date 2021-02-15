@@ -22,12 +22,6 @@ bias:
 flat:
   kappa:         15          # Threshold for sigma clipping in Flat combiniation
 
-trim:
-  left:      50              # Number of pixels to cut from left edge (beyond auto-detected filter edge)
-  right:      5              # Number of pixels to cut from right edge (beyond auto-detected filter edge)
-  bottom:    60              # Number of pixels to cut from bottom edge (beyond auto-detected filter edge)
-  top:       50              # Number of pixels to cut from top edge (beyond auto-detected filter edge)
-
 crr:                         # Parameters of `astroscrappy.detect_cosmics`
   niter:       2             # Number of iterations for cosmic ray rejection  (turn off by setting niter = 0)
   gain:        null          # Detector gain, e-/ADU. Read from the header by default

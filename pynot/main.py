@@ -106,17 +106,31 @@ def main():
     set_default_pars(parser_sflat, section='flat', default_type=int)
 
 
+    # -- IMFLAT :: Imaging Flat Combination
+    parser_imflat = recipes.add_parser('imflat',
+                                       help="Combine imaging flat frames")
+    parser_imflat.add_argument("input", type=str,
+                               help="Input file containing list of image filenames to combine")
+    parser_imflat.add_argument("--bias", type=str, required=True,
+                               help="Filename of combined bias frame  [REQUIRED]")
+    parser_imflat.add_argument("-o", "--output", type=str, required=True,
+                               help="Output filename of combined bias frame  [REQUIRED]")
+    parser_imflat.add_argument("--kappa", type=float, default=15,
+                               help="Threshold for sigma clipping")
+
     # -- corr :: Raw Correction
     parser_corr = recipes.add_parser('corr', formatter_class=set_help_width(31),
                                      help="Apply bias subtraction, flat field correction and trimming")
     parser_corr.add_argument("input", type=str,
-                             help="Input file containing list of image filenames to combine")
-    parser_corr.add_argument("-o", "--output", type=str,
-                             help="Output filename  [REQUIRED]")
+                             help="List of filenames to correct")
+    parser_corr.add_argument("--dir", type=str, default='',
+                             help="Output directory")
     parser_corr.add_argument("--bias", type=str, required=True,
                              help="Filename of combined bias frame  [REQUIRED]")
     parser_corr.add_argument("--flat", type=str, default='',
                              help="Filename of combined flat frame")
+    parser_corr.add_argument("--img", action='store_true',
+                             help="Imaging mode")
 
 
     # -- identify :: Identify Arc Lines
@@ -196,7 +210,7 @@ def main():
     parser_crr = recipes.add_parser('crr', formatter_class=set_help_width(31),
                                     help="Identification and correction of Cosmic Ray Hits")
     parser_crr.add_argument("input", type=str,
-                            help="Input filename of 2D spectrum")
+                            help="Input filename")
     parser_crr.add_argument("-o", "--output", type=str, required=True,
                             help="Output filename of cleaned image [REQUIRED]")
     parser_crr.add_argument('-n', "--niter", type=int, default=4,
@@ -258,7 +272,6 @@ def main():
     parser_class.add_argument("-v", "--verbose", action='store_true',
                               help="Print status messages to terminal")
 
-
     # Spectral Redux:
     parser_redux = recipes.add_parser('spex', formatter_class=set_help_width(30),
                                       help="Run the full spectroscopic pipeline")
@@ -271,11 +284,7 @@ def main():
     parser_redux.add_argument("-i", "--interactive", action="store_true",
                               help="Use interactive interface throughout")
 
-
     parser_break = recipes.add_parser('', help="")
-    # -- IMFLAT :: Imaging Flat Combination
-    parser_imflat = recipes.add_parser('imflat',
-                                       help="Combine imaging flat frames")
 
     # Imaging Redux:
     parser_phot = recipes.add_parser('phot',
@@ -284,6 +293,17 @@ def main():
                              help="Input filename of pipeline configuration in YAML format")
     parser_phot.add_argument("-v", "--verbose", action="store_true",
                              help="Print log to terminal")
+
+    parser_imtrim = recipes.add_parser('imtrim',
+                                       help="Trim images")
+    parser_imtrim.add_argument("input", type=str,
+                               help="List of filenames to trim")
+    parser_imtrim.add_argument("--dir", type=str, default='',
+                               help="Output directory")
+    parser_imtrim.add_argument("--flat", type=str, default='',
+                               help="Flat field image to use for edge detection")
+    parser_imtrim.add_argument('-e', "--edges", type=int, nargs=4,
+                               help="Trim edges  [left  right  bottom  top]")
 
     parser_imcomb = recipes.add_parser('imcombine',
                                        help="Combine images")
@@ -299,7 +319,7 @@ def main():
 
 
     parser_fringe = recipes.add_parser('fringe',
-                                       help="Combine images")
+                                       help="Create average fringe images")
     parser_fringe.add_argument("input", type=str,
                                help="List of filenames to combine")
     parser_fringe.add_argument("output", type=str,
@@ -345,8 +365,22 @@ def main():
     elif recipe == 'corr':
         from pynot.scired import correct_raw_file
         print("Running task: Bias subtraction and flat field correction")
-        log = correct_raw_file(args.input, output=args.output, bias_fname=args.bias, flat_fname=args.flat,
-                               overscan=50, overwrite=True)
+        input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
+        if args.img:
+            mode = 'img'
+        else:
+            mode = 'spec'
+        if args.dir != '' and not os.path.exists(args.dir):
+            os.mkdir(args.dir)
+
+        for fname in input_list:
+            basename = os.path.basename(fname)
+            output = 'corr_%s' % basename
+            if args.dir != '':
+                output = os.path.join(args.dir, output)
+            _ = correct_raw_file(fname, output=output, bias_fname=args.bias, flat_fname=args.flat,
+                                 overscan=50, overwrite=True, mode=mode)
+            print(" - Image: %s  ->  %s" % (fname, output))
 
     elif recipe == 'identify':
         from PyQt5 import QtWidgets
@@ -460,11 +494,6 @@ def main():
             print(" [ERROR]  - File already exists (%s). Cannot overwrite!" % args.filename)
         print("")
 
-    elif recipe == 'imflat':
-        print_credits()
-        print("  Imaging pipeline and recipes has not been implemented yet.")
-        print("  Stay tuned...")
-        print("")
 
     elif recipe == 'phot':
         from pynot.phot_redux import run_pipeline
@@ -472,7 +501,33 @@ def main():
         run_pipeline(options_fname=args.params,
                      verbose=args.verbose)
 
+    elif recipe == 'imflat':
+        print("Running task: Combination of Imaging Flat Fields")
+        from pynot.calibs import combine_flat_frames
+        input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
+        _, log = combine_flat_frames(input_list, output=args.output, mbias=args.bias, mode='img',
+                                     kappa=args.kappa)
+
+    elif recipe == 'imtrim':
+        print("Running task: Image Trimming")
+        from pynot.scired import detect_filter_edge, trim_filter_edge
+        if args.edges is not None:
+            image_region = args.edges
+        elif args.flat is not None:
+            image_region = detect_filter_edge(args.flat)
+            print(" Automatically detected image edges:")
+            print("  left=%i   right=%i  bottom=%i  top=%i" % image_region)
+            print("")
+        else:
+            print(" Invalid input! Either '--flat' or '--edges' must be set!")
+            return
+        input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
+        for fname in input_list:
+            print("  Trimming image: %s" % fname)
+            trim_filter_edge(fname, *image_region, output_dir=args.dir)
+
     elif recipe == 'imcombine':
+        print("Running task: Image Combination")
         from pynot.phot import image_combine
         input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
         options = copy(vars(args))
@@ -482,6 +537,7 @@ def main():
         log = image_combine(input_list, output=args.output, log_name=args.log, fringe_image=args.fringe, **options)
 
     elif recipe == 'fringe':
+        print("Running task: Creating Average Fringe Image")
         from pynot.phot import create_fringe_image
         input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
         log = create_fringe_image(input_list, output=args.output, fig_fname=args.fig, threshold=args.sigma)

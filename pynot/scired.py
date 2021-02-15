@@ -84,47 +84,46 @@ def trim_overscan(img, hdr, overscan=50, mode='spec'):
     return img_trim, hdr
 
 
-def detect_filter_edge(fname, overscan=50, savgol_window=21, threshold=10, left=50, right=5, bottom=60, top=50, **kwargs):
-    """Automatically detect edges and trim them"""
+def detect_filter_edge(fname, overscan=50):
+    """Automatically detect edges in the normalized flat field"""
     # Get median profile along slit:
     img = fits.getdata(fname)
     hdr = get_alfosc_header(fname)
-    if 'OVERSCAN' not in hdr:
-        img, hdr = trim_overscan(img, hdr, overscan=overscan, mode='img')
-    else:
+    if 'OVERSCAN' in hdr:
         overscan = 0
-    x_1d = np.nanmedian(img, axis=0)
-    y_1d = np.nanmedian(img, axis=1)
 
-    # Calculate the absolute value of the derivative:
-    deriv_x = np.fabs(signal.savgol_filter(x_1d, savgol_window, 1, deriv=1))
-    deriv_y = np.fabs(signal.savgol_filter(y_1d, savgol_window, 1, deriv=1))
+    # Using the normalized flat field, the values are between 0 and 1.
+    # Convert the image to a binary mask image:
+    img[img > 0.5] = 1.
+    img[img < 0.5] = -1.
 
-    # Find peaks of the derivative:
-    edges_xy = list()
-    for deriv in [deriv_x, deriv_y]:
-        noise = 1.48*mad(deriv)
-        if noise == 0:
-            sig_tmp = np.std(deriv)
-            noise = np.std(deriv[deriv < 3*sig_tmp])
-        edges, props = signal.find_peaks(deriv, height=threshold*noise)
-        if len(edges) > 2:
-            edges, props = signal.find_peaks(deriv, height=2*threshold*noise)
-            if len(edges) > 2:
-                raise ValueError("More than 2 edges detected!")
-        edges_xy.append(edges)
+    fx = np.median(img, 0) > 0.5
+    fy = np.median(img, 1) > 0.5
 
-    x1, x2 = edges_xy[0]
-    x1 += overscan + left
-    x2 -= right
-    y1, y2 = edges_xy[1]
-    y1 += bottom
-    y2 -= top
-    return (x1, x2, y1, y2)
+    # Detect initial edges:
+    x1 = np.min(fx.nonzero()[0])
+    x2 = np.max(fx.nonzero()[0])
+
+    y1 = np.min(fy.nonzero()[0])
+    y2 = np.max(fy.nonzero()[0])
+
+    # If the edge is curved, decrease the trim edges
+    # until they are fully inside the image region
+    lower = img[y1, x1]
+    upper = img[y2, x2]
+    while lower < 0 and upper < 0:
+        x1 += 1
+        y1 += 1
+        x2 -= 1
+        y2 -= 1
+        lower = img[y1, x1]
+        upper = img[y2, x2]
+
+    return (x1-overscan, x2-overscan, y1, y2)
 
 
 def trim_filter_edge(fname, x1, x2, y1, y2, output='', output_dir=''):
-    """Automatically detect edges and trim them"""
+    """Trim image edges"""
     # Get median profile along slit:
     msg = list()
     msg.append("          - Loaded file: %s" % fname)
@@ -150,6 +149,7 @@ def trim_filter_edge(fname, x1, x2, y1, y2, output='', output_dir=''):
             hdr['NAXIS1'] = data_trim.shape[1]
             hdr['CRPIX2'] -= y1
             hdr['NAXIS2'] = data_trim.shape[0]
+            hdr.add_comment("Image trimmed by PyNOT")
             hdu.data = data_trim
             hdu.header = hdr
         hdu_list.writeto(output, overwrite=True)
@@ -516,7 +516,7 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname='', output='', overscan=
 
 
 
-def correct_raw_file(input_fname, *, output, bias_fname, flat_fname='', overscan=50, overwrite=True):
+def correct_raw_file(input_fname, *, output, bias_fname, flat_fname='', overscan=50, overwrite=True, mode='spec'):
     """
     Wrapper for `raw_correction` using file input instead of image input
 
@@ -529,7 +529,8 @@ def correct_raw_file(input_fname, *, output, bias_fname, flat_fname='', overscan
     sci_raw = fits.getdata(input_fname)
     msg = "          - Loaded input image: %s" % input_fname
 
-    output_msg = raw_correction(sci_raw, hdr, bias_fname, flat_fname, output=output, overscan=overscan, overwrite=overwrite)
+    output_msg = raw_correction(sci_raw, hdr, bias_fname, flat_fname, output=output,
+                                overscan=overscan, overwrite=overwrite, mode=mode)
     output_msg = msg + '\n' + output_msg
 
     return output_msg

@@ -228,7 +228,7 @@ def run_pipeline(options_fname, verbose=False):
 
         # Detect image region:
         try:
-            x1, x2, y1, y2 = detect_filter_edge(comb_flat_fname, **options['trim'])
+            x1, x2, y1, y2 = detect_filter_edge(comb_flat_fname)
             log.write("Detected edges on X-axis: %i  ;  %i" % (x1, x2))
             log.write("Detected edges on Y-axis: %i  ;  %i" % (y1, y2))
             log.add_linebreak()
