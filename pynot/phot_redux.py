@@ -329,6 +329,7 @@ def run_pipeline(options_fname, verbose=False):
 
             # Create Fringe image:
             if options['skysub']['defringe']:
+                log.write("Running task: Creating Average Fringe Image")
                 fringe_fname = os.path.join(output_dir, 'fringe_image.fits')
                 fringe_pdf_fname = os.path.join(output_dir, 'fringe_image.pdf')
                 try:
@@ -360,6 +361,8 @@ def run_pipeline(options_fname, verbose=False):
                 print("Unexpected error:", sys.exc_info()[0])
                 raise
 
-            # log.write("Creating fringe image")
+            # Calculate Zero Point:
+
+            # Automatic Source Detection and Aperture Photometry:
 
     log.exit()

@@ -4,15 +4,81 @@ Functions for Imaging Pipeline
 
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.patches import Ellipse
 from astropy.io import fits
 from astropy.modeling import models, fitting
-import astroalign as aa
 import os
+
+import astroalign as aa
+import sep
 
 from pynot.functions import get_version_number, mad
 from pynot.data.organizer import get_filter
 
 __version__ = get_version_number()
+
+
+def source_detection(fname, threshold=1.5, aperture=3.0, exptime=None, gain=None):
+    msg = list()
+    # get GAIN from header
+    data = fits.getdata(fname)
+    error_image = fits.getdata(fname, 'ERR')
+    hdr = fits.getheader(fname)
+    msg.append("          - Loaded input image: %s" % fname)
+    if 'GAIN' in hdr:
+        gain = hdr['GAIN']
+        msg.append("          - Loaded gain from image header: %.3f" % gain)
+    elif gain is not None:
+        pass
+    else:
+        gain = 1.0
+        msg.append("[WARNING] - No gain found in image header!")
+
+    if 'EXPTIME' in hdr:
+        exptime = hdr['EXPTIME']
+        msg.append("          - Loaded exposure time from image header: %.1f" % exptime)
+    elif exptime is not None:
+        pass
+    else:
+        exptime = 1.
+        msg.append("[WARNING] - No exposure time found in image header!")
+
+    data = data*exptime
+    error_image = error_image*exptime
+
+    bkg = sep.Background(data, bw=64, bh=64, fw=3, fh=3)
+    data_sub = data - bkg
+    msg.append("          - Subtracted sky background")
+    msg.append("          - Background RMS: %.2e" % bkg.globalrms)
+    if data_sub.dtype.byteorder != '<':
+        data_sub = data_sub.byteswap().newbyteorder()
+    objects, segmap = sep.extract(data_sub, threshold, err=bkg.globalrms,
+                                  segmentation_map=True)
+
+    N_obj = len(objects)
+
+    flux, fluxerr, flag = sep.sum_circle(data_sub, objects['x'], objects['y'],
+                                         aperture, err=error_image)
+
+
+def plot_objects(fig_fname, data, objects):
+    # plot background-subtracted image
+    fig, ax = plt.subplots()
+    m, s = np.median(data), 1.5*mad(data)
+    ax.imshow(data, interpolation='nearest', cmap='gray_r',
+              vmin=m-3*s, vmax=m+3*s, origin='lower')
+
+    # plot an ellipse for each object
+    for i in range(len(objects)):
+        e = Ellipse(xy=(objects['x'][i], objects['y'][i]),
+                    width=6*objects['a'][i],
+                    height=6*objects['b'][i],
+                    angle=objects['theta'][i] * 180. / np.pi)
+        e.set_facecolor('none')
+        e.set_edgecolor('red')
+        ax.add_artist(e)
+    fig.tight_layout()
+    fig.savefig(fig_fname)
 
 
 def load_fits_image(fname):
