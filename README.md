@@ -54,9 +54,8 @@ Each spectrum is saved as a Binary Table with three columns 'WAVE', 'FLUX', and 
 The full documentation is currently being compiled... stay tuned.
 
 
-## Examples
 
-### Spectroscopy
+## Example: Spectroscopy
 A standard example would be the reduction of the data from one night of observations. All the raw data would be located in a single folder - let's call it `raw_data/`. This folder will contain the necessary raw data: bias frames, flux standard star spectra, arc line frames, spectroscopic flat fields, and the object spectra. Any other data in the folder (imaging files, sky flats, acquisition images, slit images etc.) will be ignored in the pipeline.
 
 A default reduction would require the following steps:
@@ -113,8 +112,7 @@ A default reduction would require the following steps:
 
 
 
-
-### Imaging
+## Example: Imaging
 
 A basic automated reduction would require the following steps:
 
