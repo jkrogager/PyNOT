@@ -17,7 +17,7 @@ The pipeline can be installed using [pip](https://www.pypi.org):
 
     ]% pip install PyNOT-redux
 
-and requires the following packages : `astropy`, `astroscrappy`, `lmfit`, `matplotlib`, `numpy`, `PyQt5`, `PyYAML`, `scipy` and `spectres`.
+and requires the following packages : `astroalign`, `astropy`, `astroscrappy`, `lmfit`, `matplotlib`, `numpy`, `PyQt5`, `PyYAML`, `scipy`, `sep`, and `spectres`. I want to give a huge shout out to all the developers of these packages. Thanks for sharing your work!
 
 
 ## Basic Usage
