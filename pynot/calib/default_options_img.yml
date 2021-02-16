@@ -15,6 +15,7 @@ dataset:                     # The PyNOT File Classification (*.pfc)
 # Note: these will be applied to all objects in the pipeline!
 mbias:                       # Static master bias frame
 
+clean:         True          # Remove temporary images (CCD processed before trimming)
 # [Recipe Options]
 bias:
   kappa:         15          # Threshold for sigma clipping in Flat combiniation
@@ -41,3 +42,20 @@ combine:
 skysub:
   threshold:    3            # Threshold for masking out objects
   defringe:    True          # Create an average fringe image and subtract from individual frames?
+
+sep-background:
+  bw:          64            # Width of background boxes in pixels
+  bh:          64            # Height of background boxes in pixels
+  fw:          3             # Background filter width in boxes
+  fh:          3             # Background filter height in boxes
+  fthresh:     0.0           # Background filter threshold
+
+sep-extract:
+  aperture:         10.0     # Circular aperture radius in pixels
+  threshold:        5.0      # Detection threshold
+  minarea:          5        # Minimum number of pixels required for an object
+  deblend_nthresh:  32       # Number of thresholds used for object deblending
+  deblend_cont:     0.005    # Minimum contrast ratio used for object deblending. Disable deblending by setting to 1.0
+  clean:            True     # Perform cleaning?
+  clean_param:      1.0      # Cleaning parameter (see SExtractor manual)
+  segmentation_map: True     # Create a segmentation map?

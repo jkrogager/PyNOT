@@ -115,4 +115,52 @@ A default reduction would require the following steps:
 
 
 ### Imaging
- Not implemented yet
+
+A basic automated reduction would require the following steps:
+
+1. Classify the data:
+    `pynot classify raw_data --output night1.pfc`
+
+  This step creates the PyNOT File Classification (.pfc) table (see above).
+
+2. Create a parameter file:
+    `pynot init phot  pars1.yml`
+
+  This will initiate a new parameter file with default values. All available parameters of the steps of the pipeline are laid out in this file. Open the file with your favorite text editor and insert the name of the PFC table under the parameter `dataset` and edit any other values as you see fit. A short description of the parameters is given in the file. For more detail, see the full documentation.
+
+3. Run the pipeline:
+    `pynot phot pars1.yml`
+
+  This will start the full pipeline reduction of *all* objects in *all* filters identified in the dataset (with file classification `IMG_OBJECT`).
+  The processed files are structured in sub-directories from the main working directory:
+
+    ```
+    working_dir/
+         |- imaging/
+               |- OBJECT_1/
+               |     |- B_band/
+               |     |- R_band/
+               |     |- combined_B.fits
+               |     |- combined_R.fits
+               |     |...
+               |
+               |- OBJECT_2/
+                     |- B_band/
+                     |- R_band/
+                     |- V_band/
+                     |- combined_B.fits
+                     |- combined_R.fits
+                     |- combined_V.fits
+                     |...
+    ```
+  The individual images for each filter of each target are kept in the desginated folders under each object, and are automatically combined. The combined image is in the folder of the given object. The last step of the pipeline as of now is to run a source extraction algorithm (SEP/SExtractor) to provide a final source table with aperture fluxes, a segmentation map as well as a figure showing the identified sources in the field.
+  In each designated filter folder, the pipeline also produces a file log showing which files are combined into the final image as well as some basic image statistics: an estimate of the seeing, the PSF ellipticity, and the exposure time. This file can be used as input for further refined image combinations using the recipe `pynot imcombine  filelist_OBJECT_1.txt  new_combined_R.fits`. Individual frames can be commented out in the file log in order to exclude them in subsequent combinations.
+
+
+4. Verify the various steps of the data products and make sure that everything terminated successfully.
+
+
+5. Now it's time to do your scientific analysis on your newly calibrated images. Enjoy!
+
+
+NOTE -- Photometric calibration is not implemented yet, all reported magnitudes in the source table are instrument magnitudes!!

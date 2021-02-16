@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
 from astropy.io import fits
 from astropy.modeling import models, fitting
+from astropy.table import Table
 import os
 
 import astroalign as aa
@@ -18,64 +19,129 @@ from pynot.data.organizer import get_filter
 __version__ = get_version_number()
 
 
-def source_detection(fname, threshold=1.5, aperture=3.0, exptime=None, gain=None):
+def source_detection(fname, zeropoint=0., threshold=3.0, aperture=10.0, kwargs_bg={}, kwargs_ext={}):
     msg = list()
     # get GAIN from header
     data = fits.getdata(fname)
     error_image = fits.getdata(fname, 'ERR')
     hdr = fits.getheader(fname)
     msg.append("          - Loaded input image: %s" % fname)
-    if 'GAIN' in hdr:
-        gain = hdr['GAIN']
-        msg.append("          - Loaded gain from image header: %.3f" % gain)
-    elif gain is not None:
-        pass
-    else:
-        gain = 1.0
-        msg.append("[WARNING] - No gain found in image header!")
 
     if 'EXPTIME' in hdr:
         exptime = hdr['EXPTIME']
         msg.append("          - Loaded exposure time from image header: %.1f" % exptime)
-    elif exptime is not None:
-        pass
     else:
         exptime = 1.
-        msg.append("[WARNING] - No exposure time found in image header!")
+        msg.append("[WARNING] - No exposure time found in image header! Assuming image in counts.")
 
-    data = data*exptime
-    error_image = error_image*exptime
+    data = data * 1.
+    error_image = error_image * 1.
+    if 'threshold' in kwargs_ext:
+        threshold = kwargs_ext.pop('threshold')
+    if 'aperture' in kwargs_ext:
+        aperture = kwargs_ext.pop('aperture')
 
-    bkg = sep.Background(data, bw=64, bh=64, fw=3, fh=3)
+    bkg = sep.Background(data, **kwargs_bg)
     data_sub = data - bkg
     msg.append("          - Subtracted sky background")
     msg.append("          - Background RMS: %.2e" % bkg.globalrms)
+    data_sub = data_sub.byteswap().newbyteorder()
+    error_image = error_image.byteswap().newbyteorder()
     if data_sub.dtype.byteorder != '<':
         data_sub = data_sub.byteswap().newbyteorder()
-    objects, segmap = sep.extract(data_sub, threshold, err=bkg.globalrms,
-                                  segmentation_map=True)
-
+        error_image = error_image.byteswap().newbyteorder()
+    extract_output = sep.extract(data_sub, threshold, err=bkg.globalrms, **kwargs_ext)
+    if len(extract_output) == 2:
+        objects, segmap = extract_output
+    else:
+        objects = extract_output
+        segmap = None
     N_obj = len(objects)
+    msg.append("          - Detected %i objects" % N_obj)
 
-    flux, fluxerr, flag = sep.sum_circle(data_sub, objects['x'], objects['y'],
-                                         aperture, err=error_image)
+    # Calculate fixed aperture magnitudes:
+    aper_results = sep.sum_circle(data_sub, objects['x'], objects['y'], aperture, err=error_image)
+    aper_flux, aper_fluxerr, aper_flag = aper_results
+    msg.append("          - Calculating fluxes within circular aperture of: %i pixels" % aperture)
+
+    # Calculate Kron radius:
+    x = objects['x']
+    y = objects['y']
+    a = objects['a']
+    b = objects['b']
+    theta = objects['theta']
+    kronrad, krflag = sep.kron_radius(data_sub, x, y, a, b, theta, 6.0)
+    kronrad[kronrad < 1.] = 1.
+    # Sum fluxes in ellipse apertures:
+    flux, fluxerr, flag = sep.sum_ellipse(data_sub, x, y, a, b, theta, 2.5*kronrad, subpix=1)
+    msg.append("          - Calculating Kron radii and fluxes within elliptical apertures")
+    # combine flags:
+    flag |= krflag
+
+    # If the Kron radius is less than r_min (aperture), use aperture fluxes:
+    r_min = aperture
+    use_circle = kronrad * np.sqrt(b * a) < r_min
+    # cflux, cfluxerr, cflag = sep.sum_circle(data_sub, x[use_circle], y[use_circle],
+    #                                         r_min, subpix=1)
+    flux[use_circle] = aper_flux[use_circle]
+    fluxerr[use_circle] = aper_fluxerr[use_circle]
+    flag[use_circle] = aper_flag[use_circle]
+    msg.append("          - Targets with Kron radii below R_min (%.2f) are ignored" % r_min)
+    msg.append("          - Circular aperture fluxes used instead where R_kron < R_min")
+
+    # Save output table:
+    base, ext = os.path.splitext(fname)
+    table_fname = base + '_phot.fits'
+    object_table = Table(objects)
+    object_table['flux_auto'] = flux
+    object_table['flux_err_auto'] = fluxerr
+    object_table['flux_aper'] = aper_flux
+    object_table['flux_err_aper'] = aper_fluxerr
+    object_table['R_kron'] = kronrad
+    flux[flux <= 0] = 1.
+    object_table['mag_auto'] = zeropoint - 2.5*np.log10(flux)
+    object_table.write(table_fname, format='fits', overwrite=True)
+    msg.append(" [OUTPUT] - Saved extraction table: %s" % table_fname)
+
+    # Save output table:
+    if segmap is not None:
+        segmap_fname = base + '_seg.fits'
+        seg_hdr = fits.Header()
+        seg_hdr['AUTHOR'] = 'PyNOT version %s' % __version__
+        seg_hdr['IMAGE'] = fname
+        seg_hdr['FILTER'] = get_filter(hdr)
+        seg_hdr.add_comment("Segmentation map from SEP (SExtractor)")
+        fits.writeto(segmap_fname, segmap, header=seg_hdr, overwrite=True)
+        msg.append(" [OUTPUT] - Saved source segmentation map: %s" % segmap_fname)
+    else:
+        segmap_fname = ''
+
+    # Plot source identifications:
+    fig_fname = base + '_sources.pdf'
+    plot_objects(fig_fname, data_sub, objects, threshold=threshold)
+    msg.append(" [OUTPUT] - Saved source identification overview: %s" % fig_fname)
+    msg.append("")
+    output_msg = "\n".join(msg)
+
+    return table_fname, segmap_fname, output_msg
 
 
-def plot_objects(fig_fname, data, objects):
+def plot_objects(fig_fname, data, objects, threshold=5.):
     # plot background-subtracted image
     fig, ax = plt.subplots()
     m, s = np.median(data), 1.5*mad(data)
     ax.imshow(data, interpolation='nearest', cmap='gray_r',
-              vmin=m-3*s, vmax=m+3*s, origin='lower')
+              vmin=m-1*s, vmax=m+threshold*s, origin='lower')
 
     # plot an ellipse for each object
-    for i in range(len(objects)):
-        e = Ellipse(xy=(objects['x'][i], objects['y'][i]),
-                    width=6*objects['a'][i],
-                    height=6*objects['b'][i],
-                    angle=objects['theta'][i] * 180. / np.pi)
+    for item in objects:
+        e = Ellipse(xy=(item['x'], item['y']),
+                    width=10*item['a'],
+                    height=10*item['b'],
+                    angle=item['theta'] * 180. / np.pi)
         e.set_facecolor('none')
         e.set_edgecolor('red')
+        e.set_linewidth(0.8)
         ax.add_artist(e)
     fig.tight_layout()
     fig.savefig(fig_fname)
@@ -215,7 +281,7 @@ def image_combine(corrected_images, output='', log_name='', fringe_image='', met
     if log_name == '':
         log_name = 'filelist_%s_%s.txt' % (target_hdr['OBJECT'], get_filter(target_hdr))
     save_file_log(log_name, image_log, target_hdr)
-    msg.append("          - Saved file log and image stats: %s" % log_name)
+    msg.append(" [OUTPUT] - Saved file log and image stats: %s" % log_name)
 
     if method == 'median':
         final_image = np.nanmedian(shifted_images, axis=0)

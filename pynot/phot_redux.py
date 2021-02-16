@@ -12,7 +12,7 @@ import numpy as np
 from pynot import alfosc
 from pynot.data import io
 from pynot.data import organizer as do
-from pynot.phot import image_combine, create_fringe_image
+from pynot.phot import image_combine, create_fringe_image, source_detection
 from pynot.calibs import combine_bias_frames, combine_flat_frames
 from pynot.functions import get_options, get_version_number
 from pynot.scired import raw_correction, correct_cosmics, trim_filter_edge, detect_filter_edge
@@ -275,6 +275,7 @@ def run_pipeline(options_fname, verbose=False):
             log.write("Running task: bias and flat field correction:")
 
             corrected_images = list()
+            temp_images = list()
             for sci_img in image_list:
                 log.write("Filename: %s" % sci_img.filename)
                 basename = os.path.basename(sci_img.filename)
@@ -286,9 +287,8 @@ def run_pipeline(options_fname, verbose=False):
                 try:
                     _ = raw_correction(sci_img.data, sci_img.header, master_bias_fname, flat_fname,
                                        output=corrected_fname, overwrite=True, overscan=50, mode='img')
-                    # log.commit(output_msg)
                     log.commit("          - bias/flat ")
-                    # log.add_linebreak()
+                    temp_images.append(corrected_fname)
                 except:
                     log.error("Bias and flat field correction failed!")
                     log.fatal_error()
@@ -311,10 +311,9 @@ def run_pipeline(options_fname, verbose=False):
                     try:
                         log.commit(" crr ")
                         _ = correct_cosmics(trim_fname, crr_fname, **options['crr'])
-                        # log.commit(crr_msg)
-                        # log.add_linebreak()
                         log.commit("  [done]")
                         corrected_images.append(crr_fname)
+                        temp_images.append(trim_fname)
                     except:
                         log.error("Cosmic ray correction failed!")
                         log.fatal_error()
@@ -362,7 +361,28 @@ def run_pipeline(options_fname, verbose=False):
                 raise
 
             # Calculate Zero Point:
+            zp = 0  # use instrument mags for now
 
             # Automatic Source Detection and Aperture Photometry:
+            try:
+                log.write("Running task: Source Extraction")
+                _, _, output_msg = source_detection(combined_fname, zeropoint=zp,
+                                                    kwargs_bg=options['sep-background'],
+                                                    kwargs_ext=options['sep-extract'])
+                log.commit(output_msg)
+                log.add_linebreak()
+            except:
+                log.error("Image combination failed!")
+                log.fatal_error()
+                print("Unexpected error:", sys.exc_info()[0])
+                raise
+
+            # Clean up temporary files:
+            if options['clean']:
+                log.write("Cleaning up temporary images:")
+                for fname in temp_images:
+                    os.system("rm %s" % fname)
+                    log.write(fname)
+
 
     log.exit()

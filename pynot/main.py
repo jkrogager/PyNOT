@@ -329,6 +329,15 @@ def main():
     parser_fringe.add_argument("--sigma", type=float, default=3,
                                help="Masking threshold  (default = 3.0)")
 
+    parser_sep = recipes.add_parser('sep',
+                                    help="Perform source extraction using SEP (SExtractor)")
+    parser_sep.add_argument("input", type=str,
+                            help="Input image to analyse")
+    parser_sep.add_argument('-z', "--zero", type=float, default=0.,
+                            help="Magnitude zeropoint, default is 0 (instrument mags)")
+    set_default_pars(parser_sep, section='sep-background', default_type=int, mode='img')
+    set_default_pars(parser_sep, section='sep-extract', default_type=int, mode='img')
+
 
     args = parser.parse_args()
 
@@ -541,6 +550,23 @@ def main():
         from pynot.phot import create_fringe_image
         input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
         log = create_fringe_image(input_list, output=args.output, fig_fname=args.fig, threshold=args.sigma)
+
+    elif recipe == 'sep':
+        print("Running task: Extracting Sources and Measuring Aperture Fluxes")
+        from pynot.phot import source_detection
+        options = copy(vars(args))
+        vars_to_remove = ['recipe', 'input', 'zero']
+        bg_options = {}
+        ext_options = {}
+        for varname, value in options.items():
+            if varname in vars_to_remove:
+                continue
+            elif varname in ['bw', 'bh', 'fw', 'fh', 'fthresh']:
+                bg_options[varname] = value
+            else:
+                ext_options[varname] = value
+        _, _, log = source_detection(args.input, zeropoint=args.zero,
+                                     kwargs_bg=bg_options, kwargs_ext=ext_options)
 
     if log:
         print(log)
