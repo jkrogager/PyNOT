@@ -205,6 +205,11 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
             return
 
     # -- Organize object files in dataset:
+    if 'SPEC_OBJECT' not in database:
+        log.error("No spectroscopic data found in the dataset!")
+        log.error("Check the classification table... object type 'SPEC_OBJECT' missing")
+        log.fatal_error()
+        return
     object_filelist = database['SPEC_OBJECT']
     object_images = list(map(do.RawImage, object_filelist))
 
@@ -231,6 +236,12 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
         # Implement ThAr and automatic combination of He + Ne
         if arc_type in database.keys():
             arc_images += database[arc_type]
+
+    if len(arc_images) == 0:
+        log.error("No arc line calibration data found in the dataset!")
+        log.error("Check the classification table... object type 'ARC_HeNe' or 'ARC_ThAr' missing")
+        log.fatal_error()
+        return
 
     arc_images_for_grism = defaultdict(list)
     for arc_img in arc_images:
@@ -316,13 +327,10 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
         # Loop over all:
         objects_to_reduce = object_images
     else:
-        object_names = [img.target_name for img in object_images]
         objects_to_reduce = list()
-        for obj_id in object_id:
-            if obj_id in object_names:
-                index = object_names.index(obj_id)
-                obj = object_images[index]
-                objects_to_reduce.append(obj)
+        for img in object_images:
+            if img.object in object_id:
+                objects_to_reduce.append(img)
 
     for sci_img in objects_to_reduce:
         # Create working directory:
