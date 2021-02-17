@@ -152,7 +152,7 @@ A basic automated reduction would require the following steps:
                      |...
     ```
   The individual images for each filter of each target are kept in the desginated folders under each object, and are automatically combined. The combined image is in the folder of the given object. The last step of the pipeline as of now is to run a source extraction algorithm (SEP/SExtractor) to provide a final source table with aperture fluxes, a segmentation map as well as a figure showing the identified sources in the field.
-  In each designated filter folder, the pipeline also produces a file log showing which files are combined into the final image as well as some basic image statistics: an estimate of the seeing, the PSF ellipticity, and the exposure time. This file can be used as input for further refined image combinations using the recipe `pynot imcombine  filelist_OBJECT_1.txt  new_combined_R.fits`. Individual frames can be commented out in the file log in order to exclude them in subsequent combinations.
+  In each designated filter folder, the pipeline also produces a file log showing which files are combined into the final image as well as some basic image statistics: an estimate of the seeing, the PSF ellipticity, and the exposure time. This file can be used as input for further refined image combinations using the recipe `pynot imcombine  filelist_OBJECT_1.txt  new_combined_R.fits`. Individual frames can be commented out in the file log in order to exclude them in subsequent combinations. The combined images are given in units of counts per second.
 
 
 4. Verify the various steps of the data products and make sure that everything terminated successfully.
