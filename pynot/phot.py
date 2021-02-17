@@ -300,7 +300,7 @@ def image_combine(corrected_images, output='', log_name='', fringe_image='', met
     final_mask = 1 * (target_mask > 0)
 
     target_hdr['NCOMBINE'] = len(shifted_images)
-    target_hdr['EXPTIME'] = final_exptime
+    target_hdr['EXPTIME'] = final_exptime / len(shifted_images)
     # Fix NaN values from negative pixel values:
     err_NaN = np.isnan(final_error)
     final_error[err_NaN] = np.nanmean(final_error)*100
