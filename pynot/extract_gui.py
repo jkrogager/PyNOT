@@ -1675,9 +1675,9 @@ class ExtractGUI(QtWidgets.QMainWindow):
                         # Set extraction limits to ±2xFWHM:
                         profile = NN_moffat(trace_model.y, np.median(mu), np.median(alpha), np.median(beta), 0.)
                         fwhm, msg = get_FWHM(profile)
+                        trace_model.set_centroid(np.median(mu))
                         lower = trace_model.cen - 2*fwhm
                         upper = trace_model.cen + 2*fwhm
-                        trace_model.set_centroid(np.median(mu))
                         trace_model.set_range(lower, upper)
 
                     elif model_type == 'gaussian':
@@ -1686,9 +1686,9 @@ class ExtractGUI(QtWidgets.QMainWindow):
                         # Set extraction limits to ±2xFWHM:
                         profile = NN_gaussian(trace_model.y, np.median(mu), np.median(sig), 0.)
                         fwhm, msg = get_FWHM(profile)
+                        trace_model.set_centroid(np.median(mu))
                         lower = trace_model.cen - 2*fwhm
                         upper = trace_model.cen + 2*fwhm
-                        trace_model.set_centroid(np.median(mu))
                         trace_model.set_range(lower, upper)
             self.last_fit = this_fit
             self.canvas_spsf.draw()
@@ -1831,8 +1831,8 @@ class ExtractGUI(QtWidgets.QMainWindow):
                 dhigh = np.abs(model.cen - upper)
                 for num, pars in enumerate(pars_table):
                     P_i = model_function(model.y, *pars)
-                    # if model.model_type != 'tophat':
-                    if model.model_type != '':
+                    # if model.model_type != '':
+                    if model.model_type != 'tophat':
                         il = int(pars[0] - dlow)
                         ih = int(pars[0] + dhigh)
                         P_i[:il] = 0.
