@@ -332,6 +332,11 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
             if img.object in object_id:
                 objects_to_reduce.append(img)
 
+        if len(objects_to_reduce) == 0:
+            log.error("No data matched the given object ID: %r" % object_id)
+            log.fatal_error()
+            return
+
     for sci_img in objects_to_reduce:
         # Create working directory:
         raw_base = os.path.basename(sci_img.filename).split('.')[0][2:]
