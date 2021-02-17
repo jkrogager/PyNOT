@@ -481,7 +481,8 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
         else:
             std_fname = flux_std_files[0]
-            response_fname = os.path.join(output_dir, 'response_%s.fits' % (grism))
+            # response_fname = os.path.join(output_dir, 'response_%s.fits' % (grism))
+            response_fname = 'response_%s.fits' % (grism)
             if os.path.exists(response_fname) and not options['response']['force']:
                 log.write("Response function already exists: %s" % response_fname)
                 log.add_linebreak()
