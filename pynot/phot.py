@@ -13,6 +13,7 @@ import os
 import astroalign as aa
 import sep
 
+from pynot import alfosc
 from pynot.functions import get_version_number, mad
 from pynot.data.organizer import get_filter
 
@@ -163,14 +164,18 @@ def load_fits_image(fname):
     return image, error, mask, hdr
 
 
-def measure_seeing(img, centers, size=50):
+def measure_seeing(img, centers, size=20, max_obj=10):
     X = np.arange(img.shape[1])
     Y = np.arange(img.shape[0])
     sigmas = list()
     ratios = list()
     good_x = (centers[:, 0] > size) & (centers[:, 0] < X.max()-size)
     good_y = (centers[:, 1] > size) & (centers[:, 1] < Y.max()-size)
-    idx = np.random.choice(np.arange(len(centers))[good_x & good_y], 10, replace=False)
+    if np.sum(good_x & good_y) < 2:
+        msg = "[WARNING] - Not enough sources to measure seeing."
+        return (-1, -1, msg)
+    max_obj = min(max_obj, np.sum(good_x & good_y))
+    idx = np.random.choice(np.arange(len(centers))[good_x & good_y], max_obj, replace=False)
     for x_cen, y_cen in centers[idx]:
         x1, x2 = int(x_cen)-size, int(x_cen)+size
         y1, y2 = int(y_cen)-size, int(y_cen)+size
@@ -190,9 +195,14 @@ def measure_seeing(img, centers, size=50):
         sigmas.append(sig)
         ratios.append(ba)
 
+    if len(sigmas) < 2:
+        msg = "[WARNING] - Not enough sources to measure seeing."
+        return (-1, -1, msg)
+
     fwhm = np.median(sigmas) * 2.35
     ratio = np.median(ratios)
-    return (fwhm, ratio)
+    msg = ""
+    return (fwhm, ratio, msg)
 
 
 def save_file_log(log_name, image_log, target_hdr):
@@ -273,13 +283,18 @@ def image_combine(corrected_images, output='', log_name='', fringe_image='', met
         shifted_vars.append(registered_error**2)
         source_list, target_list = coords
         if len(image_log) == 0:
-            fwhm, ratio = measure_seeing(target, target_list)
+            fwhm, ratio, seeing_msg = measure_seeing(target, target_list)
             image_log.append([os.path.basename(target_fname), fwhm, ratio, exptime])
-        fwhm, ratio = measure_seeing(source, source_list)
+            if seeing_msg:
+                msg.append(seeing_msg)
+        fwhm, ratio, seeing_msg = measure_seeing(source, source_list)
+        if seeing_msg:
+            msg.append(seeing_msg)
         image_log.append([os.path.basename(fname), fwhm, ratio, hdr_i['EXPTIME']])
 
     if log_name == '':
-        log_name = 'filelist_%s_%s.txt' % (target_hdr['OBJECT'], get_filter(target_hdr))
+        filter_name = alfosc.filter_translate[get_filter(target_hdr)]
+        log_name = 'filelist_%s_%s.txt' % (target_hdr['OBJECT'], filter_name)
     save_file_log(log_name, image_log, target_hdr)
     msg.append(" [OUTPUT] - Saved file log and image stats: %s" % log_name)
 

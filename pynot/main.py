@@ -86,8 +86,8 @@ def main():
                                      help="Combine bias frames")
     parser_bias.add_argument("input", type=str,
                              help="Input file containing list of image filenames to combine")
-    parser_bias.add_argument("-o", "--output", type=str, required=True,
-                             help="Output filename of combined bias frame  [REQUIRED]")
+    parser_bias.add_argument('-o', "--output", type=str, default='MASTER_BIAS.fits',
+                             help="Output filename of combined bias frame  (default = MASTER_BIAS.fits)")
     parser_bias.add_argument("--kappa", type=float, default=15,
                              help="Threshold for sigma clipping")
 
@@ -482,7 +482,7 @@ def main():
         from pynot.data import io
         print_credits()
         # Classify files:
-        print("Classyfying files...")
+        print("Classifying files...")
         database, message = do.classify(args.path, progress=args.verbose)
         io.save_database(database, args.output)
         log = message

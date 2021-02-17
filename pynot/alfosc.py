@@ -3,6 +3,7 @@ import numpy as np
 from os.path import basename, dirname, abspath
 from astropy.io import fits
 from astropy.table import Table
+import datetime
 
 # path = '/Users/krogager/coding/PyNOT'
 path = dirname(abspath(__file__))
@@ -71,6 +72,17 @@ def get_alfosc_header(fname):
     return primhdr
 
 
+def get_header(fname):
+    with fits.open(fname) as hdu:
+        primhdr = hdu[0].header
+        if len(hdu) > 1:
+            imghdr = hdu[1].header
+            primhdr.update(imghdr)
+    if primhdr['INSTRUME'] != 'ALFOSC_FASU':
+        print("[WARNING] - FITS file not originating from NOT/ALFOSC!")
+    return primhdr
+
+
 def create_pixel_array(hdr, dispaxis):
     """Load reference array from header using CRVAL, CDELT, CRPIX along dispersion axis"""
     if dispaxis not in [1, 2]:
@@ -88,3 +100,42 @@ def create_pixel_array(hdr, dispaxis):
             binning = hdr['DETYBIN']
     pix_array = p + s*(np.arange(N) - (r/binning - 1))
     return pix_array
+
+
+def get_mjd(date_str):
+    """Input Date String in ISO format as in ALFOSC header: '2016-08-01T16:03:57.796'"""
+    date = datetime.datetime.fromisoformat(date_str)
+    mjd_0 = datetime.datetime(1858, 11, 17)
+    dt = date - mjd_0
+    mjd = dt.days + dt.seconds/(24*3600.)
+    return mjd
+
+
+def get_binning(fname):
+    hdr = fits.getheader(fname)
+    binx = hdr['DETXBIN']
+    biny = hdr['DETYBIN']
+    read = hdr['FPIX']
+    ccd_setup = "%ix%i_%i" % (binx, biny, read)
+    return ccd_setup
+
+
+def get_binning_from_hdr(hdr):
+    binx = hdr['DETXBIN']
+    biny = hdr['DETYBIN']
+    read = hdr['FPIX']
+    ccd_setup = "%ix%i_%i" % (binx, biny, read)
+    return ccd_setup
+
+
+def get_filter(hdr):
+    filter = 'Open'
+    for keyword in ['FAFLTNM', 'FBFLTNM', 'ALFLTNM']:
+        if 'open' in hdr[keyword].lower():
+            pass
+        else:
+            filter = hdr[keyword]
+            break
+    if '  ' in filter:
+        filter = filter.replace('  ', ' ')
+    return filter

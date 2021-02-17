@@ -64,9 +64,9 @@ class Report(object):
             text += '\n'
         self.lines.append(text)
 
-    def warn(self, text):
+    def warn(self, text, force=False):
         text = '[WARNING] - ' + text
-        if self.verbose:
+        if self.verbose or force:
             print(text)
         if text[-1] != '\n':
             text += '\n'
@@ -159,6 +159,11 @@ def run_pipeline(options_fname, verbose=False):
 
 
     # -- Organize object files in dataset:
+    if 'IMG_OBJECT' not in database:
+        log.error("No imaging data found in the dataset!")
+        log.error("Check the classification table... object type 'IMG_OBJECT' missing")
+        log.fatal_error()
+        return
     object_filelist = database['IMG_OBJECT']
     raw_image_list = list(map(do.RawImage, object_filelist))
 
@@ -171,6 +176,12 @@ def run_pipeline(options_fname, verbose=False):
 
     # -- Check if flat field frames exist:
     flat_images_for_filter = defaultdict(list)
+    if 'IMG_FLAT' not in database:
+        log.error("No flat field images found in the dataset!")
+        log.error("Check the classification table... object type 'IMG_FLAT' missing")
+        log.fatal_error()
+        return
+
     flat_images = database['IMG_FLAT']
     for flat_file in flat_images:
         this_filter = do.get_filter(fits.getheader(flat_file))
@@ -287,7 +298,7 @@ def run_pipeline(options_fname, verbose=False):
                 try:
                     _ = raw_correction(sci_img.data, sci_img.header, master_bias_fname, flat_fname,
                                        output=corrected_fname, overwrite=True, overscan=50, mode='img')
-                    log.commit("          - bias/flat ")
+                    log.commit("          - bias+flat ")
                     temp_images.append(corrected_fname)
                 except:
                     log.error("Bias and flat field correction failed!")
@@ -346,6 +357,9 @@ def run_pipeline(options_fname, verbose=False):
 
 
             # Combine individual images for a given filter:
+            if len(image_list) > 50:
+                log.warning("Large amounts of memory needed for image combination!", force=True)
+                log.warning("A total of %i images will be combined." % len(image_list), force=True)
             log.write("Running task: Image Combination")
             combined_fname = os.path.join(output_obj_base, '%s_%s.fits' % (target_name, filter_name))
             comb_log_name = os.path.join(output_dir, 'filelist_%s.txt' % target_name)

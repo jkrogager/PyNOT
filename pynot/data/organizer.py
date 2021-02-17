@@ -3,10 +3,10 @@
 import numpy as np
 import os
 import sys
-import datetime
 from glob import glob
 from astropy.io import fits
 
+from pynot.alfosc import get_mjd, get_binning_from_hdr, get_filter, get_header
 
 # -- use os.path
 code_dir = os.path.dirname(os.path.abspath(__file__))
@@ -41,43 +41,43 @@ def occurence(inlist):
     return single_values
 
 
-def get_mjd(date_str):
-    """Input Date String in ISO format as in ALFOSC header: '2016-08-01T16:03:57.796'"""
-    date = datetime.datetime.fromisoformat(date_str)
-    mjd_0 = datetime.datetime(1858, 11, 17)
-    dt = date - mjd_0
-    mjd = dt.days + dt.seconds/(24*3600.)
-    return mjd
-
-
-def get_binning(fname):
-    hdr = fits.getheader(fname)
-    binx = hdr['DETXBIN']
-    biny = hdr['DETYBIN']
-    read = hdr['FPIX']
-    ccd_setup = "%ix%i_%i" % (binx, biny, read)
-    return ccd_setup
-
-
-def get_binning_from_hdr(hdr):
-    binx = hdr['DETXBIN']
-    biny = hdr['DETYBIN']
-    read = hdr['FPIX']
-    ccd_setup = "%ix%i_%i" % (binx, biny, read)
-    return ccd_setup
-
-
-def get_filter(hdr):
-    filter = 'Open'
-    for keyword in ['FAFLTNM', 'FBFLTNM', 'ALFLTNM']:
-        if 'open' in hdr[keyword].lower():
-            pass
-        else:
-            filter = hdr[keyword]
-            break
-    if '  ' in filter:
-        filter = filter.replace('  ', ' ')
-    return filter
+# def get_mjd(date_str):
+#     """Input Date String in ISO format as in ALFOSC header: '2016-08-01T16:03:57.796'"""
+#     date = datetime.datetime.fromisoformat(date_str)
+#     mjd_0 = datetime.datetime(1858, 11, 17)
+#     dt = date - mjd_0
+#     mjd = dt.days + dt.seconds/(24*3600.)
+#     return mjd
+#
+#
+# def get_binning(fname):
+#     hdr = fits.getheader(fname)
+#     binx = hdr['DETXBIN']
+#     biny = hdr['DETYBIN']
+#     read = hdr['FPIX']
+#     ccd_setup = "%ix%i_%i" % (binx, biny, read)
+#     return ccd_setup
+#
+#
+# def get_binning_from_hdr(hdr):
+#     binx = hdr['DETXBIN']
+#     biny = hdr['DETYBIN']
+#     read = hdr['FPIX']
+#     ccd_setup = "%ix%i_%i" % (binx, biny, read)
+#     return ccd_setup
+#
+#
+# def get_filter(hdr):
+#     filter = 'Open'
+#     for keyword in ['FAFLTNM', 'FBFLTNM', 'ALFLTNM']:
+#         if 'open' in hdr[keyword].lower():
+#             pass
+#         else:
+#             filter = hdr[keyword]
+#             break
+#     if '  ' in filter:
+#         filter = filter.replace('  ', ' ')
+#     return filter
 
 
 def match_date(files, date_mjd):
@@ -361,14 +361,15 @@ class RawImage(object):
         self.shape = self.data.shape
         self.filetype = filetype
         # Merge Primary and Image headers:
-        primhdr = fits.getheader(fname, 0)
-        imghdr = fits.getheader(fname, 1)
-        primhdr.update(imghdr)
-        self.header = primhdr
-        self.binning = get_binning_from_hdr(primhdr)
+        self.header = get_header(fname)
+        # primhdr = fits.getheader(fname, 0)
+        # imghdr = fits.getheader(fname, 1)
+        # primhdr.update(imghdr)
+        # self.header = primhdr
+        self.binning = get_binning_from_hdr(self.header)
         file_root = fname.split('/')[-1]
         self.dispaxis = None
-        if file_root != primhdr['FILENAME']:
+        if file_root != self.header['FILENAME']:
             raise ValueError("The file doesn't seem to be a raw FITS image.")
 
         if self.header['OBS_MODE'] == 'SPECTROSCOPY':
@@ -407,11 +408,11 @@ class RawImage(object):
         self.date = self.header['DATE-OBS']
         self.mjd = get_mjd(self.date)
 
-        self.CRVAL = np.array([primhdr['CRVAL1'], primhdr['CRVAL2']])
-        self.CRPIX = np.array([primhdr['CRPIX1'], primhdr['CRPIX2']])
-        self.data_unit = primhdr['BUNIT']
-        self.x_unit = primhdr['CUNIT1']
-        self.y_unit = primhdr['CUNIT2']
+        self.CRVAL = np.array([self.header['CRVAL1'], self.header['CRVAL2']])
+        self.CRPIX = np.array([self.header['CRPIX1'], self.header['CRPIX2']])
+        self.data_unit = self.header['BUNIT']
+        self.x_unit = self.header['CUNIT1']
+        self.y_unit = self.header['CUNIT2']
 
     def match_files(self, filelist, date=True, binning=True, shape=True, grism=False, slit=False, filter=False, get_closest_time=False):
         """Return list of filenames that match the given criteria"""
