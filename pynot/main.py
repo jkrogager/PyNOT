@@ -1,7 +1,7 @@
 """
   PyNOT Data Reduction Pipeline for NOT/ALFOSC
 
-For available recipes, run:
+For available tasks, run:
     %] pynot -h
 
 To create a default parameter file, run:
@@ -72,18 +72,18 @@ def set_help_width(max_width=30):
 
 def main():
     parser = ArgumentParser(prog='pynot')
-    recipes = parser.add_subparsers(dest='recipe')
+    tasks = parser.add_subparsers(dest='task')
 
-    p_break1 = recipes.add_parser('', help="")
-    parser_init = recipes.add_parser('init', help="Initiate a default parameter file")
+    p_break1 = tasks.add_parser('', help="")
+    parser_init = tasks.add_parser('init', help="Initiate a default parameter file")
     parser_init.add_argument("mode", type=str, choices=['spex', 'phot'],
                              help="Create parameter file for spectroscopy or imaging?")
     parser_init.add_argument("filename", type=str, nargs='?', default='options.yml',
                              help="Filename of parameter file, default = options.yml")
 
     # -- BIAS :: Bias Combination
-    parser_bias = recipes.add_parser('bias', formatter_class=set_help_width(31),
-                                     help="Combine bias frames")
+    parser_bias = tasks.add_parser('bias', formatter_class=set_help_width(31),
+                                   help="Combine bias frames")
     parser_bias.add_argument("input", type=str,
                              help="Input file containing list of image filenames to combine")
     parser_bias.add_argument('-o', "--output", type=str, default='MASTER_BIAS.fits',
@@ -92,8 +92,8 @@ def main():
                              help="Threshold for sigma clipping")
 
     # -- SFLAT :: Spectral Flat Combination
-    parser_sflat = recipes.add_parser('sflat', formatter_class=set_help_width(31),
-                                      help="Combine and normalize spectral flat frames")
+    parser_sflat = tasks.add_parser('sflat', formatter_class=set_help_width(31),
+                                    help="Combine and normalize spectral flat frames")
     parser_sflat.add_argument("input", type=str,
                               help="Input file containing list of image filenames to combine")
     parser_sflat.add_argument("--bias", type=str, required=True,
@@ -107,8 +107,8 @@ def main():
 
 
     # -- IMFLAT :: Imaging Flat Combination
-    parser_imflat = recipes.add_parser('imflat',
-                                       help="Combine imaging flat frames")
+    parser_imflat = tasks.add_parser('imflat', formatter_class=set_help_width(31),
+                                     help="Combine imaging flat frames")
     parser_imflat.add_argument("input", type=str,
                                help="Input file containing list of image filenames to combine")
     parser_imflat.add_argument("--bias", type=str, required=True,
@@ -119,8 +119,8 @@ def main():
                                help="Threshold for sigma clipping")
 
     # -- corr :: Raw Correction
-    parser_corr = recipes.add_parser('corr', formatter_class=set_help_width(31),
-                                     help="Apply bias subtraction, flat field correction and trimming")
+    parser_corr = tasks.add_parser('corr', formatter_class=set_help_width(31),
+                                   help="Apply bias subtraction, flat field correction and trimming")
     parser_corr.add_argument("input", type=str,
                              help="List of filenames to correct")
     parser_corr.add_argument("--dir", type=str, default='',
@@ -134,8 +134,8 @@ def main():
 
 
     # -- identify :: Identify Arc Lines
-    parser_id = recipes.add_parser('identify', formatter_class=set_help_width(31),
-                                   help="Interactive identification of arc lines")
+    parser_id = tasks.add_parser('identify', formatter_class=set_help_width(31),
+                                 help="Interactive identification of arc lines")
     parser_id.add_argument("arc", type=str,
                            help="Input filename of arc line image")
     parser_id.add_argument("--lines", type=str, default='',
@@ -147,8 +147,8 @@ def main():
 
 
     # -- response :: Calculate Response Function
-    parser_resp = recipes.add_parser('response', formatter_class=set_help_width(31),
-                                     help="Interactive determination of instrument response function")
+    parser_resp = tasks.add_parser('response', formatter_class=set_help_width(31),
+                                   help="Interactive determination of instrument response function")
     parser_resp.add_argument("input", type=str,
                              help="Input filename of 1D spectrum of flux standard star")
     parser_resp.add_argument("-o", "--output", type=str, default='',
@@ -156,8 +156,8 @@ def main():
 
 
     # -- wave1d :: Wavelength Calibrate 1D Image
-    parser_wave1 = recipes.add_parser('wave1d', formatter_class=set_help_width(31),
-                                      help="Apply wavelength calibration to 1D spectra")
+    parser_wave1 = tasks.add_parser('wave1d', formatter_class=set_help_width(31),
+                                    help="Apply wavelength calibration to 1D spectra")
     parser_wave1.add_argument("input", type=str,
                               help="Input filename of 1D spectrum of flux standard star")
     parser_wave1.add_argument("--table", type=str, required=True,
@@ -175,8 +175,8 @@ def main():
 
 
     # -- wave2d :: Rectify and Wavelength Calibrate 2D Image
-    parser_wave2 = recipes.add_parser('wave2d', formatter_class=set_help_width(31),
-                                      help="Rectify 2D image and apply wavelength calibration")
+    parser_wave2 = tasks.add_parser('wave2d', formatter_class=set_help_width(31),
+                                    help="Rectify 2D image and apply wavelength calibration")
     parser_wave2.add_argument("input", type=str,
                               help="Input filename of 1D spectrum of flux standard star")
     parser_wave2.add_argument("arc", type=str,
@@ -194,8 +194,8 @@ def main():
 
 
     # -- skysub :: Sky Subtraction of 2D Image
-    parser_sky = recipes.add_parser('skysub', formatter_class=set_help_width(31),
-                                    help="Sky subtraction of 2D image")
+    parser_sky = tasks.add_parser('skysub', formatter_class=set_help_width(31),
+                                  help="Sky subtraction of 2D image")
     parser_sky.add_argument("input", type=str,
                             help="Input filename of 2D frame")
     parser_sky.add_argument("-o", "--output", type=str, required=True,
@@ -207,8 +207,8 @@ def main():
 
 
     # -- crr :: Cosmic Ray Rejection and Correction
-    parser_crr = recipes.add_parser('crr', formatter_class=set_help_width(31),
-                                    help="Identification and correction of Cosmic Ray Hits")
+    parser_crr = tasks.add_parser('crr', formatter_class=set_help_width(31),
+                                  help="Identification and correction of Cosmic Ray Hits")
     parser_crr.add_argument("input", type=str,
                             help="Input filename")
     parser_crr.add_argument("-o", "--output", type=str, required=True,
@@ -225,8 +225,8 @@ def main():
 
 
     # -- flux1d :: Flux calibration of 1D spectrum
-    parser_flux1 = recipes.add_parser('flux1d', formatter_class=set_help_width(31),
-                                      help="Flux calibration of 1D spectrum")
+    parser_flux1 = tasks.add_parser('flux1d', formatter_class=set_help_width(31),
+                                    help="Flux calibration of 1D spectrum")
     parser_flux1.add_argument("input", type=str,
                               help="Input filename of 1D spectrum")
     parser_flux1.add_argument("response", type=str,
@@ -236,8 +236,8 @@ def main():
 
 
     # -- flux2d :: Flux calibration of 2D spectrum
-    parser_flux2 = recipes.add_parser('flux2d', formatter_class=set_help_width(31),
-                                      help="Flux calibration of 2D spectrum")
+    parser_flux2 = tasks.add_parser('flux2d', formatter_class=set_help_width(31),
+                                    help="Flux calibration of 2D spectrum")
     parser_flux2.add_argument("input", type=str,
                               help="Input filename of 2D spectrum")
     parser_flux2.add_argument("response", type=str,
@@ -247,8 +247,8 @@ def main():
 
 
     # -- extract :: Extraction of 1D spectrum from 2D
-    parser_ext = recipes.add_parser('extract', formatter_class=set_help_width(31),
-                                    help="Extract 1D spectrum from 2D")
+    parser_ext = tasks.add_parser('extract', formatter_class=set_help_width(31),
+                                  help="Extract 1D spectrum from 2D")
     parser_ext.add_argument("input", type=str,
                             help="Input filename of 2D spectrum")
     parser_ext.add_argument("-o", "--output", type=str, default='',
@@ -263,8 +263,8 @@ def main():
 
 
     # -- classify :: Classify ALFOSC Files
-    parser_class = recipes.add_parser('classify', formatter_class=set_help_width(31),
-                                      help="Classify ALFOSC files")
+    parser_class = tasks.add_parser('classify', formatter_class=set_help_width(31),
+                                    help="Classify ALFOSC files")
     parser_class.add_argument("path", type=str, nargs='+',
                               help="Path (or paths) to raw ALFOSC data to be classified")
     parser_class.add_argument("-o", "--output", type=str, required=True,
@@ -273,8 +273,8 @@ def main():
                               help="Print status messages to terminal")
 
     # Spectral Redux:
-    parser_redux = recipes.add_parser('spex', formatter_class=set_help_width(30),
-                                      help="Run the full spectroscopic pipeline")
+    parser_redux = tasks.add_parser('spex', formatter_class=set_help_width(30),
+                                    help="Run the full spectroscopic pipeline")
     parser_redux.add_argument("params", type=str,
                               help="Input filename of pipeline configuration in YAML format")
     parser_redux.add_argument('-O', "--object", type=str, nargs='+',
@@ -284,18 +284,18 @@ def main():
     parser_redux.add_argument("-i", "--interactive", action="store_true",
                               help="Use interactive interface throughout")
 
-    parser_break = recipes.add_parser('', help="")
+    parser_break = tasks.add_parser('', help="")
 
     # Imaging Redux:
-    parser_phot = recipes.add_parser('phot',
-                                     help="Run the full imaging pipeline")
+    parser_phot = tasks.add_parser('phot', formatter_class=set_help_width(30),
+                                   help="Run the full imaging pipeline")
     parser_phot.add_argument("params", type=str,
                              help="Input filename of pipeline configuration in YAML format")
     parser_phot.add_argument("-v", "--verbose", action="store_true",
                              help="Print log to terminal")
 
-    parser_imtrim = recipes.add_parser('imtrim',
-                                       help="Trim images")
+    parser_imtrim = tasks.add_parser('imtrim', formatter_class=set_help_width(30),
+                                     help="Trim images")
     parser_imtrim.add_argument("input", type=str,
                                help="List of filenames to trim")
     parser_imtrim.add_argument("--dir", type=str, default='',
@@ -305,8 +305,8 @@ def main():
     parser_imtrim.add_argument('-e', "--edges", type=int, nargs=4,
                                help="Trim edges  [left  right  bottom  top]")
 
-    parser_imcomb = recipes.add_parser('imcombine',
-                                       help="Combine images")
+    parser_imcomb = tasks.add_parser('imcombine', formatter_class=set_help_width(44),
+                                     help="Combine images")
     parser_imcomb.add_argument("input", type=str,
                                help="List of filenames to combine")
     parser_imcomb.add_argument("output", type=str,
@@ -318,8 +318,8 @@ def main():
     set_default_pars(parser_imcomb, section='combine', default_type=int, mode='img')
 
 
-    parser_fringe = recipes.add_parser('fringe',
-                                       help="Create average fringe images")
+    parser_fringe = tasks.add_parser('fringe', formatter_class=set_help_width(30),
+                                     help="Create average fringe images")
     parser_fringe.add_argument("input", type=str,
                                help="List of filenames to combine")
     parser_fringe.add_argument("output", type=str,
@@ -329,8 +329,8 @@ def main():
     parser_fringe.add_argument("--sigma", type=float, default=3,
                                help="Masking threshold  (default = 3.0)")
 
-    parser_sep = recipes.add_parser('sep',
-                                    help="Perform source extraction using SEP (SExtractor)")
+    parser_sep = tasks.add_parser('sep', formatter_class=set_help_width(40),
+                                  help="Perform source extraction using SEP (SExtractor)")
     parser_sep.add_argument("input", type=str,
                             help="Input image to analyse")
     parser_sep.add_argument('-z', "--zero", type=float, default=0.,
@@ -343,22 +343,22 @@ def main():
 
 
     # -- Define Workflow
-    recipe = args.recipe
+    task = args.task
     log = ""
-    if recipe == 'spex':
+    if task == 'spex':
         from pynot.redux import run_pipeline
         print_credits()
         run_pipeline(options_fname=args.params,
                      object_id=args.object,
                      verbose=args.verbose, interactive=args.interactive)
 
-    elif recipe == 'bias':
+    elif task == 'bias':
         from pynot.calibs import combine_bias_frames
         print("Running task: Bias combination")
         input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
         _, log = combine_bias_frames(input_list, args.output, kappa=args.kappa)
 
-    elif recipe == 'sflat':
+    elif task == 'sflat':
         from pynot.calibs import combine_flat_frames, normalize_spectral_flat
         print("Running task: Spectral flat field combination and normalization")
         input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
@@ -366,12 +366,12 @@ def main():
                                                dispaxis=args.axis, kappa=args.kappa)
 
         options = copy(vars(args))
-        vars_to_remove = ['recipe', 'input', 'output', 'axis', 'bias', 'kappa']
+        vars_to_remove = ['task', 'input', 'output', 'axis', 'bias', 'kappa']
         for varname in vars_to_remove:
             options.pop(varname)
         _, log = normalize_spectral_flat(flatcombine, args.output, dispaxis=args.axis, **options)
 
-    elif recipe == 'corr':
+    elif task == 'corr':
         from pynot.scired import correct_raw_file
         print("Running task: Bias subtraction and flat field correction")
         input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
@@ -391,7 +391,7 @@ def main():
                                  overscan=50, overwrite=True, mode=mode)
             print(" - Image: %s  ->  %s" % (fname, output))
 
-    elif recipe == 'identify':
+    elif task == 'identify':
         from PyQt5 import QtWidgets
         from pynot.identify_gui import GraphicInterface
         # Launch App:
@@ -403,7 +403,7 @@ def main():
         gui.show()
         app.exit(app.exec_())
 
-    elif recipe == 'response':
+    elif task == 'response':
         from PyQt5 import QtWidgets
         from pynot.response_gui import ResponseGUI
         # Launch App:
@@ -412,57 +412,57 @@ def main():
         gui.show()
         app.exit(app.exec_())
 
-    elif recipe == 'wave1d':
+    elif task == 'wave1d':
         from pynot.wavecal import wavecal_1d
         print("Running task: 1D Wavelength Calibration")
         log = wavecal_1d(args.input, args.table, output=args.output, order_wl=args.order_wl,
                          log=args.log, N_out=args.npix, linearize=args.no_int)
 
-    elif recipe == 'wave2d':
+    elif task == 'wave2d':
         from pynot.wavecal import rectify
         print("Running task: 2D Rectification and Wavelength Calibration")
         options = copy(vars(args))
-        vars_to_remove = ['recipe', 'input', 'arc', 'table', 'output', 'axis']
+        vars_to_remove = ['task', 'input', 'arc', 'table', 'output', 'axis']
         for varname in vars_to_remove:
             options.pop(varname)
         log = rectify(args.input, args.arc, args.table, output=args.output, fig_dir='./',
                       dispaxis=args.axis, **options)
 
-    elif recipe == 'skysub':
+    elif task == 'skysub':
         from pynot.scired import auto_fit_background
         print("Running task: Background Subtraction")
         options = copy(vars(args))
-        vars_to_remove = ['recipe', 'input', 'output', 'axis']
+        vars_to_remove = ['task', 'input', 'output', 'axis']
         for varname in vars_to_remove:
             options.pop(varname)
         log = auto_fit_background(args.input, args.output, dispaxis=args.axis,
                                   plot_fname="skysub_diagnostics.pdf",
                                   **options)
 
-    elif recipe == 'crr':
+    elif task == 'crr':
         from pynot.scired import correct_cosmics
         print("Running task: Cosmic Ray Rejection")
         options = copy(vars(args))
-        vars_to_remove = ['recipe', 'input', 'output']
+        vars_to_remove = ['task', 'input', 'output']
         for varname in vars_to_remove:
             options.pop(varname)
         log = correct_cosmics(args.input, args.output, **options)
 
-    elif recipe == 'flux1d':
+    elif task == 'flux1d':
         from pynot.response import flux_calibrate_1d
         print("Running task: Flux Calibration of 1D Spectrum")
         log = flux_calibrate_1d(args.input, output=args.output, response=args.response)
 
-    elif recipe == 'flux2d':
+    elif task == 'flux2d':
         from pynot.response import flux_calibrate
         print("Running task: Flux Calibration of 2D Image")
         log = flux_calibrate(args.input, output=args.output, response=args.response)
 
-    elif recipe == 'extract':
+    elif task == 'extract':
         from PyQt5 import QtWidgets
         from pynot.extract_gui import ExtractGUI
         options = copy(vars(args))
-        vars_to_remove = ['recipe', 'input', 'output', 'axis']
+        vars_to_remove = ['task', 'input', 'output', 'axis']
         for varname in vars_to_remove:
             options.pop(varname)
 
@@ -477,7 +477,7 @@ def main():
             gui.show()
             app.exit(app.exec_())
 
-    elif recipe == 'classify':
+    elif task == 'classify':
         from pynot.data import organizer as do
         from pynot.data import io
         print_credits()
@@ -488,7 +488,7 @@ def main():
         log = message
         log += "\nSaved file classification database: %s" % args.output
 
-    elif recipe == 'init':
+    elif task == 'init':
         print_credits()
         if args.mode == 'spex':
             defaults_fname = defaults_fname_spec
@@ -504,20 +504,20 @@ def main():
         print("")
 
 
-    elif recipe == 'phot':
+    elif task == 'phot':
         from pynot.phot_redux import run_pipeline
         print_credits()
         run_pipeline(options_fname=args.params,
                      verbose=args.verbose)
 
-    elif recipe == 'imflat':
+    elif task == 'imflat':
         print("Running task: Combination of Imaging Flat Fields")
         from pynot.calibs import combine_flat_frames
         input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
         _, log = combine_flat_frames(input_list, output=args.output, mbias=args.bias, mode='img',
                                      kappa=args.kappa)
 
-    elif recipe == 'imtrim':
+    elif task == 'imtrim':
         print("Running task: Image Trimming")
         from pynot.scired import detect_filter_edge, trim_filter_edge
         if args.edges is not None:
@@ -535,27 +535,27 @@ def main():
             print("  Trimming image: %s" % fname)
             trim_filter_edge(fname, *image_region, output_dir=args.dir)
 
-    elif recipe == 'imcombine':
+    elif task == 'imcombine':
         print("Running task: Image Combination")
         from pynot.phot import image_combine
         input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
         options = copy(vars(args))
-        vars_to_remove = ['recipe', 'input', 'output', 'log', 'fringe']
+        vars_to_remove = ['task', 'input', 'output', 'log', 'fringe']
         for varname in vars_to_remove:
             options.pop(varname)
         log = image_combine(input_list, output=args.output, log_name=args.log, fringe_image=args.fringe, **options)
 
-    elif recipe == 'fringe':
+    elif task == 'fringe':
         print("Running task: Creating Average Fringe Image")
         from pynot.phot import create_fringe_image
         input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
         log = create_fringe_image(input_list, output=args.output, fig_fname=args.fig, threshold=args.sigma)
 
-    elif recipe == 'sep':
+    elif task == 'sep':
         print("Running task: Extracting Sources and Measuring Aperture Fluxes")
         from pynot.phot import source_detection
         options = copy(vars(args))
-        vars_to_remove = ['recipe', 'input', 'zero']
+        vars_to_remove = ['task', 'input', 'zero']
         bg_options = {}
         ext_options = {}
         for varname, value in options.items():

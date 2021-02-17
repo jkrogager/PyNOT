@@ -21,15 +21,15 @@ and requires the following packages : `astroalign`, `astropy`, `astroscrappy`, `
 
 
 ## Basic Usage
-The pipeline is implemented as a series of modules or "recipes" that can either be executed individually or as a fully assembled pipeline. The available recipes can be shown by running:
+The pipeline is implemented as a series of modules or "tasks" that can either be executed individually or as a fully assembled pipeline. The available tasks can be shown by running:
 
     ]% pynot -h
 
-and the input parameters for each recipe can be inspected by running:
+and the input parameters for each task can be inspected by running:
 
-    ]% pynot  recipe-name  -h
+    ]% pynot  task-name  -h
 
-Three of the recipes have slightly special behavior:
+Three of the task have slightly special behavior:  (note: `init` and `classify` will merge in coming update)
 
  - `init` : initiates a default parameter file in YAML format.
 
@@ -90,7 +90,7 @@ A default reduction would require the following steps:
 
   This will initiate a new parameter file with default values. All available parameters of the steps of the pipeline are laid out in this file. Open the file with your favorite text editor and insert the name of the PFC table under the parameter `dataset` and edit any other values as you see fit. A short description of the parameters is given in the file. For more detail, see the full documentation.
 
-  For now we will just focus on the interactive parameters: There are three recipes that can be used in interactive mode, which will start a graphical interface to allow the user more flexibility. These are: line identification (for wavelength calibration), extraction of the 1-dimensional spectra, and calculation of the response function. By default, these are all turned on. Note that the line identification can be defined in two ways:
+  For now we will just focus on the interactive parameters: There are three tasks that can be used in interactive mode, which will start a graphical interface to allow the user more flexibility. These are: line identification (for wavelength calibration), extraction of the 1-dimensional spectra, and calculation of the response function. By default, these are all turned on. Note that the line identification can be defined in two ways:
   (i)  once for all grisms in the given dataset, this line identification information will then automatically be used for all objects observed with the given grism;
   or (ii) for each object in the dataset based on the arc file observed closest in time to the science frame. This provides more accurate rectification of the image, but the difference in low-resolution data is usually negligible.
 
@@ -152,7 +152,7 @@ A basic automated reduction would require the following steps:
                      |...
     ```
   The individual images for each filter of each target are kept in the desginated folders under each object, and are automatically combined. The combined image is in the folder of the given object. The last step of the pipeline as of now is to run a source extraction algorithm (SEP/SExtractor) to provide a final source table with aperture fluxes, a segmentation map as well as a figure showing the identified sources in the field.
-  In each designated filter folder, the pipeline also produces a file log showing which files are combined into the final image as well as some basic image statistics: an estimate of the seeing, the PSF ellipticity, and the exposure time. This file can be used as input for further refined image combinations using the recipe `pynot imcombine  filelist_OBJECT_1.txt  new_combined_R.fits`. Individual frames can be commented out in the file log in order to exclude them in subsequent combinations. The combined images are given in units of counts per second.
+  In each designated filter folder, the pipeline also produces a file log showing which files are combined into the final image as well as some basic image statistics: an estimate of the seeing, the PSF ellipticity, and the exposure time. This file can be used as input for further refined image combinations using the task `pynot imcombine  filelist_OBJECT_1.txt  new_combined_R.fits`. Individual frames can be commented out in the file log in order to exclude them in subsequent combinations. The combined images are given in units of counts per second.
 
 
 4. Verify the various steps of the data products and make sure that everything terminated successfully.
