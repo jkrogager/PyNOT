@@ -383,6 +383,7 @@ class TraceModel(object):
         self.axis = axis
         self.fixed = False
         self.object_name = object_name
+        self.active = True
 
         self.x_binned = np.array([])
         self.mask = {'mu': np.array([], dtype=bool), 'sigma': np.array([], dtype=bool),
@@ -446,8 +447,8 @@ class TraceModel(object):
             self.mask['sigma'] = np.ones_like(sigma, dtype=bool)
 
     def get_unicode_name(self, parname):
-        unicode_names = {'mu': 'µ', 'sigma': 'σ',
-                         'alpha': 'α', 'beta': 'β'}
+        unicode_names = {'mu': 'centroid', 'sigma': 'Gaussian σ',
+                         'alpha': 'Moffat α', 'beta': 'Moffat β'}
         return unicode_names[parname]
 
     def get_data(self):
@@ -513,6 +514,7 @@ class TraceModel(object):
                 child.remove()
 
     def deactivate(self):
+        self.active = False
         for vline in self.vlines:
             vline.set_visible(False)
         for line_collection in self.point_lines.values():
@@ -529,6 +531,7 @@ class TraceModel(object):
                 child.set_visible(False)
 
     def activate(self):
+        self.active = True
         self.vlines[1].set_visible(True)
         for line_collection in self.point_lines.values():
             if len(line_collection) > 0:
@@ -1720,10 +1723,29 @@ class ExtractGUI(QtWidgets.QMainWindow):
                         l4, = self.axis_2d.plot(model.x_binned[mask], model.points[parname][mask],
                                                 color=model.color, marker='o', ls='', alpha=0.5, picker=True, pickradius=6)
                         model.point_lines[parname].append(l4)
+
+                    if not model.active:
+                        l1.set_visible(False)
+                        l1.set_picker(False)
+                        l2.set_visible(False)
+                        l2.set_picker(False)
+                        l3.set_visible(False)
+                        if parname == 'mu':
+                            l4.set_visible(False)
+                            l4.set_picker(False)
+                    else:
+                        l1.set_picker(True)
+                        l2.set_picker(True)
+                        if parname == 'mu':
+                            l4.set_picker(True)
+
                     # -- Plot fit to points:
                     if len(model.fit['mu']) > 0:
                         lf = model.fit_lines[parname]
                         lf.set_data(model.x, model.fit[parname])
+                        if not model.active:
+                            lf.set_visible(False)
+
         else:
             for model in self.trace_models:
                 for line in model.point_lines['mu']:
@@ -1761,10 +1783,10 @@ class ExtractGUI(QtWidgets.QMainWindow):
                                       color=model.color, ls='--', lw=1.0)
                         model.fit_lines[parname] = lf
                     if not model.fixed:
-                        ax.set_ylabel(r"$\%s$" % parname)
+                        ax.set_ylabel("%s" % model.get_unicode_name(parname))
                     if not ax.is_last_row():
                         ax.set_xticklabels("")
-        # self.canvas_points.figure.tight_layout()
+        self.canvas_points.figure.tight_layout()
         self.update_xmask_in_points()
         self.canvas_points.draw()
         self.canvas_2d.draw()
@@ -1787,7 +1809,6 @@ class ExtractGUI(QtWidgets.QMainWindow):
                         model.model2d[:, num] = P_i
                     else:
                         model.model2d[:, num] = P_i / np.sum(P_i)
-                # model.model2d /= np.sum(model.model2d, axis=0)
 
             else:
                 domain = (0., np.max(model.x))
@@ -1826,22 +1847,21 @@ class ExtractGUI(QtWidgets.QMainWindow):
                     upper_array = np.round(mu + delta_upper, 0)
                     pars_table = np.column_stack([lower_array, upper_array])
 
-                lower, upper = model.get_range()
-                dlow = np.abs(model.cen - lower)
-                dhigh = np.abs(model.cen - upper)
+                # lower, upper = model.get_range()
+                # dlow = np.abs(model.cen - lower)
+                # dhigh = np.abs(model.cen - upper)
                 for num, pars in enumerate(pars_table):
                     P_i = model_function(model.y, *pars)
-                    # if model.model_type != '':
-                    if model.model_type != 'tophat':
-                        il = int(pars[0] - dlow)
-                        ih = int(pars[0] + dhigh)
-                        P_i[:il] = 0.
-                        P_i[ih:] = 0.
+                    # # if model.model_type != '':
+                    # if model.model_type != 'tophat':
+                    #     il = int(pars[0] - dlow)
+                    #     ih = int(pars[0] + dhigh)
+                    #     P_i[:il] = 0.
+                    #     P_i[ih:] = 0.
                     if np.sum(P_i) == 0:
                         model.model2d[:, num] = P_i
                     else:
                         model.model2d[:, num] = P_i / np.sum(P_i)
-                # model.model2d /= np.sum(model.model2d, axis=0)
 
         if plot is True:
             self.plot_trace_2d()
@@ -1855,6 +1875,8 @@ class ExtractGUI(QtWidgets.QMainWindow):
         artist = event.artist
         if isinstance(artist, matplotlib.lines.Line2D):
             for model in self.trace_models:
+                if not model.active:
+                    continue
                 for parname in ['mu', 'alpha', 'beta', 'sigma']:
                     if artist in model.point_lines[parname]:
                         x_picked = event.mouseevent.xdata
@@ -1902,6 +1924,8 @@ class ExtractGUI(QtWidgets.QMainWindow):
             WarningDialog(self, msg, info)
             return
 
+        for spec1d in self.data1d:
+            del spec1d
         data1d_list = []
         for num, model in enumerate(self.trace_models):
             P = model.model2d
@@ -1913,8 +1937,13 @@ class ExtractGUI(QtWidgets.QMainWindow):
             with warnings.catch_warnings():
                 P = P / np.sum(P, axis=0)
                 warnings.simplefilter('ignore')
-                data1d = np.sum(M*P*img2d/V, axis=0) / np.sum(M*P**2/V, axis=0)
-                err1d = np.sqrt(np.sum(M*P, axis=0) / np.sum(M*P**2/V, axis=0))
+                if model.model_type == 'tophat':
+                    data1d = np.sum((P > 0)*img2d, axis=0)
+                    # data1d = np.sum(P*img2d, axis=0) / np.sum(P**2, axis=0)
+                    err1d = np.sqrt(np.sum(V*(P > 0), axis=0))
+                else:
+                    data1d = np.sum(M*P*img2d/V, axis=0) / np.sum(M*P**2/V, axis=0)
+                    err1d = np.sqrt(np.sum(M*P, axis=0) / np.sum(M*P**2/V, axis=0))
                 err1d = fix_nans(err1d)
                 bg1d = np.sum(M*P*bg2d, axis=0) / np.sum(M*P**2, axis=0)
 
@@ -2364,12 +2393,12 @@ class ModelPropertiesWindow(QtWidgets.QDialog):
         lower = np.abs(self.trace_model.lower - cen)
         upper = np.abs(self.trace_model.upper - cen)
         self.fwhm_label = QtWidgets.QLabel("FWHM = ...")
-        self.lower_editor = QtWidgets.QLineEdit("%i" % lower)
-        self.lower_editor.setValidator(QtGui.QIntValidator(0, 1000))
-        self.upper_editor = QtWidgets.QLineEdit("%i" % upper)
-        self.upper_editor.setValidator(QtGui.QIntValidator(0, 1000))
-        self.cen_editor = QtWidgets.QLineEdit("%i" % cen)
-        self.cen_editor.setValidator(QtGui.QIntValidator(0, 10000))
+        self.lower_editor = QtWidgets.QLineEdit("%.2f" % lower)
+        self.lower_editor.setValidator(QtGui.QDoubleValidator())
+        self.upper_editor = QtWidgets.QLineEdit("%.2f" % upper)
+        self.upper_editor.setValidator(QtGui.QDoubleValidator())
+        self.cen_editor = QtWidgets.QLineEdit("%.2f" % cen)
+        self.cen_editor.setValidator(QtGui.QDoubleValidator())
 
 
         main_layout = QtWidgets.QGridLayout()
@@ -2417,9 +2446,9 @@ class ModelPropertiesWindow(QtWidgets.QDialog):
         if new_model_type == 'tophat':
             self.trace_model.set_visible(True)
 
-        new_lower = int(self.lower_editor.text())
-        new_upper = int(self.upper_editor.text())
-        new_centroid = int(self.cen_editor.text())
+        new_lower = float(self.lower_editor.text())
+        new_upper = float(self.upper_editor.text())
+        new_centroid = float(self.cen_editor.text())
         old_centroid = self.trace_model.cen
         centroid_shift = new_centroid - old_centroid
         if np.abs(centroid_shift) > 0:
