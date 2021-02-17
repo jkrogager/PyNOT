@@ -1062,8 +1062,15 @@ class ExtractGUI(QtWidgets.QMainWindow):
             prim_hdr['AUTHOR'] = 'PyNOT'
             prim_hdr['COMMENT'] = '2D background subtracted spectrum'
             prim_hdr['CHEB_ORD'] = self.settings['BACKGROUND_POLY_ORDER']
-            hdu = fits.PrimaryHDU(data=data2d, header=prim_hdr)
-            hdu.writeto(path, overwrite=True, output_verify='silentfix')
+            sky_hdr = fits.Header()
+            sky_hdr['AUTHOR'] = 'PyNOT'
+            sky_hdr['COMMENT'] = '2D background subtracted spectrum'
+            sky_hdr['CHEB_ORD'] = self.settings['BACKGROUND_POLY_ORDER']
+            prim_HDU = fits.PrimaryHDU(data=data2d, header=prim_hdr)
+            err_HDU = fits.ImageHDU(data=self.image2d.error, header=prim_hdr, name='ERR')
+            sky_HDU = fits.ImageHDU(data=bg_model, header=sky_hdr, name='SKY')
+            HDU_list = fits.HDUList([prim_HDU, err_HDU, sky_HDU])
+            HDU_list.writeto(path, overwrite=True, output_verify='silentfix')
 
     def save_spectrum_bg(self):
         """Save the fitted 2D background spectrum"""
@@ -1101,16 +1108,8 @@ class ExtractGUI(QtWidgets.QMainWindow):
 
         if fname:
             hdu = fits.HDUList()
-            prim_hdr = fits.Header()
+            prim_hdr = self.image2d.header
             prim_hdr['AUTHOR'] = 'PyNOT'
-            prim_hdr['OBJECT'] = self.image2d.header['OBJECT']
-            prim_hdr['DATE-OBS'] = self.image2d.header['DATE-OBS']
-            prim_hdr['EXPTIME'] = self.image2d.header['EXPTIME']
-            prim_hdr['AIRMASS'] = self.image2d.header['AIRMASS']
-            prim_hdr['ALGRNM'] = self.image2d.header['ALGRNM']
-            prim_hdr['ALAPRTNM'] = self.image2d.header['ALAPRTNM']
-            prim_hdr['RA'] = self.image2d.header['RA']
-            prim_hdr['DEC'] = self.image2d.header['DEC']
             prim_hdr['COMMENT'] = 'PyNOT extracted spectra'
             prim_hdr['COMMENT'] = 'Each spectrum in its own extension'
             prim = fits.PrimaryHDU(header=prim_hdr)
@@ -1939,7 +1938,6 @@ class ExtractGUI(QtWidgets.QMainWindow):
                 warnings.simplefilter('ignore')
                 if model.model_type == 'tophat':
                     data1d = np.sum((P > 0)*img2d, axis=0)
-                    # data1d = np.sum(P*img2d, axis=0) / np.sum(P**2, axis=0)
                     err1d = np.sqrt(np.sum(V*(P > 0), axis=0))
                 else:
                     data1d = np.sum(M*P*img2d/V, axis=0) / np.sum(M*P**2/V, axis=0)
@@ -1991,13 +1989,10 @@ class ExtractGUI(QtWidgets.QMainWindow):
 
     def toggle_trace_models(self, listItem):
         index = self.list_widget.row(listItem)
-        # model_type = self.model_chooser.currentText()
         if listItem.checkState() == 2:
             # Active:
             self.trace_models[index].activate()
             self.trace_models[index].set_visible(True)
-            # if model_type.lower() == 'tophat':
-            #     self.trace_models[index].set_visible(True)
         else:
             # Inactive:
             self.trace_models[index].deactivate()
