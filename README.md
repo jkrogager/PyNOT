@@ -29,7 +29,7 @@ and the input parameters for each task can be inspected by running:
 
     ]% pynot  task-name  -h
 
-Three of the task have slightly special behavior:  (note: `init` and `classify` will merge in coming update)
+Three of the tasks have slightly special behavior:  (note: `init` and `classify` will merge in coming update)
 
  - `init` : initiates a default parameter file in YAML format.
 
