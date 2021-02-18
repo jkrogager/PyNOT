@@ -76,29 +76,48 @@ def initialize(args):
     from pynot.data import io
 
     # Classify files:
-    log = list()
-    log.append("Classifying files...")
-    database, message = do.classify(args.path, progress=args.verbose)
-    pfc_name = args.output
-    if pfc_name[-4:] != '.pfc':
-        pfc_name += '.pfc'
-    io.save_database(database, pfc_name)
-    log.append(message)
-    log.append(" [OUTPUT] - Saved file classification database: %s" % pfc_name)
+    # args.silent is set to "store_false", so by default it is true!
+    verbose = args.silent
+    database, message = do.classify(args.path, progress=verbose)
+    pfc_fname = args.output
+    if pfc_fname[-4:] != '.pfc':
+        pfc_fname += '.pfc'
+    io.save_database(database, pfc_fname)
+    if verbose:
+        print(message)
+    print(" [OUTPUT] - Saved file classification database: %s" % pfc_fname)
 
     if args.mode == 'spex':
         defaults_fname = defaults_fname_spec
     else:
         defaults_fname = defaults_fname_phot
 
+    with open(defaults_fname) as opt:
+        all_lines = opt.readlines()
+    for num, line in enumerate(all_lines):
+        if line.find('dataset:') == 0:
+            break
+    else:
+        print(" [ERROR]  - Something went horribly wrong in the parameter file!!")
+        print(" [ERROR]    Check the file: %s !" % defaults_fname)
+        return
+
+    # Input the PFC filename in the default parameters:
+    root, rest = line.split(':')
+    empty_str, comment = rest.split('#')
+    fmt = "%%%is" % (len(empty_str) - 1)
+    dataset_input = "%s: %s #%s" % (root, fmt % pfc_fname, comment)
+    all_lines[num] = dataset_input
+
     pars_fname = args.pars
-    if pfc_name[-4:] != '.yml':
-        pfc_name += '.yml'
-    copy_cmd = "cp %s  %s" % (defaults_fname, pars_fname)
-    os.system(copy_cmd)
-    log.append(" [OUTPUT] - Initiated new parameter file: %s" % pars_fname)
-    log.append("")
-    return "\n".join(log)
+    if pars_fname[-4:] != '.yml':
+        pars_fname += '.yml'
+
+    # Write the new parameter file:
+    with open(pars_fname, 'w') as parfile:
+        parfile.write("".join(all_lines))
+
+    print(" [OUTPUT] - Initiated new parameter file: %s\n" % pars_fname)
 
 
 def main():
@@ -117,8 +136,8 @@ def main():
                              help="Filename of parameter file, default = options.yml")
     parser_init.add_argument("-o", "--output", type=str, default='dataset.pfc',
                              help="Filename of file classification table (*.pfc)")
-    parser_init.add_argument("-v", "--verbose", action='store_true',
-                             help="Print status messages to terminal")
+    parser_init.add_argument("-s", "--silent", action='store_false',
+                             help="Minimze the output to terminal")
 
 
 
@@ -375,7 +394,12 @@ def main():
     # -- Define Workflow
     task = args.task
     log = ""
-    if task == 'spex':
+
+
+    if task == 'init':
+        initialize(args)
+
+    elif task == 'spex':
         from pynot.redux import run_pipeline
         print_credits()
         run_pipeline(options_fname=args.params,
@@ -508,31 +532,6 @@ def main():
             gui.show()
             app.exit(app.exec_())
 
-    elif task == 'classify':
-        from pynot.data import organizer as do
-        from pynot.data import io
-        print_credits()
-        # Classify files:
-        print("Classifying files...")
-        database, message = do.classify(args.path, progress=args.verbose)
-        io.save_database(database, args.output)
-        log = message
-        log += "\nSaved file classification database: %s" % args.output
-
-    elif task == 'init':
-        print_credits()
-        if args.mode == 'spex':
-            defaults_fname = defaults_fname_spec
-        else:
-            defaults_fname = defaults_fname_phot
-
-        if not os.path.exists(args.filename):
-            copy_cmd = "cp %s  %s" % (defaults_fname, args.filename)
-            os.system(copy_cmd)
-            print(" [OUTPUT] - Initiated new parameter file: %s" % args.filename)
-        else:
-            print(" [ERROR]  - File already exists (%s). Cannot overwrite!" % args.filename)
-        print("")
 
 
     elif task == 'phot':
