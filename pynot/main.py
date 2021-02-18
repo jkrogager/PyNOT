@@ -8,7 +8,7 @@ To create a default parameter file, run:
     %] pynot init
 """
 
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, HelpFormatter
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from copy import copy
 import os
 import sys
@@ -70,16 +70,57 @@ def set_help_width(max_width=30):
         return ArgumentDefaultsHelpFormatter
 
 
+def initialize(args):
+    print_credits()
+    from pynot.data import organizer as do
+    from pynot.data import io
+
+    # Classify files:
+    log = list()
+    log.append("Classifying files...")
+    database, message = do.classify(args.path, progress=args.verbose)
+    pfc_name = args.output
+    if pfc_name[-4:] != '.pfc':
+        pfc_name += '.pfc'
+    io.save_database(database, pfc_name)
+    log.append(message)
+    log.append(" [OUTPUT] - Saved file classification database: %s" % pfc_name)
+
+    if args.mode == 'spex':
+        defaults_fname = defaults_fname_spec
+    else:
+        defaults_fname = defaults_fname_phot
+
+    pars_fname = args.pars
+    if pfc_name[-4:] != '.yml':
+        pfc_name += '.yml'
+    copy_cmd = "cp %s  %s" % (defaults_fname, pars_fname)
+    os.system(copy_cmd)
+    log.append(" [OUTPUT] - Initiated new parameter file: %s" % pars_fname)
+    log.append("")
+    return "\n".join(log)
+
+
 def main():
     parser = ArgumentParser(prog='pynot')
     tasks = parser.add_subparsers(dest='task')
 
     p_break1 = tasks.add_parser('', help="")
-    parser_init = tasks.add_parser('init', help="Initiate a default parameter file")
+
+    parser_init = tasks.add_parser('init', formatter_class=set_help_width(31),
+                                   help="Initiate a default parameter file")
     parser_init.add_argument("mode", type=str, choices=['spex', 'phot'],
                              help="Create parameter file for spectroscopy or imaging?")
-    parser_init.add_argument("filename", type=str, nargs='?', default='options.yml',
+    parser_init.add_argument("path", type=str, nargs='+',
+                             help="Path (or paths) to raw ALFOSC data to be classified")
+    parser_init.add_argument('-p', "--pars", type=str, default='options.yml',
                              help="Filename of parameter file, default = options.yml")
+    parser_init.add_argument("-o", "--output", type=str, default='dataset.pfc',
+                             help="Filename of file classification table (*.pfc)")
+    parser_init.add_argument("-v", "--verbose", action='store_true',
+                             help="Print status messages to terminal")
+
+
 
     # -- BIAS :: Bias Combination
     parser_bias = tasks.add_parser('bias', formatter_class=set_help_width(31),
@@ -261,17 +302,6 @@ def main():
     set_default_pars(parser_ext, section='extract', default_type=int,
                      ignore_pars=['interactive'])
 
-
-    # -- classify :: Classify ALFOSC Files
-    parser_class = tasks.add_parser('classify', formatter_class=set_help_width(31),
-                                    help="Classify ALFOSC files")
-    parser_class.add_argument("path", type=str, nargs='+',
-                              help="Path (or paths) to raw ALFOSC data to be classified")
-    parser_class.add_argument("-o", "--output", type=str, default='dataset.pfc',
-                              help="Filename of file classification table (*.pfc) [REQUIRED]")
-    parser_class.add_argument("-v", "--verbose", action='store_true',
-                              help="Print status messages to terminal")
-
     # Spectral Redux:
     parser_redux = tasks.add_parser('spex', formatter_class=set_help_width(30),
                                     help="Run the full spectroscopic pipeline")
@@ -279,8 +309,8 @@ def main():
                               help="Input filename of pipeline configuration in YAML format")
     parser_redux.add_argument('-O', "--object", type=str, nargs='+',
                               help="Object name of targets to reduce. Must match OBJECT keyword in the FITS header")
-    parser_redux.add_argument("-v", "--verbose", action="store_true",
-                              help="Print log to terminal")
+    parser_redux.add_argument("-s", "--silent", action="store_false",
+                              help="Minimze the output to terminal")
     parser_redux.add_argument("-i", "--interactive", action="store_true",
                               help="Use interactive interface throughout")
 
@@ -291,8 +321,8 @@ def main():
                                    help="Run the full imaging pipeline")
     parser_phot.add_argument("params", type=str,
                              help="Input filename of pipeline configuration in YAML format")
-    parser_phot.add_argument("-v", "--verbose", action="store_true",
-                             help="Print log to terminal")
+    parser_phot.add_argument("-s", "--silent", action="store_false",
+                             help="Minimze the output to terminal")
 
     parser_imtrim = tasks.add_parser('imtrim', formatter_class=set_help_width(30),
                                      help="Trim images")
@@ -350,7 +380,8 @@ def main():
         print_credits()
         run_pipeline(options_fname=args.params,
                      object_id=args.object,
-                     verbose=args.verbose, interactive=args.interactive)
+                     verbose=args.silent,
+                     interactive=args.interactive)
 
     elif task == 'bias':
         from pynot.calibs import combine_bias_frames
@@ -508,7 +539,7 @@ def main():
         from pynot.phot_redux import run_pipeline
         print_credits()
         run_pipeline(options_fname=args.params,
-                     verbose=args.verbose)
+                     verbose=args.silent)
 
     elif task == 'imflat':
         print("Running task: Combination of Imaging Flat Fields")

@@ -1,19 +1,11 @@
 ### PyNOT Imaging Pipeline -- Parameter File
 
-# Give the path to the raw data:
-# either as a single directory or a list of directories
-path:
-# path:
-#   - path/to/data1
-#   - path/to/data2
-# path: [dir1, dir2, dir3...]
-# path: path/to/data
-
 dataset:                     # The PyNOT File Classification (*.pfc)
 
 # [Static Calibrations]
 # Note: these will be applied to all objects in the pipeline!
 mbias:                       # Static master bias frame
+# [-------------------]
 
 clean:         True          # Remove temporary images (CCD processed before trimming)
 # [Recipe Options]
