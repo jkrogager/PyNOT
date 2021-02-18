@@ -267,7 +267,7 @@ def main():
                                     help="Classify ALFOSC files")
     parser_class.add_argument("path", type=str, nargs='+',
                               help="Path (or paths) to raw ALFOSC data to be classified")
-    parser_class.add_argument("-o", "--output", type=str, required=True,
+    parser_class.add_argument("-o", "--output", type=str, default='dataset.pfc',
                               help="Filename of file classification table (*.pfc) [REQUIRED]")
     parser_class.add_argument("-v", "--verbose", action='store_true',
                               help="Print status messages to terminal")
