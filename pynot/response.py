@@ -299,7 +299,8 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
             raise Exception(output_msg)
 
     # Check if the star name is in the header:
-    if star not in alfosc.standard_star_names:
+    star = alfosc.lookup_std_star(star)
+    if star is None:
         msg.append(" [ERROR]  - No reference data found for the star %s (TCS Target Name)" % hdr['TCSTGT'])
         output_msg = "\n".join(msg)
         raise ValueError(output_msg)

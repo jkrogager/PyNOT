@@ -6,7 +6,7 @@ import sys
 from glob import glob
 from astropy.io import fits
 
-from pynot.alfosc import get_mjd, get_binning_from_hdr, get_filter, get_header
+from pynot.alfosc import get_mjd, get_binning_from_hdr, get_filter, get_header, lookup_std_star
 
 # -- use os.path
 code_dir = os.path.dirname(os.path.abspath(__file__))
@@ -215,8 +215,12 @@ def classify_file(fname, rules):
             if img_filter == '' and h['FPIX'] > 200:
                 matches = ['ACQ_IMG']
 
-        elif ftype == 'SPEC_OBJECT' and h['TCSTGT'] in calib_names:
-            matches = ['SPEC_FLUX-STD']
+        elif ftype == 'SPEC_OBJECT':
+            star_target = h['TCSTGT']
+            star_name = lookup_std_star(star_target)
+            if star_name:
+                matches = ['SPEC_FLUX-STD']
+
     elif len(matches) == 0:
         msg.append("No classification matched the file: %s" % fname)
     else:

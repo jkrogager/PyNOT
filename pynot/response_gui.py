@@ -324,7 +324,8 @@ class ResponseGUI(QtWidgets.QMainWindow):
 
         if 'TCSTGT' in hdr:
             TCSname = hdr['TCSTGT']
-            if TCSname in alfosc.standard_star_names:
+            TCSname = alfosc.lookup_std_star(TCSname)
+            if TCSname:
                 star_name = alfosc.standard_star_names[TCSname]
                 self.star_chooser.setCurrentText(star_name.upper())
         elif 'OBJECT' in hdr:

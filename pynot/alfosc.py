@@ -56,6 +56,11 @@ standard_star_names = {'SP0305+261': 'HD19445',
                        'GD71': 'GD71',
                        'GD153': 'GD153'}
 
+def lookup_std_star(input_name):
+    for name in standard_star_names:
+        if input_name.upper() in name:
+            return name
+    return None
 
 filter_table = Table.read(path + '/calib/alfosc_filters.dat', format='ascii.fixed_width')
 filter_translate = {long: short for long, short in filter_table['name', 'short_name']}

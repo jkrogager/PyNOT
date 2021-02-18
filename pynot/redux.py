@@ -471,9 +471,11 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
         # Response Function:
         if 'SPEC_FLUX-STD' in database:
-            flux_std_files = sci_img.match_files(database['SPEC_FLUX-STD'], grism=True, slit=True, filter=True, get_closest_time=True)
+            flux_std_files = sci_img.match_files(database['SPEC_FLUX-STD'],
+                                                 date=False, grism=True, slit=True, filter=True, get_closest_time=True)
         else:
             flux_std_files = []
+
         if len(flux_std_files) == 0:
             log.warn("No spectroscopic standard star was found in the dataset!")
             log.warn("The reduced spectra will not be flux calibrated")
