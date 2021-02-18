@@ -118,6 +118,8 @@ def initialize(args):
         parfile.write("".join(all_lines))
 
     print(" [OUTPUT] - Initiated new parameter file: %s\n" % pars_fname)
+    print("\n You can now start the reduction pipeline by running:")
+    print("   ]%% pynot %s  %s\n" % (args.mode, pars_fname))
 
 
 def main():
