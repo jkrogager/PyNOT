@@ -229,6 +229,14 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
     # Setup the filenames:
     grism = alfosc.grism_translate[hdr['ALGRNM']]
     star = hdr['TCSTGT']
+    # Check if the star name is in the header:
+    star = alfosc.lookup_std_star(star)
+    if star is None:
+        msg.append("[WARNING] - No reference data found for the star %s (TCS Target Name)" % hdr['TCSTGT'])
+        msg.append("[WARNING] - The reduced spectra will not be flux calibrated")
+        output_msg = "\n".join(msg)
+        return None, output_msg
+
     response_output = 'response_%s_%s.fits' % (star, grism)
     std_tmp_fname = 'std_corr2D_%s.fits' % star
     rect2d_fname = 'std_rect2D_%s.fits' % star
@@ -297,13 +305,6 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
             msg.append("Unexpected error: %r" % sys.exc_info()[0])
             output_msg = "\n".join(msg)
             raise Exception(output_msg)
-
-    # Check if the star name is in the header:
-    star = alfosc.lookup_std_star(star)
-    if star is None:
-        msg.append(" [ERROR]  - No reference data found for the star %s (TCS Target Name)" % hdr['TCSTGT'])
-        output_msg = "\n".join(msg)
-        raise ValueError(output_msg)
 
     # Load the 1D extraction:
     wl, ext1d = load_spectrum1d(ext1d_output)
