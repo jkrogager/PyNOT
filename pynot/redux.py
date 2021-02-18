@@ -146,7 +146,6 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
             options[section_name].update(section)
         else:
             options[section_name] = section
-    raw_path = user_options['path']
 
     if object_id is None:
         pass
@@ -166,7 +165,6 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
         log.fatal_error()
         return
 
-
     if interactive:
         # Set all interactive steps to True
         options['identify']['interactive'] = True
@@ -174,35 +172,17 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
         options['extract']['interactive'] = True
         options['response']['interactive'] = True
 
-    # if raw_path is not None and not os.path.exists(raw_path):
-    #     log.error("Data path does not exist : %s" % raw_path)
-    #     log.fatal_error()
-    #     return
-
     dataset_fname = options['dataset']
-    if os.path.exists(dataset_fname):
+    if dataset_fname and os.path.exists(dataset_fname):
         # -- load collection
         database = io.load_database(dataset_fname)
         log.write("Loaded file classification database: %s" % dataset_fname)
         # -- reclassify (takes already identified files into account)
 
     else:
-        # Classify files:
-        log.write("Classyfying files in folder: %r" % raw_path)
-        try:
-            database, message = do.classify(raw_path, progress=verbose)
-            io.save_database(database, dataset_fname)
-            log.commit(message)
-            log.write("Saved file classification database: %s" % dataset_fname)
-        except ValueError as err:
-            log.error(str(err))
-            print(err)
-            log.fatal_error()
-            return
-        except FileNotFoundError as err:
-            log.error(str(err))
-            log.fatal_error()
-            return
+        log.error("Dataset does not exist : %s" % dataset_fname)
+        log.fatal_error()
+        return
 
     # -- Organize object files in dataset:
     if 'SPEC_OBJECT' not in database:
