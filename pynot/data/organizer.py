@@ -173,6 +173,8 @@ def classify_file(fname, rules):
         for cond in all_conditions:
             if '==' in cond:
                 key, val = cond.split('==')
+                if key not in h:
+                    return [], msg
                 if 'open' in val.lower():
                     criteria.append('open' in h[key].lower())
                 elif 'closed' in val.lower():
@@ -183,6 +185,8 @@ def classify_file(fname, rules):
 
             elif '!=' in cond:
                 key, val = cond.split('!=')
+                if key not in h:
+                    return [], msg
                 if 'open' in val.lower():
                     criteria.append('open' not in h[key].lower())
                 elif 'closed' in val.lower():
@@ -193,11 +197,15 @@ def classify_file(fname, rules):
 
             elif '>' in cond:
                 key, val = cond.split('>')
+                if key not in h:
+                    return [], msg
                 val = parse_value(val)
                 criteria.append(h[key] > val)
 
             elif '<' in cond:
                 key, val = cond.split('<')
+                if key not in h:
+                    return [], msg
                 val = parse_value(val)
                 criteria.append(h[key] < val)
 
@@ -212,14 +220,17 @@ def classify_file(fname, rules):
         if ftype == 'IMG_OBJECT':
             # If no filter is defined and CCD readout is fast, the image is most likely an acquisition image
             img_filter = get_filter(h)
-            if img_filter == '' and h['FPIX'] > 200:
-                matches = ['ACQ_IMG']
+            if (img_filter == '' or img_filter == 'Open'):
+                if 'FPIX' in h:
+                    if h['FPIX'] > 200:
+                        matches = ['ACQ_IMG']
 
         elif ftype == 'SPEC_OBJECT':
-            star_target = h['TCSTGT']
-            star_name = lookup_std_star(star_target)
-            if star_name:
-                matches = ['SPEC_FLUX-STD']
+            if 'TCSTGT' in h:
+                star_target = h['TCSTGT']
+                star_name = lookup_std_star(star_target)
+                if star_name:
+                    matches = ['SPEC_FLUX-STD']
 
     elif len(matches) == 0:
         msg.append("No classification matched the file: %s" % fname)
