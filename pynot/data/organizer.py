@@ -7,6 +7,7 @@ from glob import glob
 from astropy.io import fits
 
 from pynot.alfosc import get_mjd, get_binning_from_hdr, get_filter, get_header, lookup_std_star
+import pynot.alfosc as instrument
 
 # -- use os.path
 code_dir = os.path.dirname(os.path.abspath(__file__))
@@ -162,7 +163,7 @@ def classify_file(fname, rules):
         return [], msg
 
     matches = list()
-    for rule in rules:
+    for linenum, rule in enumerate(rules):
         rule = rule.strip()
         if ('#' in rule) or (len(rule) == 0):
             continue
@@ -224,7 +225,7 @@ def classify_file(fname, rules):
                 criteria.append(val not in h[key])
 
             else:
-                raise ValueError("Invalid condition in rule: %s" % rule)
+                raise ValueError("Invalid condition in rule at line %i:  %s" % (linenum, rule))
 
         if np.all(criteria):
             matches.append(ftype)
@@ -232,16 +233,12 @@ def classify_file(fname, rules):
     if len(matches) == 1:
         ftype = matches[0]
         if ftype == 'IMG_OBJECT':
-            # If no filter is defined and CCD readout is fast, the image is most likely an acquisition image
-            img_filter = get_filter(h)
-            if (img_filter == '' or img_filter == 'Open'):
-                if 'FPIX' in h:
-                    if h['FPIX'] > 200:
-                        matches = ['ACQ_IMG']
+            # Check if target is a flux standard calibrator!
+            pass
 
         elif ftype == 'SPEC_OBJECT':
-            if 'TCSTGT' in h:
-                star_target = h['TCSTGT']
+            if instrument.target_keyword in h:
+                star_target = h[instrument.target_keyword]
                 star_name = lookup_std_star(star_target)
                 if star_name:
                     matches = ['SPEC_FLUX-STD']
