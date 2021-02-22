@@ -1,9 +1,16 @@
+"""
+Instrument definitions for NOT/ALFOSC
+"""
 import glob
 import numpy as np
 from os.path import basename, dirname, abspath
 from astropy.io import fits
 from astropy.table import Table
 import datetime
+
+# Define header keyword to use as object name
+# OBJECT is not always reliable, TCS target name is more robust
+target_keyword = 'TCSTGT'
 
 # path = '/Users/krogager/coding/PyNOT'
 path = dirname(abspath(__file__))
