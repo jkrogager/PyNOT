@@ -51,3 +51,10 @@ sep-extract:
   clean:            True     # Perform cleaning?
   clean_param:      1.0      # Cleaning parameter (see SExtractor manual)
   segmentation_map: True     # Create a segmentation map?
+
+wcs:
+  max_num:          60       # Maximum number of targets used to fit the WCS solution.
+  min_num:          10       # Minimum number of targets required.
+  G_lim:            15       # Bright limit of Gaia sources. Reject targets brighter than G < G_lim
+  q_lim:            0.8      # Reject elliptical sources with axis ratio < `q_lim`
+  kappa:             3       # Threshold for projected distance filtering.

@@ -384,6 +384,7 @@ def main():
     parser_fringe.add_argument("--sigma", type=float, default=3,
                                help="Masking threshold  (default = 3.0)")
 
+
     parser_sep = tasks.add_parser('sep', formatter_class=set_help_width(40),
                                   help="Perform source extraction using SEP (SExtractor)")
     parser_sep.add_argument("input", type=str,
@@ -393,6 +394,18 @@ def main():
     set_default_pars(parser_sep, section='sep-background', default_type=int, mode='img')
     set_default_pars(parser_sep, section='sep-extract', default_type=int, mode='img')
 
+
+    parser_wcs = tasks.add_parser('wcs', formatter_class=set_help_width(30),
+                                  help="Perform WCS calibration")
+    parser_wcs.add_argument("input", type=str,
+                            help="Input image to analyse")
+    parser_wcs.add_argument("table", type=str,
+                            help="Source identification table from SEP (_phot.fits)")
+    parser_wcs.add_argument('-o', "--output", type=str, default='',
+                            help="Filename of WCS calibrated image (.fits)")
+    parser_wcs.add_argument("--fig", type=str, default='',
+                            help="Filename of diagnostic figure (.pdf)")
+    set_default_pars(parser_wcs, section='wcs', default_type=int, mode='img')
 
     args = parser.parse_args()
 
@@ -602,6 +615,15 @@ def main():
                 ext_options[varname] = value
         _, _, log = source_detection(args.input, zeropoint=args.zero,
                                      kwargs_bg=bg_options, kwargs_ext=ext_options)
+
+    elif task == 'wcs':
+        print("Running task: WCS calibration")
+        from pynot.wcs import correct_wcs
+        options = copy(vars(args))
+        vars_to_remove = ['task', 'input', 'output', 'fig', 'table']
+        for varname in vars_to_remove:
+            options.pop(varname)
+        log = correct_wcs(args.input, args.table, output_fname=args.output, fig_fname=args.fig, **options)
 
     if log:
         print(log)

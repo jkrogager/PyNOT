@@ -20,7 +20,7 @@ from pynot.data.organizer import get_filter
 __version__ = get_version_number()
 
 
-def source_detection(fname, zeropoint=0., threshold=3.0, aperture=10.0, kwargs_bg={}, kwargs_ext={}):
+def source_detection(fname, zeropoint=0., threshold=5.0, aperture=10.0, kwargs_bg={}, kwargs_ext={}):
     msg = list()
     # get GAIN from header
     data = fits.getdata(fname)
@@ -82,13 +82,15 @@ def source_detection(fname, zeropoint=0., threshold=3.0, aperture=10.0, kwargs_b
     # If the Kron radius is less than r_min (aperture), use aperture fluxes:
     r_min = aperture
     use_circle = kronrad * np.sqrt(b * a) < r_min
-    # cflux, cfluxerr, cflag = sep.sum_circle(data_sub, x[use_circle], y[use_circle],
-    #                                         r_min, subpix=1)
     flux[use_circle] = aper_flux[use_circle]
     fluxerr[use_circle] = aper_fluxerr[use_circle]
     flag[use_circle] = aper_flag[use_circle]
     msg.append("          - Targets with Kron radii below R_min (%.2f) are ignored" % r_min)
     msg.append("          - Circular aperture fluxes used instead where R_kron < R_min")
+    if np.sum(use_circle) == 1:
+        msg.append("          - %i source identified with R_kron < R_min" % np.sum(use_circle))
+    else:
+        msg.append("          - %i sources identified with R_kron < R_min" % np.sum(use_circle))
 
     # Save output table:
     base, ext = os.path.splitext(fname)

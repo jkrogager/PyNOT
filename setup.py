@@ -87,7 +87,7 @@ setup(
     # https://packaging.python.org/en/latest/requirements.html
     install_requires=['matplotlib', 'numpy', 'scipy', 'PyQt5',
                       'lmfit', 'astropy', 'astroscrappy', 'spectres',
-                      'PyYAML', 'sep', 'astroalign'],
+                      'PyYAML', 'sep', 'astroalign', 'astroquery'],
 
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,

@@ -16,6 +16,7 @@ from pynot.phot import image_combine, create_fringe_image, source_detection
 from pynot.calibs import combine_bias_frames, combine_flat_frames
 from pynot.functions import get_options, get_version_number
 from pynot.scired import raw_correction, correct_cosmics, trim_filter_edge, detect_filter_edge
+from pynot.wcs import correct_wcs
 
 from PyQt5.QtWidgets import QApplication
 
@@ -368,16 +369,30 @@ def run_pipeline(options_fname, verbose=False):
             # Automatic Source Detection and Aperture Photometry:
             try:
                 log.write("Running task: Source Extraction")
-                _, _, output_msg = source_detection(combined_fname, zeropoint=zp,
-                                                    kwargs_bg=options['sep-background'],
-                                                    kwargs_ext=options['sep-extract'])
+                sep_fname, _, output_msg = source_detection(combined_fname, zeropoint=zp,
+                                                            kwargs_bg=options['sep-background'],
+                                                            kwargs_ext=options['sep-extract'])
                 log.commit(output_msg)
                 log.add_linebreak()
             except:
-                log.error("Image combination failed!")
+                log.error("Source extraction failed!")
                 log.fatal_error()
                 print("Unexpected error:", sys.exc_info()[0])
                 raise
+
+
+            # Calibrate WCS:
+            try:
+                log.write("Running task: WCS calibration")
+                output_msg = correct_wcs(combined_fname, sep_fname, options['wcs'])
+                log.commit(output_msg)
+                log.add_linebreak()
+            except:
+                log.error("WCS calibration failed!")
+                log.fatal_error()
+                print("Unexpected error:", sys.exc_info()[0])
+                raise
+
 
             # Clean up temporary files:
             if options['clean']:
