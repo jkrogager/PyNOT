@@ -209,6 +209,20 @@ def classify_file(fname, rules):
                 val = parse_value(val)
                 criteria.append(h[key] < val)
 
+            elif ' contains ' in cond:
+                key, val = cond.split('contains')
+                if key not in h:
+                    return [], msg
+                val = parse_value(val)
+                criteria.append(val in h[key])
+
+            elif ' !contains ' in cond:
+                key, val = cond.split('!contains')
+                if key not in h:
+                    return [], msg
+                val = parse_value(val)
+                criteria.append(val not in h[key])
+
             else:
                 raise ValueError("Invalid condition in rule: %s" % rule)
 
