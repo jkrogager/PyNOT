@@ -80,6 +80,7 @@ def initialize(args):
     verbose = args.silent
     database, message = do.classify(args.path, progress=verbose)
     pfc_fname = args.output
+
     if pfc_fname[-4:] != '.pfc':
         pfc_fname += '.pfc'
     io.save_database(database, pfc_fname)
@@ -105,11 +106,14 @@ def initialize(args):
     # Input the PFC filename in the default parameters:
     root, rest = line.split(':')
     empty_str, comment = rest.split('#')
-    fmt = "%%%is" % (len(empty_str) - 1)
-    dataset_input = "%s: %s #%s" % (root, fmt % pfc_fname, comment)
+    fmt = "%%-%is" % (len(empty_str) - 2)
+    dataset_input = "%s:  %s #%s" % (root, fmt % pfc_fname, comment)
     all_lines[num] = dataset_input
 
     pars_fname = args.pars
+    if pars_fname == 'options.yml':
+        pars_fname = 'options_spex.yml' if args.mode == 'spex' else 'options_phot.yml'
+
     if pars_fname[-4:] != '.yml':
         pars_fname += '.yml'
 
@@ -403,7 +407,7 @@ def main():
 
     elif task == 'spex':
         from pynot.redux import run_pipeline
-        print_credits()
+        # print_credits()
         run_pipeline(options_fname=args.params,
                      object_id=args.object,
                      verbose=args.silent,
@@ -538,7 +542,6 @@ def main():
 
     elif task == 'phot':
         from pynot.phot_redux import run_pipeline
-        print_credits()
         run_pipeline(options_fname=args.params,
                      verbose=args.silent)
 

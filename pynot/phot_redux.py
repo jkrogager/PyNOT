@@ -180,7 +180,7 @@ def run_pipeline(options_fname, verbose=False):
 
     # Combine Bias Frames matched for CCD setup:
     master_bias_fname = os.path.join(output_base, 'MASTER_BIAS.fits')
-    bias_frames = raw_image_list[0].match_files(database['BIAS'])
+    bias_frames = raw_image_list[0].match_files(database['BIAS'], date=False)
     if options['mbias']:
         master_bias_fname = options['mbias']
         log.write("Using static master bias frame: %s" % options['mbias'])
@@ -322,8 +322,9 @@ def run_pipeline(options_fname, verbose=False):
             log.add_linebreak()
 
 
+            N_images = len(corrected_images)
             # Create Fringe image:
-            if options['skysub']['defringe']:
+            if options['skysub']['defringe'] and N_images > 3:
                 log.write("Running task: Creating Average Fringe Image")
                 fringe_fname = os.path.join(output_dir, 'fringe_image.fits')
                 fringe_pdf_fname = os.path.join(output_dir, 'fringe_image.pdf')
@@ -345,9 +346,10 @@ def run_pipeline(options_fname, verbose=False):
             if len(image_list) > 50:
                 log.warning("Large amounts of memory needed for image combination!", force=True)
                 log.warning("A total of %i images will be combined." % len(image_list), force=True)
+
             log.write("Running task: Image Combination")
-            combined_fname = os.path.join(output_obj_base, '%s_%s.fits' % (target_name, filter_name))
             comb_log_name = os.path.join(output_dir, 'filelist_%s.txt' % target_name)
+            combined_fname = os.path.join(output_obj_base, '%s_%s.fits' % (target_name, filter_name))
             try:
                 output_msg = image_combine(corrected_images, output=combined_fname, log_name=comb_log_name,
                                            fringe_image=fringe_fname, **options['combine'])
@@ -358,6 +360,7 @@ def run_pipeline(options_fname, verbose=False):
                 log.fatal_error()
                 print("Unexpected error:", sys.exc_info()[0])
                 raise
+
 
             # Calculate Zero Point:
             zp = 0  # use instrument mags for now

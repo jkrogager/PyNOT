@@ -247,72 +247,78 @@ def image_combine(corrected_images, output='', log_name='', fringe_image='', met
         target = target.byteswap().newbyteorder()
     final_exptime = exptime
     image_log = list()
-    for fname in corrected_images[1:]:
-        msg.append("          - Input image: %s" % fname)
-        source, source_err, source_mask, hdr_i = load_fits_image(fname)
-        source = source - norm_sky*np.median(source)
-        source /= hdr_i['EXPTIME']
-        source_err /= hdr_i['EXPTIME']
-        final_exptime += hdr_i['EXPTIME']
-        try:
-            transf, (coords) = aa.find_transform(source, target,
-                                                 max_control_points=max_control_points,
-                                                 detection_sigma=detection_sigma,
-                                                 min_area=min_area)
-        except:
-            msg.append(" [ERROR]  - Failed to find image transformation!")
-            msg.append("          - Skipping image")
-            continue
+    if len(corrected_images) > 1:
+        for fname in corrected_images[1:]:
+            msg.append("          - Input image: %s" % fname)
+            source, source_err, source_mask, hdr_i = load_fits_image(fname)
+            source = source - norm_sky*np.median(source)
+            source /= hdr_i['EXPTIME']
+            source_err /= hdr_i['EXPTIME']
+            final_exptime += hdr_i['EXPTIME']
+            try:
+                transf, (coords) = aa.find_transform(source, target,
+                                                     max_control_points=max_control_points,
+                                                     detection_sigma=detection_sigma,
+                                                     min_area=min_area)
+            except:
+                msg.append(" [ERROR]  - Failed to find image transformation!")
+                msg.append("          - Skipping image")
+                continue
 
-        source = source.byteswap().newbyteorder()
-        source_err = source_err.byteswap().newbyteorder()
-        source_mask = source_mask.byteswap().newbyteorder()
-        if source.dtype.byteorder != '<':
             source = source.byteswap().newbyteorder()
-        if source_err.dtype.byteorder != '<':
             source_err = source_err.byteswap().newbyteorder()
-        if source_mask.dtype.byteorder != '<':
             source_mask = source_mask.byteswap().newbyteorder()
+            if source.dtype.byteorder != '<':
+                source = source.byteswap().newbyteorder()
+            if source_err.dtype.byteorder != '<':
+                source_err = source_err.byteswap().newbyteorder()
+            if source_mask.dtype.byteorder != '<':
+                source_mask = source_mask.byteswap().newbyteorder()
 
-        registered_image, _ = aa.apply_transform(transf, source, target, fill_value=0)
-        registered_error, _ = aa.apply_transform(transf, source_err, target, fill_value=0)
-        registered_mask, _ = aa.apply_transform(transf, source_mask, target, fill_value=0)
-        target_mask += 1 * (registered_mask > 0)
-        registered_error[registered_error == 0] = np.mean(registered_error)*10
-        shifted_images.append(registered_image)
-        shifted_vars.append(registered_error**2)
-        source_list, target_list = coords
-        if len(image_log) == 0:
-            fwhm, ratio, seeing_msg = measure_seeing(target, target_list)
-            image_log.append([os.path.basename(target_fname), fwhm, ratio, exptime])
+            registered_image, _ = aa.apply_transform(transf, source, target, fill_value=0)
+            registered_error, _ = aa.apply_transform(transf, source_err, target, fill_value=0)
+            registered_mask, _ = aa.apply_transform(transf, source_mask, target, fill_value=0)
+            target_mask += 1 * (registered_mask > 0)
+            registered_error[registered_error == 0] = np.mean(registered_error)*10
+            shifted_images.append(registered_image)
+            shifted_vars.append(registered_error**2)
+            source_list, target_list = coords
+            if len(image_log) == 0:
+                fwhm, ratio, seeing_msg = measure_seeing(target, target_list)
+                image_log.append([os.path.basename(target_fname), fwhm, ratio, exptime])
+                if seeing_msg:
+                    msg.append(seeing_msg)
+            fwhm, ratio, seeing_msg = measure_seeing(source, source_list)
             if seeing_msg:
                 msg.append(seeing_msg)
-        fwhm, ratio, seeing_msg = measure_seeing(source, source_list)
-        if seeing_msg:
-            msg.append(seeing_msg)
-        image_log.append([os.path.basename(fname), fwhm, ratio, hdr_i['EXPTIME']])
+            image_log.append([os.path.basename(fname), fwhm, ratio, hdr_i['EXPTIME']])
 
-    if log_name == '':
-        filter_name = alfosc.filter_translate[get_filter(target_hdr)]
-        log_name = 'filelist_%s_%s.txt' % (target_hdr['OBJECT'], filter_name)
-    save_file_log(log_name, image_log, target_hdr)
-    msg.append(" [OUTPUT] - Saved file log and image stats: %s" % log_name)
+        if log_name == '':
+            filter_name = alfosc.filter_translate[get_filter(target_hdr)]
+            log_name = 'filelist_%s_%s.txt' % (target_hdr['OBJECT'], filter_name)
+        save_file_log(log_name, image_log, target_hdr)
+        msg.append(" [OUTPUT] - Saved file log and image stats: %s" % log_name)
 
-    if method == 'median':
-        final_image = np.nanmedian(shifted_images, axis=0)
-        final_error = np.sqrt(np.nanmean(shifted_vars, axis=0))
-        target_hdr['COMBINE'] = "Median"
-    elif method == 'mean':
-        final_image = np.nanmean(shifted_images, axis=0)
-        final_error = np.sqrt(np.nanmean(shifted_vars, axis=0))
-        target_hdr['COMBINE'] = "Mean"
+        if method == 'median':
+            final_image = np.nanmedian(shifted_images, axis=0)
+            final_error = np.sqrt(np.nanmean(shifted_vars, axis=0))
+            target_hdr['COMBINE'] = "Median"
+        elif method == 'mean':
+            final_image = np.nanmean(shifted_images, axis=0)
+            final_error = np.sqrt(np.nanmean(shifted_vars, axis=0))
+            target_hdr['COMBINE'] = "Mean"
+        else:
+            w = 1./np.array(shifted_vars)
+            shifted_images = np.array(shifted_images)
+            final_image = np.nansum(w*shifted_images, axis=0) / np.sum(w, axis=0)
+            final_error = np.sqrt(1. / np.nansum(w, axis=0))
+            target_hdr['COMBINE'] = "Inverse Variance Weighted"
+        final_mask = 1 * (target_mask > 0)
     else:
-        w = 1./np.array(shifted_vars)
-        shifted_images = np.array(shifted_images)
-        final_image = np.nansum(w*shifted_images, axis=0) / np.sum(w, axis=0)
-        final_error = np.sqrt(1. / np.nansum(w, axis=0))
-        target_hdr['COMBINE'] = "Inverse Variance Weighted"
-    final_mask = 1 * (target_mask > 0)
+        final_image = target
+        final_error = target_err
+        final_mask = target_mask
+        target_hdr['COMBINE'] = "None"
 
     target_hdr['NCOMBINE'] = len(shifted_images)
     target_hdr['EXPTIME'] = final_exptime / len(shifted_images)
