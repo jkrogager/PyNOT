@@ -1,11 +1,8 @@
 from astropy.wcs import WCS
-from astropy.coordinates import SkyCoord
 from astropy.io import fits
 from astropy.table import Table
-import astropy.units as u
 from astropy.utils.exceptions import AstropyWarning
 from astroquery.gaia import Gaia
-from astroquery.sdss import SDSS
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -46,8 +43,6 @@ def update_WCS(coords, refs, crval, CD):
         'CD1_2': CD_new[0, 1],
         'CD2_1': CD_new[1, 0],
         'CD2_2': CD_new[1, 1]}
-        # 'EQUINOX': 2015.5,
-        # 'RADESYSa': 'ICRS'}
     return wcs_new
 
 

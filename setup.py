@@ -100,10 +100,13 @@ setup(
     # have to be included in MANIFEST.in as well.
     package_data={
         'pynot/calib': ['ThAr_linelist.dat',
+                        'alfosc_filters.dat',
                         'default_options.yml',
+                        'default_options_img.yml',
                         'grism4_pixeltable.dat',
                         'grism7_pixeltable.dat',
                         'grism18_pixeltable.dat',
+                        'grism19_pixeltable.dat',
                         'HeNe_linelist.dat',
                         'lapalma.ext'],
 

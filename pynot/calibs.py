@@ -6,13 +6,11 @@ __author__ = 'Jens-Kristian Krogager'
 __email__ = "krogager@iap.fr"
 __credits__ = ["Jens-Kristian Krogager"]
 
-from argparse import ArgumentParser
 import numpy as np
 import astropy.io.fits as pf
 import matplotlib.pyplot as plt
 from matplotlib import ticker
 from scipy import ndimage, signal
-from numpy.polynomial import Chebyshev
 import os
 from os.path import exists, basename
 
