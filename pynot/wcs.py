@@ -154,6 +154,7 @@ def correct_wcs(img_fname, sep_fname, output_fname='', fig_fname='', max_num=60,
     if output_fname == '':
         output_fname = base + '_wcs' + ext
         output_fname = os.path.join(dirname, output_fname)
+
     if fig_fname == '':
         fig_fname = 'wcs_solution_' + base + '.pdf'
         fig_fname = os.path.join(dirname, fig_fname)
@@ -221,6 +222,7 @@ def correct_wcs(img_fname, sep_fname, output_fname='', fig_fname='', max_num=60,
 
     # Fit the WCS transformation:
     _, crval, CD, _ = get_WCS(hdr)
+    msg.append("          - Fitting WCS transformation using %i sources" % len(matched_ref))
     wcs_keys = update_WCS(matched_sep, matched_ref, crval, CD)
     hdr.update(wcs_keys)
     msg.append("          - Updating WCS information")
@@ -272,6 +274,7 @@ def correct_wcs(img_fname, sep_fname, output_fname='', fig_fname='', max_num=60,
         hdu_list['DATA'].header = hdr
         hdu_list['ERR'].header.update(wcs_keys)
         hdu_list.writeto(output_fname, overwrite=True)
+
     msg.append(" [OUTPUT] - Saving WCS calibrated image: %s" % output_fname)
     msg.append("")
     return "\n".join(msg)

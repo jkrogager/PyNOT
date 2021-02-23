@@ -384,7 +384,7 @@ def run_pipeline(options_fname, verbose=False):
             # Calibrate WCS:
             try:
                 log.write("Running task: WCS calibration")
-                output_msg = correct_wcs(combined_fname, sep_fname, options['wcs'])
+                output_msg = correct_wcs(combined_fname, sep_fname, **options['wcs'])
                 log.commit(output_msg)
                 log.add_linebreak()
             except:
