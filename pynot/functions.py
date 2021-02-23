@@ -150,3 +150,65 @@ def fix_nans(y):
 def my_formatter(x, p, scale_pow):
     """Format tick marks to exponential notation"""
     return "%.0f" % (x / (10 ** scale_pow))
+
+
+def string_to_decimal(ra, dec, delimiter=None):
+    """
+    Function to convert string representation of celestial coordinates
+    into decimal degrees.
+    E.g., 00:02:34.52 -05:23:24.5  ->  0.6438333, -5.3901389
+
+    Input:
+    ======
+    'ra' and 'dec' can both be given as a single string or a list of
+    three entries containing [deg, arcmin, arcsec].
+    """
+
+    assert type(ra) == type(dec), "ra and dec must be same type!"
+
+    delimiter_types = [' ', ':']
+    if isinstance(ra, str):
+        if delimiter:
+            ra = ra.split(delimiter)
+            dec = dec.split(delimiter)
+        else:
+            for this_del in delimiter_types:
+                if this_del in ra:
+                    delimiter = this_del
+
+            if delimiter:
+                ra = ra.split(delimiter)
+                dec = dec.split(delimiter)
+            else:
+                ra = [ra[:2], ra[2:4], ra[4:]]
+                dec = [dec[:2], dec[2:4], dec[4:]]
+
+    arc2deg = np.array([1., 60**-1, 60**-2])
+
+    RAdeg = np.sum(np.array([float(r) for r in ra])*15.*arc2deg)
+    dec_arcangle = np.array([float(d) for d in dec])
+    dec_sign = np.sign(dec_arcangle[0])
+    if dec_sign == 0:
+        dec_sign = 1
+    DECdeg = dec_sign*np.sum(np.abs(dec_arcangle)*arc2deg)
+
+    return (RAdeg, DECdeg)
+
+
+def decimal_to_string(ra, dec, delimiter=':'):
+    # Convert degrees to sexagesimal:
+    hour_angle = ra/15.
+    hours = np.floor(hour_angle)
+    minutes = np.remainder(hour_angle, 1)*60.
+    seconds = np.remainder(minutes, 1)*60.
+    hms = ["%02.0f" % hours, "%02.0f" % np.floor(minutes), "%05.2f" % seconds]
+    ra_str = delimiter.join(hms)
+
+    sign = np.sign(dec)
+    degrees = np.abs(dec)
+    arcmin = np.remainder(degrees, 1)*60.
+    arcsec = np.remainder(arcmin, 1)*60.
+    dms = ["%+03.0f" % (sign*np.floor(degrees)), "%02.0f" % np.floor(arcmin), "%05.2f" % arcsec]
+    dec_str = delimiter.join(dms)
+
+    return (ra_str, dec_str)

@@ -143,8 +143,9 @@ def correct_wcs(img_fname, sep_fname, output_fname='', fig_fname='', max_num=60,
     base, ext = os.path.splitext(os.path.basename(img_fname))
     dirname = os.path.dirname(img_fname)
     if output_fname == '':
-        output_fname = base + '_wcs' + ext
-        output_fname = os.path.join(dirname, output_fname)
+        output_fname = img_fname
+        # output_fname = base + '_wcs' + ext
+        # output_fname = os.path.join(dirname, output_fname)
 
     if fig_fname == '':
         fig_fname = 'wcs_solution_' + base + '.pdf'
@@ -163,7 +164,7 @@ def correct_wcs(img_fname, sep_fname, output_fname='', fig_fname='', max_num=60,
         msg.append("          - Position: (ra, dec) = (%.5f ; %+.5f)  within %.1f arcmin" % (hdr['CRVAL1'], hdr['CRVAL2'], radius))
     else:
         # Download Gaia positions:
-        msg.append("          - Downloading Gaia source catalog...")
+        msg.append("          - Downloading Gaia source catalog... (%s)" % gaia_dr.upper())
         msg.append("          - Position: (ra, dec) = (%.5f ; %+.5f)  within %.1f arcmin" % (hdr['CRVAL1'], hdr['CRVAL2'], radius))
         try:
             ref_cat = get_gaia_catalog(hdr['CRVAL1'], hdr['CRVAL2'], radius=radius, catalog_fname=gaia_cat_name, database=gaia_dr)

@@ -381,7 +381,7 @@ def run_pipeline(options_fname, verbose=False):
             # Calibrate WCS:
             try:
                 log.write("Running task: WCS calibration")
-                wcs_fname, output_msg = correct_wcs(combined_fname, sep_fname, **options['wcs'])
+                output_msg = correct_wcs(combined_fname, sep_fname, **options['wcs'])
                 log.commit(output_msg)
                 log.add_linebreak()
             except:
@@ -395,7 +395,7 @@ def run_pipeline(options_fname, verbose=False):
             if 'SDSS' in filter_name.upper():
                 try:
                     log.write("Running task: Self-calibration of magnitude zero point")
-                    output_msg = flux_calibration_sdss(wcs_fname, sep_fname, **options['sdss_flux'])
+                    output_msg = flux_calibration_sdss(combined_fname, sep_fname, **options['sdss_flux'])
                     log.commit(output_msg)
                     log.add_linebreak()
                 except:

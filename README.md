@@ -153,3 +153,17 @@ A basic automated reduction would require the following steps:
 3. **Verify the steps** of the data products and make sure that everything terminated successfully.
 
 4. Now it's time to do your scientific analysis on your newly calibrated images. Enjoy!
+
+
+### Identify Transients
+
+PyNOT comes with a task for identifying bright, new transient objects from SWIFT. This is achieved by cross-matching with the Gaia all-sky catalog. Sources in the field without a match in Gaia are flagged according to three classes: (**red**) if the source is not consistent with the SWIFT localisation, (**orange**) if the source is consistent with the broad BAT error circle, and (**green**) if the source is consistent with the X-ray error circle.
+
+The task can be run as:
+
+    pynot  findnew  reduced_image_wcs.fits  reduced_image_phot.fits  --bat 'hh:mm:ss ±dd:mm:ss' radius  --xrt 'hh:mm:ss ±dd:mm:ss' radius
+
+Note: the radius for --bat is given in arcmin, the radius for --xrt is given in arcsec!
+If the source catalog from PyNOT (_phot.fits) has not been flux calibrated (outside SDSS footprint), you can provide a zero point manually:
+
+    pynot findnew -z ZP
