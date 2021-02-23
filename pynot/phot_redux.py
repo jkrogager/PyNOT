@@ -12,7 +12,7 @@ import numpy as np
 from pynot import alfosc
 from pynot.data import io
 from pynot.data import organizer as do
-from pynot.phot import image_combine, create_fringe_image, source_detection
+from pynot.phot import image_combine, create_fringe_image, source_detection, flux_calibration_sdss
 from pynot.calibs import combine_bias_frames, combine_flat_frames
 from pynot.functions import get_options, get_version_number
 from pynot.scired import raw_correction, correct_cosmics, trim_filter_edge, detect_filter_edge
@@ -34,9 +34,9 @@ class Report(object):
         self.remarks = list()
         self.lines = list()
         self.header = """
-        #  PyNOT Data Processing Pipeline
-        # ================================
-        # version %s
+         PyNOT Data Processing Pipeline
+        ================================
+        version %s
         %s
 
         """ % (__version__, self.time.strftime("%b %d, %Y  %H:%M:%S"))
@@ -363,13 +363,10 @@ def run_pipeline(options_fname, verbose=False):
                 raise
 
 
-            # Calculate Zero Point:
-            zp = 0  # use instrument mags for now
-
             # Automatic Source Detection and Aperture Photometry:
             try:
                 log.write("Running task: Source Extraction")
-                sep_fname, _, output_msg = source_detection(combined_fname, zeropoint=zp,
+                sep_fname, _, output_msg = source_detection(combined_fname, zeropoint=0,
                                                             kwargs_bg=options['sep-background'],
                                                             kwargs_ext=options['sep-extract'])
                 log.commit(output_msg)
@@ -384,7 +381,7 @@ def run_pipeline(options_fname, verbose=False):
             # Calibrate WCS:
             try:
                 log.write("Running task: WCS calibration")
-                output_msg = correct_wcs(combined_fname, sep_fname, **options['wcs'])
+                wcs_fname, output_msg = correct_wcs(combined_fname, sep_fname, **options['wcs'])
                 log.commit(output_msg)
                 log.add_linebreak()
             except:
@@ -394,12 +391,26 @@ def run_pipeline(options_fname, verbose=False):
                 raise
 
 
+            # Calculate Zero Point:
+            if 'SDSS' in filter_name.upper():
+                try:
+                    log.write("Running task: Self-calibration of magnitude zero point")
+                    output_msg = flux_calibration_sdss(wcs_fname, sep_fname, **options['sdss_flux'])
+                    log.commit(output_msg)
+                    log.add_linebreak()
+                except:
+                    log.error("Zero point calibration failed!")
+                    log.fatal_error()
+                    print("Unexpected error:", sys.exc_info()[0])
+                    raise
+
             # Clean up temporary files:
             if options['clean']:
                 log.write("Cleaning up temporary images:")
                 for fname in temp_images:
                     os.system("rm %s" % fname)
                     log.write(fname)
+                log.add_linebreak()
 
 
     log.exit()

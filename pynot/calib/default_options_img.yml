@@ -33,7 +33,7 @@ combine:
 
 skysub:
   threshold:    3            # Threshold for masking out objects
-  defringe:    True          # Create an average fringe image and subtract from individual frames?
+  defringe:    False         # Create an average fringe image and subtract from individual frames?
 
 sep-background:
   bw:          64            # Width of background boxes in pixels
@@ -58,3 +58,8 @@ wcs:
   G_lim:            15       # Bright limit of Gaia sources. Reject targets brighter than G < G_lim
   q_lim:            0.8      # Reject elliptical sources with axis ratio < `q_lim`
   kappa:             3       # Threshold for projected distance filtering.
+
+sdss_flux:
+  q_lim:            0.8      # Reject elliptical sources with axis ratio < `q_lim`
+  kappa:              3      # Threshold for magnitude filtering.
+  match_radius:       1      # Matching radius in arcsec for source catalog and SDSS catalog
