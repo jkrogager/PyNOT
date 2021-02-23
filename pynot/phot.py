@@ -8,7 +8,12 @@ from matplotlib.patches import Ellipse
 from astropy.io import fits
 from astropy.modeling import models, fitting
 from astropy.table import Table
+from scipy.optimize import curve_fit
 import os
+
+from astropy.coordinates import SkyCoord
+import astropy.units as u
+from astroquery.sdss import SDSS
 
 import astroalign as aa
 import sep
@@ -391,3 +396,112 @@ def create_fringe_image(input_filenames, output='', fig_fname='', threshold=3.0)
     msg.append("")
     output_msg = "\n".join(msg)
     return output_msg
+
+
+
+def match_phot_catalogs(sep, phot):
+    matched_sep = list()
+    matched_phot = list()
+    refs = np.array([phot['ra'], phot['dec']]).T
+    for row in sep:
+        xy = np.array([row['ra'], row['dec']])
+        dist = np.sqrt(np.sum((refs - xy)**2, axis=1))
+        index = np.argmin(dist)
+        if np.min(dist) < 1./3600.:
+            matched_phot.append(np.array(phot[index]))
+            matched_sep.append(np.array(row))
+    matched_sep = np.array(matched_sep)
+    matched_phot = np.array(matched_phot)
+    return Table(matched_sep), Table(matched_phot)
+
+
+def get_sdss_catalog(ra, dec, radius=4.):
+    catalog_fname = 'sdss_phot_%.2f%+.2f.csv' % (ra, dec)
+    fields = ['ra', 'dec', 'psfMag_u', 'psfMag_g', 'psfMag_r', 'psfMag_i', 'psfMag_z',
+              'psfMagErr_u', 'psfMagErr_g', 'psfMagErr_r', 'psfMagErr_i', 'psfMagErr_z']
+    field_center = SkyCoord(ra, dec, frame='icrs', unit='deg')
+    sdss_result = SDSS.query_region(field_center, radius*u.arcmin, photoobj_fields=fields)
+    if sdss_result is not None:
+        sdss_result.write(catalog_fname, format='ascii.csv', overwrite=True)
+    return sdss_result
+
+
+ext_coeffs = {'u': 0.517,
+              'g': 0.165,
+              'r': 0.0754,
+              'i': 0.0257,
+              'z': 0.0114}
+
+def flux_calibration_sdss(img_fname, sep_fname, q_lim=0.8, kappa=3):
+    # -- Get SDSS catalog
+    msg = list()
+
+    hdr = fits.getheader(img_fname)
+    msg.append("          - Loaded image: %s" % img_fname)
+    radius = np.sqrt(hdr['CD1_1']**2 + hdr['CD1_2']**2)*60 * hdr['NAXIS1'] / np.sqrt(2)
+    sdss_cat = get_sdss_catalog(hdr['CRVAL1'], hdr['CRVAL2'], radius)
+
+    def line(x, zp):
+        return zp + x
+
+    if sdss_cat is None:
+        msg.append(" [ERROR]  - No data found in SDSS. No zero point calculated")
+        return "\n".join(msg)
+
+    airmass = hdr['AIRMASS']
+    filter = alfosc.get_filter(hdr)
+    if 'SDSS' not in filter:
+        msg.append(" [ERROR]  - The image is not taken with an SDSS filter. No zero point calculated")
+        return "\n".join(msg)
+    else:
+        band = filter.split('_')[0]
+    # For r-band: (measured from La Palma extinction curve)
+    mag_key = 'psfMag_%s' % band
+    mag_err_key = 'psfMagErr_%s' % band
+    good = (sdss_cat[mag_key] > 0) & (sdss_cat[mag_key] < 30)
+    sdss_cat = sdss_cat[good]
+
+    # Load SEP filename:
+    sep_cat = Table.read(sep_fname)
+    axis_ratio = sep_cat['b']/sep_cat['a']
+    # Select only 'round' sources:
+    sep_points = sep_cat[axis_ratio > q_lim]
+
+    # Match catalogs:
+    match_sep, match_sdss = match_phot_catalogs(sep_points, sdss_cat)
+
+    mag = match_sdss[mag_key]
+    mag_err = match_sdss[mag_err_key]
+    m_inst = match_sep['mag_auto']
+    k = ext_coeffs[band]
+    # Get first estimate using the median:
+    zp0, _ = curve_fit(line, m_inst+k*airmass, mag, p0=[27], sigma=mag_err)
+
+    # Filter outliers:
+    cut = np.abs(zp0 + m_inst + k*airmass - mag) < kappa*mad(zp0 + m_inst + k*airmass - mag)
+    cut &= (mag < 20.1) & (mag > 15)
+
+    # Get weighted average zero point:
+    w = 1./mag_err[cut]**2
+    zp = np.sum((mag[cut] - m_inst[cut] - k*airmass) * w) / np.sum(w)
+
+    # Zero point dispersion:
+    zp_err = np.std(mag[cut] - zp - m_inst[cut] - k*airmass)
+
+    # print("Zero point: %.2f ± %.2f" % (zp, zp_err))
+    sep_cat['mag_auto'] += zp + k*airmass
+    sep_cat.write(sep_fname, overwrite=True)
+
+    # -- Plot the zero point for visual aid:
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.errorbar(m_inst, mag, 3*mag_err, ls='', marker='.', color='k', alpha=0.8)
+    ax.plot(m_inst[cut], mag[cut], ls='', marker='o', color='b', alpha=0.7)
+    ax.plot(np.sort(m_inst), zp + np.sort(m_inst) + k*airmass, ls='--', color='crimson',
+            label='ZP = %.2f ± %.2f' % (zp, zp_err))
+    ax.set_ylim(np.min(mag)-0.2, np.max(mag)+0.5)
+    ax.set_xlabel("Instrument Magnitude")
+    ax.set_ylabel("Reference SDSS Magnitude (r-band)")
+    ax.legend()
+    ax.tick_params(which='both', top=False, right=False)
+    fig.tight_layout()

@@ -45,9 +45,9 @@ def update_WCS(coords, refs, crval, CD):
         'CD1_1': CD_new[0, 0],
         'CD1_2': CD_new[0, 1],
         'CD2_1': CD_new[1, 0],
-        'CD2_2': CD_new[1, 1]}
-        # 'EQUINOX': 2015.5}
-        # 'RADESYSa': 'ICRS'}
+        'CD2_2': CD_new[1, 1],
+        'EQUINOX': 2015.5,
+        'RADESYSa': 'ICRS'}
     return wcs_new
 
 
@@ -78,33 +78,6 @@ def match_catalogs(coords, refs):
         index = np.argmin(np.sum((refs - xy)**2, axis=1))
         matched.append(refs[index])
     return np.array(matched)
-
-
-def match_phot_catalogs(sep, phot):
-    matched_sep = list()
-    matched_phot = list()
-    refs = np.array([phot['ra'], phot['dec']]).T
-    for row in sep:
-        xy = np.array([row['ra'], row['dec']])
-        dist = np.sqrt(np.sum((refs - xy)**2, axis=1))
-        index = np.argmin(dist)
-        if np.min(dist) < 1./3600.:
-            matched_phot.append(np.array(phot[index]))
-            matched_sep.append(np.array(row))
-    matched_sep = np.array(matched_sep)
-    matched_phot = np.array(matched_phot)
-    return Table(matched_sep), Table(matched_phot)
-
-
-def get_sdss_catalog(ra, dec, radius=4.):
-    catalog_fname = 'sdss_phot_%.2f%+.2f.csv' % (ra, dec)
-    fields = ['ra', 'dec', 'psfMag_u', 'psfMag_g', 'psfMag_r', 'psfMag_i', 'psfMag_z',
-              'psfMagErr_u', 'psfMagErr_g', 'psfMagErr_r', 'psfMagErr_i', 'psfMagErr_z']
-    field_center = SkyCoord(ra, dec, frame='icrs', unit='deg')
-    sdss_result = SDSS.query_region(field_center, radius*u.arcmin, photoobj_fields=fields)
-    if sdss_result is not None:
-        sdss_result.write(catalog_fname, format='ascii.csv', overwrite=True)
-    return sdss_result
 
 
 def get_gaia_catalog(ra, dec, radius=4., limit=200, output_dir=''):
@@ -302,56 +275,3 @@ def correct_wcs(img_fname, sep_fname, output_fname='', fig_fname='', max_num=60,
     msg.append(" [OUTPUT] - Saving WCS calibrated image: %s" % output_fname)
     msg.append("")
     return "\n".join(msg)
-
-
-#
-# # Flux calibration:
-# # -- Get SDSS catalog
-# sdss_cat = get_sdss_catalog(crval[0], crval[1])
-#
-# def line(x, zp):
-#     return zp + x
-#
-# if sdss_cat is not None:
-#     # Extinction coefficient for g, r, i:
-#     #  0.69, 0.55 and 0.38 mag/airmass
-#     airmass = hdr['AIRMASS']
-#     # For r-band: (measured from La Palma extinction curve)
-#     k = 0.0753
-#     good = (sdss_cat['psfMag_r'] > 0) & (sdss_cat['psfMag_r'] < 30)
-#     sdss_cat = sdss_cat[good]
-#     # Match catalogs:
-#     match_sep, match_sdss = match_phot_catalogs(sep_points, sdss_cat)
-#
-#     # In this case, use r-SDSS:
-#     mag = match_sdss['psfMag_r']
-#     mag_err = match_sdss['psfMagErr_r']
-#     m_inst = match_sep['mag_auto']
-#     # Get first estimate using the median:
-#     zp0, _ = curve_fit(line, m_inst+k*airmass, mag, p0=[25], sigma=mag_err)
-#     # zp0 = np.median(mag - m_inst)
-#     # Filter outliers:
-#     cut = np.abs(zp0 + m_inst + k*airmass - mag) < 3*mad(zp0 + m_inst + k*airmass - mag)
-#     cut &= (mag < 20.1) & (mag > 15)
-#     # Get weighted average zero point:
-#     w = 1./mag_err[cut]**2
-#     zp = np.sum((mag[cut] - m_inst[cut] - k*airmass) * w) / np.sum(w)
-#     # Zero point dispersion:
-#     zp_err = np.std(mag[cut] - zp - m_inst[cut] - k*airmass)
-#
-#     # print("Zero point: %.2f ± %.2f" % (zp, zp_err))
-#     sep_cat['mag_auto'] += zp + k*airmass
-#
-#     # -- Plot the zero point for visual aid:
-#     fig = plt.figure()
-#     ax = fig.add_subplot(111)
-#     ax.errorbar(m_inst, mag, 3*mag_err, ls='', marker='.', color='k', alpha=0.8)
-#     ax.plot(m_inst[cut], mag[cut], ls='', marker='o', color='b', alpha=0.7)
-#     ax.plot(np.sort(m_inst), zp + np.sort(m_inst) + k*airmass, ls='--', color='crimson',
-#             label='ZP = %.2f ± %.2f' % (zp, zp_err))
-#     ax.set_ylim(np.min(mag)-0.2, np.max(mag)+0.5)
-#     ax.set_xlabel("Instrument Magnitude")
-#     ax.set_ylabel("Reference SDSS Magnitude (r-band)")
-#     ax.legend()
-#     ax.tick_params(which='both', top=False, right=False)
-#     fig.tight_layout()
