@@ -37,14 +37,13 @@ Three of the tasks have slightly special behavior:
 
  The extracted 1D spectra are saved as a multi-extension FITS file where each object identified in the slit has its own extension:
 
-    ```
     No.    Name      Ver    Type      Cards   Dimensions   Format
       0  PRIMARY       1 PrimaryHDU       4   ()      
       1  OBJ1          1 BinTableHDU    158   1026R x 3C   [D, D, D]
       2  OBJ2          1 BinTableHDU    158   1026R x 3C   [D, D, D]
       :    :           :     :           :         :           :    
       :    :           :     :           :         :           :    
-    ```
+
 
  Each spectrum is saved as a Binary Table with three columns 'WAVE', 'FLUX', and 'ERR'. The header of each extension contains the information about the original image such as exposure time and instrument settings.
 
@@ -129,7 +128,6 @@ A basic automated reduction would require the following steps:
   This will start the full pipeline reduction of *all* objects in *all* filters identified in the dataset (with file classification `IMG_OBJECT`). If you only want to reduce a subset of objects or filters, you can ignore files by editing the 'dataset.pfc' file. Deleting or commenting out (using #) a given line in the .pfc file will tell the pipeline to ignore the file on that line.
   The processed files are structured in sub-directories from the main working directory:
 
-    ```
     working_dir/
          |- imaging/
                |- OBJECT_1/
@@ -147,7 +145,7 @@ A basic automated reduction would require the following steps:
                      |- combined_R.fits
                      |- combined_V.fits
                      |...
-    ```
+
   The individual images for each filter of each target are kept in the desginated folders under each object, and are automatically combined. The combined image is in the folder of the given object. The last step of the pipeline as of now is to run a source extraction algorithm (SEP/SExtractor) to provide a final source table with aperture fluxes, a segmentation map as well as a figure showing the identified sources in the field.
   In each designated filter folder, the pipeline also produces a file log showing which files are combined into the final image as well as some basic image statistics: an estimate of the seeing, the PSF ellipticity, and the exposure time. This file can be used as input for further refined image combinations using the task `pynot imcombine  filelist_OBJECT_1.txt  new_combined_R.fits`. Individual frames can be commented out in the file log in order to exclude them in subsequent combinations. The combined images are given in units of counts per second.
 
