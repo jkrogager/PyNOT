@@ -173,3 +173,10 @@ The task creates a figure showing the field together with the localization estim
     54.51772  -26.98964     19.64    2.4    2.2  -1.28   1.27e+03       1.97e+01      0
     54.50497  -26.94632     16.92    3.8    3.8  -0.53   1.56e+04       2.62e+01      0
     54.54830  -26.93043     19.63    2.5    2.4   0.11   1.29e+03       1.97e+01      0
+
+where `class` refers to the classes defined above:
+  0: not consistent with BAT nor XRT  (red)
+
+  1: consistent with BAT  (orange)
+
+  2: consistent with BAT and XRT  (green)
