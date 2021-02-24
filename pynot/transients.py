@@ -2,7 +2,6 @@ from astropy.wcs import WCS
 from astropy.io import fits
 from astropy.table import Table
 from astropy.utils.exceptions import AstropyWarning
-import astropy.units as u
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -76,7 +75,6 @@ def find_new_sources(img_fname, sep_fname, loc_bat=(0., 0., 1.), loc_xrt=(0., 0.
     gaia_cat_name = os.path.join(dirname, gaia_cat_name)
     gaia_dr = 'edr3'
     if os.path.exists(gaia_cat_name):
-        print("Reading Gaia Table")
         msg.append("          - Loading Gaia source catalog: %s" % gaia_cat_name)
         ref_cat = Table.read(gaia_cat_name)
     else:
@@ -159,10 +157,12 @@ def find_new_sources(img_fname, sep_fname, loc_bat=(0., 0., 1.), loc_xrt=(0., 0.
         msg.append("          - New sources with no Gaia match")
         msg.append("          ---------------------------------")
         for source_id, (row, sig, in_bat) in enumerate(zip(new, significance, inside_bat)):
-            if in_bat:
+            if sig < 5:
+                color = 'Green'
+            elif in_bat:
                 color = 'DarkOrange'
             else:
-                color = plt.cm.RdYlGn_r(sig*255/(15-3) - 3*255/(15-3))
+                color = 'Red'
             mag = row['mag_auto']
             ax.scatter(row['ra'], row['dec'],
                        label='(%i)  %s = %.1f mag' % (source_id+1, band, mag),
@@ -172,16 +172,34 @@ def find_new_sources(img_fname, sep_fname, loc_bat=(0., 0., 1.), loc_xrt=(0., 0.
                     transform=ax.get_transform('fk5'))
             if sig < 5:
                 color = '\033[32m'      # green
+                mark_good = '    [NEW] -'
             elif in_bat:
                 color = '\033[33m'      # yellow
+                mark_good = 11*' '
             else:
                 color = '\033[31m'      # red
+                mark_good = 11*' '
             reset = '\033[0m'
             ra_str, dec_str = decimal_to_string(row['ra'], row['dec'])
-            msg.append(color + "          %s %s  %5.2f" % (ra_str, dec_str, mag) + reset)
+            msg.append(color + "%s %s %s  %s=%5.2f" % (mark_good, ra_str, dec_str, band, mag) + reset)
         ax.legend(title=hdr['OBJECT'].upper(), loc='center left', bbox_to_anchor=(1, 0.5))
         ax.set_ylim(*ylims)
         ax.set_xlim(*xlims)
+        # Make a classification array for the type of new sources:
+        # 0: not consistent with BAT nor XRT
+        # 1: consistent with BAT
+        # 2: consistent with BAT and XRT
+        class_new = 1*inside_bat + 1*(significance < 5)
+        new_subset = new['ra', 'dec', 'mag_auto', 'a', 'b', 'theta', 'flux_auto', 'flux_err_auto']
+        new_subset['class'] = class_new
+        new_table_fname = "new_sources_%s.txt" % base
+        new_table_fname = os.path.join(dirname, new_table_fname)
+        with open(new_table_fname, 'w') as new_table:
+            # header = "%9s  %9s  %8s  %4s  %4s  %5s  %9s  %13s  %5s\n" % tuple(new_subset.colnames)
+            header = "{:^9}  {:^9}  {:^8}  {:^4}  {:^4}  {:^5}  {:^9}  {:^13}  {:^5}\n".format(*new_subset.colnames)
+            new_table.write(header)
+            np.savetxt(new_table, new_subset, fmt="%9.5f  %+9.5f  %8.2f  %4.1f  %4.1f  %5.2f  %9.2e  %13.2e  %5i")
+        msg.append(" [OUTPUT] - Writing detection table: %s" % new_table_fname)
 
         fig_fname = "new_sources_%s.pdf" % base
         fig_fname = os.path.join(dirname, fig_fname)
@@ -191,4 +209,4 @@ def find_new_sources(img_fname, sep_fname, loc_bat=(0., 0., 1.), loc_xrt=(0., 0.
     else:
         msg.append("          - No new sources identified brighter than %s < %.2f" % (band, mag_lim))
     msg.append("")
-    return "\n".join(msg)
+    return new_subset, "\n".join(msg)

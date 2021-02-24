@@ -2,7 +2,6 @@ from astropy.wcs import WCS
 from astropy.io import fits
 from astropy.table import Table
 from astropy.utils.exceptions import AstropyWarning
-from astroquery.gaia import Gaia
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -76,6 +75,7 @@ def match_catalogs(coords, refs):
 
 
 def get_gaia_catalog(ra, dec, radius=4., limit=200, catalog_fname='', database='edr3'):
+    from astroquery.gaia import Gaia
     query_args = {'limit': limit, 'ra': ra, 'dec': dec, 'radius': radius/60., 'dr': database}
     query = """SELECT TOP {limit} ra, dec, phot_g_mean_mag FROM gaia{dr}.gaia_source
     WHERE CONTAINS(POINT('ICRS', gaia{dr}.gaia_source.ra, gaia{dr}.gaia_source.dec),
@@ -286,4 +286,4 @@ def correct_wcs(img_fname, sep_fname, output_fname='', fig_fname='', max_num=60,
     msg.append(" [OUTPUT] - Saving WCS calibrated image: %s" % output_fname)
     msg.append("")
     output_msg = "\n".join(msg)
-    return output_fname, output_msg
+    return output_msg

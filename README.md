@@ -161,7 +161,7 @@ PyNOT comes with a task for identifying bright, new transient objects from SWIFT
 
 The task can be run as:
 
-    pynot  findnew  reduced_image_wcs.fits  reduced_image_phot.fits  --bat 'hh:mm:ss ±dd:mm:ss' radius  --xrt 'hh:mm:ss ±dd:mm:ss' radius
+    pynot  findnew  reduced_image_wcs.fits  reduced_image_phot.fits  --bat ra dec radius  --xrt ra dec radius
 
-Note: the radius for --bat is given in arcmin, the radius for --xrt is given in arcsec!
+Note: Coordinates (ra and dec) are given in degrees! The radius for --bat is given in arcmin, the radius for --xrt is given in arcsec!
 If the source catalog from PyNOT (_phot.fits) has not been flux calibrated (outside SDSS footprint), you can provide a zero point manually by giving the `-z ZP` option, where ZP denotes the magnitude zero point.

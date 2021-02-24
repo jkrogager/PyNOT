@@ -425,10 +425,10 @@ def main():
                                 help="Input WCS calibrated image to analyse")
     parser_findnew.add_argument("table", type=str,
                                 help="Source identification table from SEP (_phot.fits)")
-    parser_findnew.add_argument("--bat", type=str, nargs=2, required=True,
-                                help="Localisation constraint from SWIFT/BAT  (hh:mm:ss, dd:mm:ss, radius in arcmin)")
-    parser_findnew.add_argument("--xrt", type=str, nargs=2, required=True,
-                                help="Localisation constraint from SWIFT/XRT  (hh:mm:ss, dd:mm:ss, radius in arcsec)")
+    parser_findnew.add_argument("--bat", type=float, nargs=3, required=True,
+                                help="Localisation constraint from SWIFT/BAT  (ra [deg]  dec [deg]  radius [arcmin])")
+    parser_findnew.add_argument("--xrt", type=float, nargs=3, required=True,
+                                help="Localisation constraint from SWIFT/XRT  (ra [deg]  dec [deg]  radius [arcsec])")
     parser_findnew.add_argument("--limit", type=float, default=20.1,
                                 help="Magnitude limit (default = 20.1 mag to match Gaia depth)")
     parser_findnew.add_argument('-z', "--zp", type=float,
@@ -580,7 +580,6 @@ def main():
             app.exit(app.exec_())
 
 
-
     elif task == 'phot':
         from pynot.phot_redux import run_pipeline
         run_pipeline(options_fname=args.params,
@@ -666,28 +665,15 @@ def main():
     elif task == 'findnew':
         print("Running task: Transient identification")
         from pynot.transients import find_new_sources
-        from pynot.functions import string_to_decimal
-        bat_radec, bat_r = args.bat
-        try:
-            bat_ra, bat_dec = bat_radec.split(' ')
-        except ValueError:
-            print("Unexpected input for --bat: %r" % bat_radec)
-            print("Coordinates must be given as 'hh:mm:ss ±dd:mm:ss'")
-        ra_bat, dec_bat = string_to_decimal(bat_ra, bat_dec)
-        radius_bat = float(bat_r) / 60
-        xrt_radec, xrt_r = args.xrt
-        try:
-            xrt_ra, xrt_dec = xrt_radec.split(' ')
-        except ValueError:
-            print("Unexpected input for --xrt: %r" % xrt_radec)
-            print("Coordinates must be given as 'hh:mm:ss ±dd:mm:ss'")
-        ra_xrt, dec_xrt = string_to_decimal(xrt_ra, xrt_dec)
-        radius_xrt = float(xrt_r) / 3600
-        log = find_new_sources(args.input, args.table,
-                               loc_bat=(ra_bat, dec_bat, radius_bat),
-                               loc_xrt=(ra_xrt, dec_xrt, radius_xrt),
-                               mag_lim=args.limit,
-                               zp=args.zp)
+        ra_bat, dec_bat, bat_r = args.bat
+        radius_bat = bat_r / 60
+        ra_xrt, dec_xrt, xrt_r = args.xrt
+        radius_xrt = xrt_r / 3600
+        new_sources, log = find_new_sources(args.input, args.table,
+                                            loc_bat=(ra_bat, dec_bat, radius_bat),
+                                            loc_xrt=(ra_xrt, dec_xrt, radius_xrt),
+                                            mag_lim=args.limit,
+                                            zp=args.zp)
 
     if log:
         print(log)
