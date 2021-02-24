@@ -197,10 +197,12 @@ def find_new_sources(img_fname, sep_fname, loc_bat=(0., 0., 1.), loc_xrt=(0., 0.
         new_table_fname = "new_sources_%s.txt" % base
         new_table_fname = os.path.join(dirname, new_table_fname)
         with open(new_table_fname, 'w') as new_table:
-            # header = "%9s  %9s  %8s  %4s  %4s  %5s  %9s  %13s  %5s\n" % tuple(new_subset.colnames)
-            header = "{:^9}  {:^9}  {:^8}  {:^4}  {:^4}  {:^5}  {:^9}  {:^13}  {:^5}\n".format(*new_subset.colnames)
+            units = ['(deg)', '(deg)', '(AB)', '(pix)', '(pix)', '(rad)', '(count/s)', '(count/s)', '']
+            header = "{:^9}  {:^9}  {:^8}  {:^5}  {:^5}  {:^5}  {:^9}  {:^13}  {:^5}\n".format(*new_subset.colnames)
+            unit_header = "{:^9}  {:^9}  {:^8}  {:^5}  {:^5}  {:^5}  {:^9}  {:^13}  {:^5}\n".format(*units)
             new_table.write(header)
-            np.savetxt(new_table, new_subset, fmt="%9.5f  %+9.5f  %8.2f  %4.1f  %4.1f  %5.2f  %9.2e  %13.2e  %5i")
+            new_table.write(unit_header)
+            np.savetxt(new_table, new_subset, fmt="%9.5f  %+9.5f  %8.2f  %5.1f  %5.1f  % 5.2f  %9.2e  %13.2e  %5i")
         msg.append(" [OUTPUT] - Writing detection table: %s" % new_table_fname)
 
         fig_fname = "new_sources_%s.pdf" % base

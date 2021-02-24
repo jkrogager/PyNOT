@@ -168,7 +168,8 @@ If the source catalog from PyNOT (_phot.fits) has not been flux calibrated (outs
 
 The task creates a figure showing the field together with the localization estimates given by --bat and --xrt. The task also prints the identified sources to the terminal and to a text file (new_sources_*.txt), which looks something like:
 
-      ra         dec     mag_auto   a     b    theta  flux_auto  flux_err_auto  class
-    54.51772  -26.98964     19.64   2.4   2.2  -1.28   1.27e+03       1.97e+01      0
-    54.50497  -26.94632     16.92   3.8   3.8  -0.53   1.56e+04       2.62e+01      0
-    54.54830  -26.93043     19.63   2.5   2.4   0.11   1.29e+03       1.97e+01      0
+      ra         dec     mag_auto    a      b    theta  flux_auto  flux_err_auto  class
+      (deg)      (deg)      (AB)    (pix)  (pix)  (rad)  (count/s)    (count/s)         
+    54.51772  -26.98964     19.64    2.4    2.2  -1.28   1.27e+03       1.97e+01      0
+    54.50497  -26.94632     16.92    3.8    3.8  -0.53   1.56e+04       2.62e+01      0
+    54.54830  -26.93043     19.63    2.5    2.4   0.11   1.29e+03       1.97e+01      0
