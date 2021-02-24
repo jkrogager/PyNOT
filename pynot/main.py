@@ -425,9 +425,9 @@ def main():
                                 help="Input WCS calibrated image to analyse")
     parser_findnew.add_argument("table", type=str,
                                 help="Source identification table from SEP (_phot.fits)")
-    parser_findnew.add_argument("--bat", type=float, nargs=3, required=True,
+    parser_findnew.add_argument("--bat", type=float, nargs=3,
                                 help="Localisation constraint from SWIFT/BAT  (ra [deg]  dec [deg]  radius [arcmin])")
-    parser_findnew.add_argument("--xrt", type=float, nargs=3, required=True,
+    parser_findnew.add_argument("--xrt", type=float, nargs=3,
                                 help="Localisation constraint from SWIFT/XRT  (ra [deg]  dec [deg]  radius [arcsec])")
     parser_findnew.add_argument("--limit", type=float, default=20.1,
                                 help="Magnitude limit (default = 20.1 mag to match Gaia depth)")
@@ -665,10 +665,17 @@ def main():
     elif task == 'findnew':
         print("Running task: Transient identification")
         from pynot.transients import find_new_sources
-        ra_bat, dec_bat, bat_r = args.bat
-        radius_bat = bat_r / 60
-        ra_xrt, dec_xrt, xrt_r = args.xrt
-        radius_xrt = xrt_r / 3600
+        if args.bat is None:
+            ra_bat, dec_bat, radius_bat = (0, 0, 0)
+        else:
+            ra_bat, dec_bat, bat_r = args.bat
+            radius_bat = bat_r / 60
+
+        if args.xrt is None:
+            ra_xrt, dec_xrt, radius_xrt = (0, 0, 0)
+        else:
+            ra_xrt, dec_xrt, xrt_r = args.xrt
+            radius_xrt = xrt_r / 3600
         new_sources, log = find_new_sources(args.input, args.table,
                                             loc_bat=(ra_bat, dec_bat, radius_bat),
                                             loc_xrt=(ra_xrt, dec_xrt, radius_xrt),

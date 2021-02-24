@@ -149,20 +149,30 @@ def find_new_sources(img_fname, sep_fname, loc_bat=(0., 0., 1.), loc_xrt=(0., 0.
             sig1 = sigma / 1.66
             # Calculate deviation in sigmas:
             delta_r = np.sqrt((new['ra']-alpha)**2 + (new['dec']-dec)**2)
-            chi2 += delta_r**2 / sig1**2
-            if sat_name == 'BAT':
-                inside_bat = delta_r / sigma <= 1
+            if sig1 == 0:
+                pass
+            else:
+                chi2 += delta_r**2 / sig1**2
+                if sat_name == 'BAT':
+                    inside_bat = delta_r / sigma <= 1
         significance = np.sqrt(chi2)
 
         msg.append("          - New sources with no Gaia match")
         msg.append("          ---------------------------------")
         for source_id, (row, sig, in_bat) in enumerate(zip(new, significance, inside_bat)):
-            if sig < 5:
+            if (sig < 5) and (sig > 0):
                 color = 'Green'
+                term_color = '\033[32m'      # green
+                mark_good = '    [NEW] -'
             elif in_bat:
                 color = 'DarkOrange'
+                term_color = '\033[33m'      # yellow
+                mark_good = 11*' '
             else:
                 color = 'Red'
+                term_color = '\033[31m'      # red
+                mark_good = 11*' '
+
             mag = row['mag_auto']
             ax.scatter(row['ra'], row['dec'],
                        label='(%i)  %s = %.1f mag' % (source_id+1, band, mag),
@@ -170,18 +180,10 @@ def find_new_sources(img_fname, sep_fname, loc_bat=(0., 0., 1.), loc_xrt=(0., 0.
                        facecolor='none', s=60, lw=1.5)
             ax.text(row['ra']-8/3600., row['dec'], "%i" % (source_id+1),
                     transform=ax.get_transform('fk5'))
-            if sig < 5:
-                color = '\033[32m'      # green
-                mark_good = '    [NEW] -'
-            elif in_bat:
-                color = '\033[33m'      # yellow
-                mark_good = 11*' '
-            else:
-                color = '\033[31m'      # red
-                mark_good = 11*' '
+
             reset = '\033[0m'
             ra_str, dec_str = decimal_to_string(row['ra'], row['dec'])
-            msg.append(color + "%s %s %s  %s=%5.2f" % (mark_good, ra_str, dec_str, band, mag) + reset)
+            msg.append(term_color + "%s %s %s  %s=%5.2f" % (mark_good, ra_str, dec_str, band, mag) + reset)
         ax.legend(title=hdr['OBJECT'].upper(), loc='center left', bbox_to_anchor=(1, 0.5))
         ax.set_ylim(*ylims)
         ax.set_xlim(*xlims)
@@ -189,7 +191,7 @@ def find_new_sources(img_fname, sep_fname, loc_bat=(0., 0., 1.), loc_xrt=(0., 0.
         # 0: not consistent with BAT nor XRT
         # 1: consistent with BAT
         # 2: consistent with BAT and XRT
-        class_new = 1*inside_bat + 1*(significance < 5)
+        class_new = 1*inside_bat + 1*(significance < 5)*(significance > 0)
         new_subset = new['ra', 'dec', 'mag_auto', 'a', 'b', 'theta', 'flux_auto', 'flux_err_auto']
         new_subset['class'] = class_new
         new_table_fname = "new_sources_%s.txt" % base

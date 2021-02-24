@@ -161,7 +161,14 @@ PyNOT comes with a task for identifying bright, new transient objects from SWIFT
 
 The task can be run as:
 
-    pynot  findnew  reduced_image_wcs.fits  reduced_image_phot.fits  --bat ra dec radius  --xrt ra dec radius
+    pynot  findnew  reduced_image_wcs.fits  reduced_image_phot.fits  [--bat ra dec radius  --xrt ra dec radius  -z ZP  --limit  20.1]
 
-Note: Coordinates (ra and dec) are given in degrees! The radius for --bat is given in arcmin, the radius for --xrt is given in arcsec!
-If the source catalog from PyNOT (_phot.fits) has not been flux calibrated (outside SDSS footprint), you can provide a zero point manually by giving the `-z ZP` option, where ZP denotes the magnitude zero point.
+Note: Coordinates (ra and dec) are given in degrees! The radius for --bat is given in arcmin, the radius for --xrt is given in arcsec! Both --bat and --xrt are optional.
+If the source catalog from PyNOT (_phot.fits) has not been flux calibrated (outside SDSS footprint), you can provide a zero point manually by giving the `-z ZP` option, where ZP denotes the magnitude zero point. The default magnitude limit is 20.1 mag in order to match the depth of Gaia. Sources fainter than this will not be considered.
+
+The task creates a figure showing the field together with the localization estimates given by --bat and --xrt. The task also prints the identified sources to the terminal and to a text file (new_sources_*.txt), which looks something like:
+
+      ra         dec     mag_auto   a     b    theta  flux_auto  flux_err_auto  class
+    54.51772  -26.98964     19.64   2.4   2.2  -1.28   1.27e+03       1.97e+01      0
+    54.50497  -26.94632     16.92   3.8   3.8  -0.53   1.56e+04       2.62e+01      0
+    54.54830  -26.93043     19.63   2.5   2.4   0.11   1.29e+03       1.97e+01      0
