@@ -422,7 +422,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
 
         # Identify lines in arc frame:
-        arc_fname, = sci_img.match_files(arc_images, grism=True, slit=True, filter=True, get_closest_time=True)
+        arc_fname, = sci_img.match_files(arc_images, date=False, grism=True, slit=True, filter=True, get_closest_time=True)
         if identify_interactive and identify_all:
             log.write("Running task: Arc Line Identification")
             try:
