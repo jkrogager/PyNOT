@@ -75,6 +75,11 @@ def match_catalogs(coords, refs):
 
 
 def get_gaia_catalog(ra, dec, radius=4., limit=200, catalog_fname='', database='edr3'):
+    """
+    ra and dec: units of degrees
+    radius: units of arcmin
+    limit: max number of targets to retrieve
+    """
     from astroquery.gaia import Gaia
     query_args = {'limit': limit, 'ra': ra, 'dec': dec, 'radius': radius/60., 'dr': database}
     query = """SELECT TOP {limit} ra, dec, phot_g_mean_mag FROM gaia{dr}.gaia_source
