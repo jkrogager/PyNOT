@@ -403,12 +403,17 @@ class GraphicInterface(QMainWindow):
                 self.first_time_open = False
 
         if linelist_fname:
-            self.linelist = np.loadtxt(linelist_fname, usecols=(0,))
-            self._full_linelist = load_linelist(linelist_fname)
-            self.set_reftable_data()
+            try:
+                self.linelist = np.loadtxt(linelist_fname, usecols=(0,))
+                self._full_linelist = load_linelist(linelist_fname)
+                self.set_reftable_data()
+            except (ValueError, IOError) as err_msg:
+                print(" [ERROR] - Something went wrong...")
+                print(err_msg)
 
     def set_reftable_data(self):
         self.reftable.clearContents()
+        self.reftable.setRowCount(0)
         for line in self._full_linelist:
             rowPosition = self.reftable.rowCount()
             self.reftable.insertRow(rowPosition)
