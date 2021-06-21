@@ -156,6 +156,8 @@ def main():
                              help="Output filename of combined bias frame  (default = MASTER_BIAS.fits)")
     parser_bias.add_argument("--kappa", type=float, default=15,
                              help="Threshold for sigma clipping")
+    parser_bias.add_argument("--method", type=str, default='mean', choices=['mean', 'median'],
+                             help="Method for image combination")
 
     # -- SFLAT :: Spectral Flat Combination
     parser_sflat = tasks.add_parser('sflat', formatter_class=set_help_width(31),
@@ -183,6 +185,8 @@ def main():
                                help="Output filename of combined bias frame  [REQUIRED]")
     parser_imflat.add_argument("--kappa", type=float, default=15,
                                help="Threshold for sigma clipping")
+    parser_imflat.add_argument("--method", type=str, default='mean', choices=['mean', 'median'],
+                               help="Method for image combination")
 
     # -- corr :: Raw Correction
     parser_corr = tasks.add_parser('corr', formatter_class=set_help_width(31),
@@ -225,7 +229,7 @@ def main():
     parser_wave1 = tasks.add_parser('wave1d', formatter_class=set_help_width(31),
                                     help="Apply wavelength calibration to 1D spectra")
     parser_wave1.add_argument("input", type=str,
-                              help="Input filename of 1D spectrum of flux standard star")
+                              help="Input filename of 1D spectrum (FITS Table format)")
     parser_wave1.add_argument("--table", type=str, required=True,
                               help="Pixeltable of line identification from 'PyNOT-identify' [REQUIRED]")
     parser_wave1.add_argument("-o", "--output", type=str, required=True,
@@ -244,7 +248,7 @@ def main():
     parser_wave2 = tasks.add_parser('wave2d', formatter_class=set_help_width(31),
                                     help="Rectify 2D image and apply wavelength calibration")
     parser_wave2.add_argument("input", type=str,
-                              help="Input filename of 1D spectrum of flux standard star")
+                              help="Input filename of 2D spectrum")
     parser_wave2.add_argument("arc", type=str,
                               help="Input filename of arc line image")
     parser_wave2.add_argument("--table", type=str, required=True,
@@ -458,14 +462,14 @@ def main():
         from pynot.calibs import combine_bias_frames
         print("Running task: Bias combination")
         input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
-        _, log = combine_bias_frames(input_list, args.output, kappa=args.kappa)
+        _, log = combine_bias_frames(input_list, args.output, kappa=args.kappa, method=args.method)
 
     elif task == 'sflat':
         from pynot.calibs import combine_flat_frames, normalize_spectral_flat
         print("Running task: Spectral flat field combination and normalization")
         input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
         flatcombine, log = combine_flat_frames(input_list, output='', mbias=args.bias, mode='spec',
-                                               dispaxis=args.axis, kappa=args.kappa)
+                                               dispaxis=args.axis, kappa=args.kappa, method=args.method)
 
         options = copy(vars(args))
         vars_to_remove = ['task', 'input', 'output', 'axis', 'bias', 'kappa']
@@ -475,8 +479,17 @@ def main():
 
     elif task == 'corr':
         from pynot.scired import correct_raw_file
+        import glob
         print("Running task: Bias subtraction and flat field correction")
-        input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
+        if '.fits' in args.input:
+            # Load image or wildcard list:
+            if '?' in args.input or '*' in args.input:
+                input_list = glob.glob(args.input)
+            else:
+                input_list = [args.input]
+        else:
+            input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
+
         if args.img:
             mode = 'img'
         else:
@@ -590,7 +603,7 @@ def main():
         from pynot.calibs import combine_flat_frames
         input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
         _, log = combine_flat_frames(input_list, output=args.output, mbias=args.bias, mode='img',
-                                     kappa=args.kappa)
+                                     kappa=args.kappa, method=args.method)
 
     elif task == 'imtrim':
         print("Running task: Image Trimming")

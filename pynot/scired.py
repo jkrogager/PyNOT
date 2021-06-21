@@ -450,6 +450,7 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname='', output='', overscan=
         mflat[mflat == 0] = 1
         flat_hdr = get_alfosc_header(flat_fname)
         msg.append("          - Loaded flat field image: %s" % flat_fname)
+        mflat, flat_hdr = trim_overscan(mflat, flat_hdr, overscan=overscan, mode=mode)
     else:
         mflat = 1.
         msg.append("          - Not flat field image provided. No correction applied!")
@@ -459,7 +460,6 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname='', output='', overscan=
     # - so do it just in case the input has not been trimmed
     sci_raw, hdr = trim_overscan(sci_raw, hdr, overscan=overscan, mode=mode)
     mbias, bias_hdr = trim_overscan(mbias, bias_hdr, overscan=overscan, mode=mode)
-    mflat, flat_hdr = trim_overscan(mflat, flat_hdr, overscan=overscan, mode=mode)
 
     # Correct image:
     sci = (sci_raw - mbias)/mflat

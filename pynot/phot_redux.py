@@ -194,7 +194,8 @@ def run_pipeline(options_fname, verbose=False):
         log.write("Running task: Bias Combination")
         try:
             _, bias_msg = combine_bias_frames(bias_frames, output=master_bias_fname, mode='img',
-                                              kappa=options['bias']['kappa'], overwrite=True)
+                                              kappa=options['bias']['kappa'], method=options['bias']['method'],
+                                              overwrite=True)
             log.commit(bias_msg)
             log.add_linebreak()
         except:
@@ -213,8 +214,9 @@ def run_pipeline(options_fname, verbose=False):
         comb_flat_fname = os.path.join(output_base, 'FLAT_%s.fits' % filter_name)
         try:
             _, flat_msg = combine_flat_frames(flat_frames, comb_flat_fname, mbias=master_bias_fname,
-                                              kappa=options['flat']['kappa'], overwrite=True,
-                                              mode='img')
+                                              kappa=options['flat']['kappa'],
+                                              method=options['flat']['method'],
+                                              overwrite=True, mode='img')
             log.commit(flat_msg)
             master_flat[filter_raw] = comb_flat_fname
         except:

@@ -10,10 +10,12 @@ mbias:                       # Static master bias frame
 clean:         True          # Remove temporary images (CCD processed before trimming)
 # [Recipe Options]
 bias:
-  kappa:         15          # Threshold for sigma clipping in Flat combiniation
+  kappa:  15                 # Threshold for sigma clipping in bias combiniation
+  method: median             # Method for image combination (options: median/mean)
 
 flat:
   kappa:         15          # Threshold for sigma clipping in Flat combiniation
+  method:    median          # Method for image combination (options: median/mean)
 
 crr:                         # Parameters of `astroscrappy.detect_cosmics`
   niter:       2             # Number of iterations for cosmic ray rejection  (turn off by setting niter = 0)

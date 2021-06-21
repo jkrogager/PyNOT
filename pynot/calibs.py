@@ -22,7 +22,7 @@ from pynot.scired import trim_overscan
 __version__ = get_version_number()
 
 
-def combine_bias_frames(bias_frames, output='', kappa=15, overwrite=True, overscan=50, mode='spec'):
+def combine_bias_frames(bias_frames, output='', kappa=15, method='mean', overwrite=True, overscan=50, mode='spec'):
     """Combine individual bias frames to create a 'master bias' frame.
     The combination is performed using robust sigma-clipping and
     median combination. Bad pixels are subsequently replaced by the
@@ -42,6 +42,9 @@ def combine_bias_frames(bias_frames, output='', kappa=15, overwrite=True, oversc
 
     overwrite : boolean [default=False]
         Overwrite existing output file if True.
+
+    method : string [default='mean']
+        Method used for image combination (median/mean)
 
     Returns
     =======
@@ -78,10 +81,14 @@ def combine_bias_frames(bias_frames, output='', kappa=15, overwrite=True, oversc
     msg.append("          - Masking outlying pixels: kappa = %f" % kappa)
     msg.append("          - Total number of masked pixels: %i" % np.sum(mask > 0))
 
-    master_bias = np.median(masked_bias, 0)
-    Ncomb = len(bias) - mask
-
-    master_bias[Ncomb == 0] = np.median(master_bias[Ncomb != 0])
+    if method.lower() == 'median':
+        master_bias = np.ma.median(masked_bias, 0).data
+        Ncomb = len(bias) - mask
+        master_bias[Ncomb == 0] = np.median(master_bias[Ncomb != 0])
+    else:
+        master_bias = np.ma.mean(masked_bias, 0).data
+        Ncomb = len(bias) - mask
+        master_bias[Ncomb == 0] = np.mean(master_bias[Ncomb != 0])
     msg.append("          - Combined %i files" % len(bias))
 
     hdr = pf.getheader(bias_frames[0], 0)
@@ -89,7 +96,10 @@ def combine_bias_frames(bias_frames, output='', kappa=15, overwrite=True, oversc
     for key in hdr1.keys():
         hdr[key] = hdr1[key]
     hdr['NCOMBINE'] = len(bias_frames)
-    hdr.add_comment('Median combined Master Bias')
+    if method.lower() == 'median':
+        hdr.add_comment('Median combined Master Bias')
+    else:
+        hdr.add_comment('Mean combined Master Bias')
     hdr.add_comment('PyNOT version %s' % __version__)
     if not output:
         output = 'MASTER_BIAS.fits'
@@ -103,7 +113,8 @@ def combine_bias_frames(bias_frames, output='', kappa=15, overwrite=True, oversc
 
 
 def combine_flat_frames(raw_frames, output, mbias='', mode='spec', dispaxis=2,
-                        kappa=5, verbose=False, overwrite=True, overscan=50):
+                        kappa=5, verbose=False, overwrite=True, overscan=50,
+                        method='mean'):
     """Combine individual spectral flat frames to create a 'master flat' frame.
     The individual frames are normalized to the mode of the 1D collapsed spectral
     shape. Individual frames are clipped using a kappa-sigma-clipping on the mode
@@ -197,7 +208,10 @@ def combine_flat_frames(raw_frames, output, mbias='', mode='spec', dispaxis=2,
     msg.append("          - Median value of combined flat: %i" % np.sum(mask > 0))
 
     # Take the mean of the sigma-clipped images.
-    flat_combine = np.mean(masked_flats, 0)
+    if method.lower() == 'median':
+        flat_combine = np.ma.median(masked_flats, 0).data
+    else:
+        flat_combine = np.ma.mean(masked_flats, 0).data
     if mode == 'spec':
         # Scale the image back to the original ADU scale
         flat_combine = flat_combine * np.nanmedian(flat_peaks)
@@ -215,7 +229,10 @@ def combine_flat_frames(raw_frames, output, mbias='', mode='spec', dispaxis=2,
     for key in hdr1.keys():
         hdr[key] = hdr1[key]
     hdr['NCOMBINE'] = len(flats)
-    hdr.add_comment('Median combined Master Spectral Flat')
+    if method.lower() == 'median':
+        hdr.add_comment('Median combined Flat')
+    else:
+        hdr.add_comment('Mean combined Flat')
     hdr.add_comment('PyNOT version %s' % __version__)
 
     if output == '':

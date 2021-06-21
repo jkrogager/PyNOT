@@ -10,10 +10,12 @@ mflat:                       # Static normalized flat field (only for single gri
 
 # [Recipe Options]
 bias:
-  kappa:  15                 # Threshold for sigma clipping in Flat combiniation
+  kappa:  15                 # Threshold for sigma clipping in bias combiniation
+  method: median             # Method for image combination (options: median/mean)
 
 flat:
   kappa:          5          # Threshold for sigma clipping in Flat combiniation
+  method:     median         # Method for image combination (options: median/mean)
   order:          24         # Order for Chebyshev polynomial to fit to the spatial profile (per row/col)
   savgol_window:  51         # Window width in pixels for Savitzky--Golay filter of spatial profile
   med_window:     5          # Window width of median filter along spectral axis before fitting the spatial profile
