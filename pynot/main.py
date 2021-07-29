@@ -547,7 +547,7 @@ def main():
         from pynot.scired import auto_fit_background
         print("Running task: Background Subtraction")
         options = copy(vars(args))
-        vars_to_remove = ['task', 'input', 'output', 'axis']
+        vars_to_remove = ['task', 'input', 'output', 'axis', 'auto']
         for varname in vars_to_remove:
             options.pop(varname)
         log = auto_fit_background(args.input, args.output, dispaxis=args.axis,

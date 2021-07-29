@@ -47,6 +47,7 @@ crr:                         # Parameters of `astroscrappy.detect_cosmics`
   cleantype:   'meanmask'    # Cleaning filter (5x5): {'median', 'medmask', 'meanmask', 'idw'}, see astroscrappy for details
 
 skysub:
+  auto:        True          # Automatically subtract the sky from the 2D spectrum?
   order_bg:    3             # Polynomial order for sky background subtraction (per row)
   kappa:       10            # Threshold for rejection of outlying pixels (cosmics etc) in units of std. deviations
   fwhm_scale:  3             # Mask out auto-identified objects within ±`fwhm_scale`*FWHM around centroid of object

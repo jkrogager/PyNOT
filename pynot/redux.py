@@ -509,9 +509,10 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                     log.add_linebreak()
                 except:
                     log.error("Calculation of response function failed!")
-                    log.fatal_error()
                     print("Unexpected error:", sys.exc_info()[0])
-                    raise
+                    status['RESPONSE'] = ''
+                    log.warn("No flux calibration will be performed!")
+                    log.add_linebreak()
 
 
         # Bias correction, Flat correction
@@ -543,18 +544,25 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
 
         # Automatic Background Subtraction:
-        bgsub_pdf_name = os.path.join(output_dir, 'bgsub2D.pdf')
-        log.write("Running task: Background Subtraction")
-        try:
-            bg_msg = auto_fit_background(rect2d_fname, bgsub2d_fname, dispaxis=1,
-                                         plot_fname=bgsub_pdf_name, **options['skysub'])
-            log.commit(bg_msg)
+        if options['skysub']['auto']:
+            bgsub_pdf_name = os.path.join(output_dir, 'bgsub2D.pdf')
+            log.write("Running task: Background Subtraction")
+            try:
+                bg_msg = auto_fit_background(rect2d_fname, bgsub2d_fname, dispaxis=1,
+                                             plot_fname=bgsub_pdf_name, **options['skysub'])
+                log.commit(bg_msg)
+                log.write("2D sky model is saved in extension 'SKY' of the file: %s" % bgsub2d_fname)
+                log.add_linebreak()
+            except:
+                log.error("Automatic background subtraction failed!")
+                log.fatal_error()
+                print("Unexpected error:", sys.exc_info()[0])
+                raise
+        else:
+            log.warn("No sky-subtraction has been performed on the 2D spectrum!")
+            log.write("Cosmic ray rejection may fail... double check the output or turn off 'crr' by setting niter=0.")
             log.add_linebreak()
-        except:
-            log.error("Automatic background subtraction failed!")
-            log.fatal_error()
-            print("Unexpected error:", sys.exc_info()[0])
-            raise
+            bgsub2d_fname = rect2d_fname
 
 
         # Correct Cosmic Rays Hits:
@@ -597,7 +605,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
         extract_fname = status['FLUX2D']
         if options['extract']['interactive']:
             try:
-                log.write("Starting Graphical User Interface")
+                log.write("Extraction: Starting Graphical User Interface")
                 extract_gui.run_gui(extract_fname, output_fname=flux1d_fname,
                                     app=app, **options['extract'])
                 log.write("Writing fits table: %s" % flux1d_fname, prefix=" [OUTPUT] - ")
