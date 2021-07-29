@@ -267,31 +267,31 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
         log.add_linebreak()
 
 
-    # # Identify interactively for grisms that are not defined
-    # # add the new pixel tables to the calib cache for future use
-    # for grism_name in grisms_to_identify:
-    #     log.write("Starting interactive definition of pixel table for %s" % grism_name)
-    #     try:
-    #         arc_fname = arc_images_for_grism[grism_name][0]
-    #         if grism_name+'_pixtab' in options:
-    #             pixtab_fname = options[grism_name+'_pixtab']
-    #         else:
-    #             pixtab_fname = os.path.join(calib_dir, '%s_pixeltable.dat' % grism_name)
-    #         linelist_fname = ''
-    #         log.write("Input arc line frame: %s" % arc_fname)
-    #         poly_order, saved_pixtab_fname, msg = create_pixtable(arc_fname, grism_name,
-    #                                                               pixtab_fname, linelist_fname,
-    #                                                               order_wl=options['identify']['order_wl'],
-    #                                                               app=app)
-    #         status[saved_pixtab_fname] = poly_order
-    #         status[grism_name+'_pixtab'] = saved_pixtab_fname
-    #         log.commit(msg)
-    #     except:
-    #         log.error("Identification of arc lines failed!")
-    #         log.fatal_error()
-    #         log.save()
-    #         print("Unexpected error:", sys.exc_info()[0])
-    #         raise
+    # Identify interactively for grisms that are not defined
+    # add the new pixel tables to the calib cache for future use
+    for grism_name in grisms_to_identify:
+        log.write("Starting interactive definition of pixel table for %s" % grism_name)
+        try:
+            arc_fname = arc_images_for_grism[grism_name][0]
+            if grism_name+'_pixtab' in options:
+                pixtab_fname = options[grism_name+'_pixtab']
+            else:
+                pixtab_fname = os.path.join(calib_dir, '%s_pixeltable.dat' % grism_name)
+            linelist_fname = ''
+            log.write("Input arc line frame: %s" % arc_fname)
+            poly_order, saved_pixtab_fname, msg = create_pixtable(arc_fname, grism_name,
+                                                                  pixtab_fname, linelist_fname,
+                                                                  order_wl=options['identify']['order_wl'],
+                                                                  app=app)
+            status[saved_pixtab_fname] = poly_order
+            status[grism_name+'_pixtab'] = saved_pixtab_fname
+            log.commit(msg)
+        except:
+            log.error("Identification of arc lines failed!")
+            log.fatal_error()
+            log.save()
+            print("Unexpected error:", sys.exc_info()[0])
+            raise
 
 
     # Save overview log:
@@ -440,13 +440,14 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
             raise
 
 
+        if grism+'_pixtab' in options:
+            pixtab_fname = options[grism_name+'_pixtab']
+        else:
+            pixtab_fname = os.path.join(calib_dir, '%s_pixeltable.dat' % grism)
+
         if identify_interactive and identify_all:
             log.write("Running task: Arc Line Identification")
             try:
-                if grism+'_pixtab' in options:
-                    pixtab_fname = options[grism_name+'_pixtab']
-                else:
-                    pixtab_fname = os.path.join(calib_dir, '%s_pixeltable.dat' % grism)
                 linelist_fname = ''
                 order_wl, pixtable, msg = create_pixtable(corrected_arc2d_fname, grism,
                                                           pixtab_fname, linelist_fname,
