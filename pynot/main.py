@@ -206,7 +206,7 @@ def main():
     # -- identify :: Identify Arc Lines
     parser_id = tasks.add_parser('identify', formatter_class=set_help_width(31),
                                  help="Interactive identification of arc lines")
-    parser_id.add_argument("arc", type=str,
+    parser_id.add_argument("arc", type=str, default='', nargs='?',
                            help="Input filename of arc line image")
     parser_id.add_argument("--lines", type=str, default='',
                            help="Linelist, automatically loaded if possible")
@@ -319,7 +319,7 @@ def main():
     # -- extract :: Extraction of 1D spectrum from 2D
     parser_ext = tasks.add_parser('extract', formatter_class=set_help_width(31),
                                   help="Extract 1D spectrum from 2D")
-    parser_ext.add_argument("input", type=str,
+    parser_ext.add_argument("input", type=str, default='', nargs='?',
                             help="Input filename of 2D spectrum")
     parser_ext.add_argument("-o", "--output", type=str, default='',
                             help="Output filename of 1D spectrum (FITS Table)")
