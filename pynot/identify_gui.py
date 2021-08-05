@@ -173,12 +173,8 @@ class GraphicInterface(QMainWindow):
         toolbar_fontsize = QFont()
         toolbar_fontsize.setPointSize(14)
 
-        if locked:
-            quit_action = QAction("Done", self)
-            quit_action.triggered.connect(self.done)
-        else:
-            quit_action = QAction("Close", self)
-            quit_action.triggered.connect(self.close)
+        quit_action = QAction("Done", self)
+        quit_action.triggered.connect(lambda x: self.done(locked=locked))
         quit_action.setFont(toolbar_fontsize)
         quit_action.setStatusTip("Quit the application")
         quit_action.setShortcut("ctrl+Q")
@@ -505,17 +501,54 @@ class GraphicInterface(QMainWindow):
             self._main.setUpdatesEnabled(True)
             self.canvas.setFocus()
 
-    def done(self):
+    def done(self, locked=False):
         msg = "Save the line identifications and continue?"
         messageBox = QMessageBox()
         messageBox.setText(msg)
-        messageBox.setStandardButtons(QMessageBox.Cancel | QMessageBox.Save)
+
+        if locked:
+            # This is only used in automated pipeline mode...
+            messageBox.setStandardButtons(QMessageBox.Cancel | QMessageBox.Save)
+        else:
+            messageBox.setStandardButtons(QMessageBox.Reset | QMessageBox.Discard | QMessageBox.Cancel | QMessageBox.Save)
+            button = messageBox.button(QMessageBox.Reset)
+            button.setText('Change Filename')
+            info_msg = "Current filename is: %s" % self.output_fname
+            messageBox.setInformativeText(info_msg)
+        messageBox.setDefaultButton(QMessageBox.Save)
         retval = messageBox.exec_()
         if retval == QMessageBox.Save:
+            if not self.output_fname:
+                # Prompt for user-defined filename:
+                current_dir = './'
+                filters = "All files (*)"
+                path = QFileDialog.getSaveFileName(self, 'Save Pixeltable', current_dir, filters)
+                fname = str(path[0])
+
+                if fname:
+                    self.output_fname = fname
+                else:
+                    return
+
             success = self.save_pixtable(self.output_fname)
             if success:
                 self.message = "ok"
                 self.close()
+
+        elif retval == QMessageBox.Discard:
+            self.close()
+
+        elif retval == QMessageBox.Reset:
+            # Prompt for user-defined filename:
+            current_dir = './'
+            filters = "All files (*)"
+            path = QFileDialog.getSaveFileName(self, 'Save Pixeltable', current_dir, filters)
+            fname = str(path[0])
+
+            if fname:
+                self.output_fname = fname
+                self.done()
+
 
     def save_pixtable(self, fname=None):
         if fname is False:

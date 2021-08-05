@@ -120,11 +120,11 @@ def save_ascii_spectrum(fname, wl, flux, err, hdr, bg=None):
     if bg is not None:
         data_table = np.column_stack([wl, flux, err, bg])
         fmt = "%12.4f  % .3e  %.3e  %.3e"
-        col_names = "# Wavelength  Flux        Flux_err   Sky"
+        col_names = "# Wavelength       Flux        Error      Sky"
     else:
         data_table = np.column_stack([wl, flux, err])
         fmt = "%12.4f  % .3e  %.3e"
-        col_names = "# Wavelength  Flux        Flux_err"
+        col_names = "# Wavelength       Flux        Error"
 
     basename, ext = os.path.splitext(fname)
     header_fname = basename + '_hdr.txt'
@@ -864,21 +864,14 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.tab_shortcut3.activated.connect(lambda: self.tab_widget.setCurrentIndex(2))
 
         # == TOP MENU BAR:
-        self.save_btn = QtWidgets.QPushButton("Save")
-        self.save_btn.clicked.connect(self.save_spectrum_1d)
-        self.load_btn = QtWidgets.QPushButton("Load")
+        self.load_btn = QtWidgets.QPushButton("Load 2D Spectrum")
         self.load_btn.clicked.connect(self.load_spectrum)
         self.options_btn = QtWidgets.QPushButton("Options")
         self.options_btn.clicked.connect(lambda checked: SettingsWindow(self))
+        self.close_btn = QtWidgets.QPushButton("Done")
+        self.close_btn.clicked.connect(lambda x: self.done(locked=locked))
         if locked:
-            self.close_btn = QtWidgets.QPushButton("Done")
-            self.close_btn.clicked.connect(self.done)
             self.load_btn.setEnabled(False)
-            self.save_btn.setEnabled(False)
-            self.save_btn.setText("")
-        else:
-            self.close_btn = QtWidgets.QPushButton("Close")
-            self.close_btn.clicked.connect(self.close)
 
 
         # == Layout ===========================================================
@@ -886,7 +879,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
 
         top_menubar = QtWidgets.QHBoxLayout()
         top_menubar.addWidget(self.close_btn)
-        top_menubar.addWidget(self.save_btn)
+        top_menubar.addStretch(1)
         top_menubar.addWidget(self.load_btn)
         top_menubar.addWidget(self.options_btn)
         top_menubar.addStretch(1)
@@ -1001,10 +994,36 @@ class ExtractGUI(QtWidgets.QMainWindow):
             self.load_spectrum(fname, dispaxis)
             self.filename_2d = fname
 
-    def done(self):
-        success = self.save_all_extractions(self.output_fname)
-        if success:
-            self.close()
+    def done(self, locked=False):
+        msg = "You're about to quit PyNOT: Extract"
+        messageBox = QtWidgets.QMessageBox()
+        messageBox.setText(msg)
+        if locked:
+            info_msg = "Save the extracted spectrum or spectra and move on?"
+            info_msg += "\nCurrent filename: %s" % self.output_fname
+            messageBox.setStandardButtons(QtWidgets.QMessageBox.Cancel | QtWidgets.QMessageBox.Save)
+            messageBox.setInformativeText(info_msg)
+            messageBox.setDefaultButton(QtWidgets.QMessageBox.Save)
+            retval = messageBox.exec_()
+            if retval == QtWidgets.QMessageBox.Save:
+                success = self.save_all_extractions(self.output_fname)
+                if success:
+                    self.close()
+
+        else:
+            info_msg = "Do you want to save the extracted spectrum or spectra before quitting?"
+            messageBox.setStandardButtons(QtWidgets.QMessageBox.Discard | QtWidgets.QMessageBox.Cancel | QtWidgets.QMessageBox.Save)
+            messageBox.setInformativeText(info_msg)
+            messageBox.setDefaultButton(QtWidgets.QMessageBox.Save)
+            retval = messageBox.exec_()
+            if retval == QtWidgets.QMessageBox.Save:
+                success = self.save_spectrum_1d()
+                if success:
+                    self.close()
+
+            elif retval == QtWidgets.QMessageBox.Discard:
+                self.close()
+
 
     def save_aperture_model(self, index):
         """Save the 2D trace model profile of a given object"""
@@ -1092,7 +1111,11 @@ class ExtractGUI(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.critical(None, "Save Error", msg)
             return
 
-        SaveWindow(parent=self, index=index)
+        save_gui = SaveWindow(parent=self, index=index)
+        save_gui.exec_()
+        print("Did it save?  %r" % save_gui.saved)
+        saved = save_gui.saved
+        return saved
 
     def save_all_extractions(self, fname=''):
         if len(self.data1d) == 0:
@@ -2192,6 +2215,7 @@ class SaveWindow(QtWidgets.QDialog):
         super(SaveWindow, self).__init__(parent)
         self.setWindowTitle("Save Extracted Spectrum")
         self.parent = parent
+        self.saved = False
 
         # -- Create Filename Selector:
         basename = './' + parent.output_fname
@@ -2233,11 +2257,15 @@ class SaveWindow(QtWidgets.QDialog):
 
         # -- Aperture Inclusion:
         self.aper_btn = QtWidgets.QCheckBox("Include 2D Aperture Model")
+        self.aper_btn.toggled.connect(self.update_preview)
         middle_row = QtWidgets.QHBoxLayout()
         # middle_row.addStretch(1)
         middle_row.addWidget(self.aper_btn)
 
         # -- Save and Cancel buttons:
+        btn_save_all = QtWidgets.QPushButton("Save All")
+        btn_save_all.clicked.connect(self.save_all)
+
         btn_save = QtWidgets.QPushButton("Save")
         btn_save.clicked.connect(self.save)
 
@@ -2245,8 +2273,10 @@ class SaveWindow(QtWidgets.QDialog):
         btn_cancel.clicked.connect(self.close)
         bottom_row = QtWidgets.QHBoxLayout()
         bottom_row.addStretch(1)
-        bottom_row.addWidget(btn_save)
+        bottom_row.addWidget(btn_save_all)
+        bottom_row.addStretch(2)
         bottom_row.addWidget(btn_cancel)
+        bottom_row.addWidget(btn_save)
 
         # -- Left List View of Objects:
         self.listview = QtWidgets.QListWidget()
@@ -2258,22 +2288,35 @@ class SaveWindow(QtWidgets.QDialog):
             self.listview.addItem(item)
         self.listview.setCurrentRow(index)
 
+        # -- File Format Preview:
+        self.preview = QtWidgets.QTextEdit()
+        self.preview.setMinimumWidth(400)
+        self.preview.setFontPointSize(10)
+        self.preview.setReadOnly(True)
+        self.preview.setFontFamily('Courier')
+        self.preview.setTextColor(QtGui.QColor("DimGray"))
+        self.preview.setStyleSheet("background-color: gainsboro;")
+        self.preview.setPlainText("Preview FITS format here:")
+        self.update_preview()
+
         # -- Manage Layout:
         main_layout = QtWidgets.QHBoxLayout()
         right_layout = QtWidgets.QVBoxLayout()
         right_layout.setSpacing(3)
         left_layout = QtWidgets.QVBoxLayout()
-        bottom_layout = QtWidgets.QHBoxLayout()
-        lower_right_layout = QtWidgets.QVBoxLayout()
+        preview_layout = QtWidgets.QVBoxLayout()
+        preview_layout.addWidget(QtWidgets.QLabel("Preview of File Format:"))
+        preview_layout.addWidget(self.preview)
 
+        lower_right_layout = QtWidgets.QVBoxLayout()
         lower_right_layout.addLayout(top_row)
         lower_right_layout.addLayout(btn_row)
-        lower_right_layout.addStretch(1)
+        # lower_right_layout.addStretch(1)
         lower_right_layout.addLayout(middle_row)
-        lower_right_layout.addStretch(2)
+        # lower_right_layout.addStretch(1)
+        lower_right_layout.addLayout(preview_layout)
+        # lower_right_layout.addStretch(2)
         lower_right_layout.addLayout(bottom_row)
-        bottom_layout.addStretch(1)
-        bottom_layout.addLayout(lower_right_layout)
 
         left_layout.addWidget(QtWidgets.QLabel("Choose object to save:"))
         left_layout.addWidget(self.listview)
@@ -2281,7 +2324,7 @@ class SaveWindow(QtWidgets.QDialog):
         right_layout.addWidget(QtWidgets.QLabel("Filename:"))
         right_layout.addLayout(fname_row)
         # right_layout.addStretch(1)
-        right_layout.addLayout(bottom_layout)
+        right_layout.addLayout(lower_right_layout)
 
         main_layout.addLayout(left_layout)
         main_layout.addLayout(right_layout, 1)
@@ -2293,20 +2336,61 @@ class SaveWindow(QtWidgets.QDialog):
         if checked:
             self.aper_btn.setDisabled(True)
             current_fname = self.fname_editor.text()
-            file_root, ext = os.path.splitext(current_fname)
-            self.fname_editor.setText("%s.dat" % file_root)
+            if current_fname != './':
+                file_root, ext = os.path.splitext(current_fname)
+                self.fname_editor.setText("%s.dat" % file_root)
+            self.update_preview()
 
     def set_fits(self, checked):
         if checked:
             self.aper_btn.setEnabled(True)
             current_fname = self.fname_editor.text()
-            file_root, ext = os.path.splitext(current_fname)
-            self.fname_editor.setText("%s.fits" % file_root)
+            if current_fname != './':
+                file_root, ext = os.path.splitext(current_fname)
+                self.fname_editor.setText("%s.fits" % file_root)
+            self.update_preview()
+
+    def update_preview(self):
+        file_format = self.format_group.checkedId()
+        include_aperture = self.aper_btn.isChecked()
+        if file_format == 0:
+            # Multi-extension FITS
+            text = "# Multi-Extension FITS file:\n"
+            text += "\n# Header-Data Unit Overview\n"
+            text += " ID  Name   Type      Dimensions\n"
+            text += "---------------------------------\n"
+            text += " 0   FLUX   ImageHDU  (N_x,)\n"
+            text += " 1   ERR    ImageHDU  (N_x,)\n"
+            text += " 2   SKY    ImageHDU  (N_x,)\n"
+            if include_aperture:
+                text += " 3   APER   ImageHDU  (N_x, N_y)\n"
+            text += "\n"
+
+        elif file_format == 1:
+            # FITS Table:
+            text = "# FITS Table:\n"
+            text += "\n# Header-Data Unit Overview\n"
+            text += " ID  Name     Type         Dimensions    Column Names        \n"
+            text += "-------------------------------------------------------------\n"
+            text += " 0   PRIMARY  PrimaryHDU    --                               \n"
+            text += " 1   DATA     BinTableHDU  (N_x, 4)    [WAVE, FLUX, ERR, SKY]\n"
+            if include_aperture:
+                text += " 2   APER     ImageHDU     (N_x, N_y)\n"
+            text += "\n"
+        else:
+            # ASCII:
+            text = "# ASCII Table:\n"
+            text += "# Wavelength   Flux   Error   Sky\n"
+            text += "  wl_1         f_1    err_1   sky_1\n"
+            text += "  wl_2         f_2    err_2   sky_2\n"
+            text += "   :            :       :       :  \n"
+            text += "  wl_N         f_N    err_N   sky_N\n\n"
+        self.preview.setPlainText(text)
 
     def open_filedialog(self):
         basename = self.fname_editor.text()
         abs_path = os.path.abspath(basename)
-        fname, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save All Extractions', abs_path)
+        fname, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Select Filename', abs_path)
         if fname:
             new_basename = os.path.relpath(fname)
             self.fname_editor.setText(new_basename)
@@ -2334,20 +2418,29 @@ class SaveWindow(QtWidgets.QDialog):
             if fname[-5:] != '.fits':
                 fname = fname + '.fits'
             saved, msg = save_fits_spectrum(fname, wl, flux, err, hdr, bg, aper=model2d)
+            self.saved = saved
         elif file_format == 1:
             if fname[-5:] != '.fits':
                 fname = fname + '.fits'
             saved, msg = save_fitstable_spectrum(fname, wl, flux, err, hdr, bg, aper=model2d)
+            self.saved = saved
         elif file_format == 2:
             if fname[-4:] != '.dat':
                 fname = fname + '.dat'
             saved, msg = save_ascii_spectrum(fname, wl, flux, err, hdr, bg)
+            self.saved = saved
         else:
-            saved = False
+            self.saved = False
             msg = "Unknown File type... Something went wrong!"
 
-        if saved is False:
+        if self.saved is False:
             QtWidgets.QMessageBox.critical(None, "Save Error", msg)
+        self.close()
+
+
+    def save_all(self):
+        fname = self.fname_editor.text()
+        self.saved = self.parent.save_all_extractions(fname=fname)
         self.close()
 
 
