@@ -61,11 +61,13 @@ def combine_bias_frames(bias_frames, output='', kappa=15, method='mean', overwri
         msg.append("          - Loaded bias frame: %s" % frame)
         raw_img = pf.getdata(frame)
         bias_hdr = alfosc.get_alfosc_header(frame)
-        if mode == 'spec':
-            trim_bias, bias_hdr = trim_overscan(raw_img, bias_hdr, overscan)
-            msg.append("          - Trimming overscan of bias images: %i!" % overscan)
-        else:
-            trim_bias = raw_img
+        trim_bias, bias_hdr = trim_overscan(raw_img, bias_hdr, overscan)
+        msg.append("          - Trimming overscan of bias images: %i!" % overscan)
+        # if mode == 'spec':
+        #     trim_bias, bias_hdr = trim_overscan(raw_img, bias_hdr, overscan)
+        #     msg.append("          - Trimming overscan of bias images: %i!" % overscan)
+        # else:
+        #     trim_bias = raw_img
         if len(bias) > 1:
             assert trim_bias.shape == bias[0].shape, "Images must have same shape!"
         bias.append(trim_bias)
@@ -165,9 +167,7 @@ def combine_flat_frames(raw_frames, output, mbias='', mode='spec', dispaxis=2,
     if mbias and exists(mbias):
         bias = pf.getdata(mbias)
         bias_hdr = alfosc.get_alfosc_header(mbias)
-        if mode == 'spec':
-            bias, bias_hdr = trim_overscan(bias, bias_hdr, overscan)
-            msg.append("          - Trimming overscan of bias image: %i!" % overscan)
+
     else:
         msg.append("[WARNING] - No master bias frame provided!")
         bias = 0.
@@ -177,14 +177,15 @@ def combine_flat_frames(raw_frames, output, mbias='', mode='spec', dispaxis=2,
     for fname in raw_frames:
         hdr = alfosc.get_alfosc_header(fname)
         flat = pf.getdata(fname)
+        flat, hdr = trim_overscan(flat, hdr, overscan)
+        msg.append("          - Trimming overscan of Flat images: %i!" % overscan)
+
         if mode == 'spec':
-            flat, hdr = trim_overscan(flat, hdr, overscan)
             flat = flat - bias
             peak_val = np.max(np.mean(flat, dispaxis-1))
             flats.append(flat/peak_val)
             flat_peaks.append(peak_val)
             msg.append("          - Loaded Spectral Flat file: %s   mode=%.1f" % (fname, peak_val))
-            msg.append("          - Trimming overscan of Flat images: %i!" % overscan)
 
         else:
             flat = flat - bias
@@ -342,8 +343,8 @@ def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=2, overscan=5
 
     msg.append("          - Input file: %s" % fname)
 
-    flat, hdr = trim_overscan(flat, hdr, overscan)
-    msg.append("          - Trimmed overscan: %i" % overscan)
+    # flat, hdr = trim_overscan(flat, hdr, overscan)
+    # msg.append("          - Trimmed overscan: %i" % overscan)
     # Get raw pixel array of spatial axis
     x = np.arange(flat.shape[dispaxis-1])
 
@@ -380,9 +381,11 @@ def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=2, overscan=5
     x_fit = x[x1:x2]
     for num, row in enumerate(smoothed_flat):
         filtered_row = signal.savgol_filter(row[x1:x2], savgol_window, 1)
+        sig = 1.5*mad(row[x1:x2] - filtered_row)
+        mask = (row[x1:x2] - filtered_row) > -sig
         # Exclude filter edges, half filter width:
-        x_mask = x_fit[pad:-pad]
-        row_mask = filtered_row[pad:-pad]
+        x_mask = x_fit[mask][pad:-pad]
+        row_mask = filtered_row[mask][pad:-pad]
         fit_row = np.polynomial.Chebyshev.fit(x_mask, row_mask, order, domain=[x_fit.min(), x_fit.max()])
         model1d = fit_row(x_fit)
         # Remove edge effects in fitting, the filtered data are more robust:

@@ -35,6 +35,7 @@ rectify:
   interpolate: True          # Perform interpolation or apply central wavelength solution to full 2D range
   fit_window:  20            # Fitting window in pixels around each arc line to determine centroid  (optimized for grism 4)
   plot:        True          # Make diagnostic plots?
+  edge_kappa:  10            # Significance threshold for edge detection of arc lines
 
 crr:                         # Parameters of `astroscrappy.detect_cosmics`
   niter:       4             # Number of iterations for cosmic ray rejection  (turn off by setting niter = 0)
