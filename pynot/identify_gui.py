@@ -24,6 +24,7 @@ from astropy.io import fits
 
 from pynot.alfosc import create_pixel_array
 from pynot.functions import get_version_number, NN_mod_gaussian
+from pynot.welcome import WelcomeMessage
 
 __version__ = get_version_number()
 
@@ -144,11 +145,13 @@ def load_linelist(fname):
 
 class GraphicInterface(QMainWindow):
     def __init__(self, arc_fname='', grism_name='', pixtable='', linelist_fname='', output='',
-                 dispaxis=2, order_wl=3, parent=None, locked=False):
+                 dispaxis=2, order_wl=3, parent=None, locked=False, vac=True):
         QMainWindow.__init__(self, parent)
         self.setWindowTitle('PyNOT: Identify Arc Lines')
         self._main = QWidget()
         self.setCentralWidget(self._main)
+        self.welcome_msg = None
+
         self.pix = np.array([])
         self.arc1d = np.array([])
         self.arc_fname = arc_fname
@@ -193,12 +196,9 @@ class GraphicInterface(QMainWindow):
 
         load_pixtab_action = QAction("Load PixTable", self)
         load_pixtab_action.triggered.connect(self.load_pixtable)
-        if locked:
-            toolbar.addAction(load_pixtab_action)
-        else:
-            toolbar.addAction(save_pixtab_action)
+        toolbar.addAction(load_pixtab_action)
 
-        load_ref_action = QAction("Load LineList", self)
+        load_ref_action = QAction("Load Line List", self)
         load_ref_action.triggered.connect(self.load_linelist_fname)
         toolbar.addAction(load_ref_action)
 
@@ -378,8 +378,12 @@ class GraphicInterface(QMainWindow):
         self.resid_view = ResidualView(self.ax2)
         self._fit_view = 'data'
 
+        self.show()
         if os.path.exists(arc_fname):
             self.load_spectrum(arc_fname)
+            self.show_welcome(has_file=True)
+        else:
+            self.show_welcome(has_file=False)
 
         if os.path.exists(pixtable):
             self.load_pixtable(pixtable)
@@ -387,11 +391,26 @@ class GraphicInterface(QMainWindow):
         if os.path.exists(linelist_fname):
             self.load_linelist_fname(linelist_fname)
 
+
+    def show_welcome(self, has_file=False, force=False):
+        if self.welcome_msg is not None:
+            self.welcome_msg.close()
+
+        cache_file = os.path.join(code_dir, '.identify_msg')
+        if os.path.exists(cache_file):
+            if not force:
+                return
+
+        html_file = code_dir + '/data/help/welcome_msg_identify.html'
+        self.welcome_msg = WelcomeMessage(cache_file, html_file,
+                                          has_file=has_file)
+        self.welcome_msg.exec_()
+
     def load_linelist_fname(self, linelist_fname=None):
         if linelist_fname is False:
             current_dir = os.path.dirname(os.path.abspath(__file__))
             filters = "All files (*)"
-            linelist_fname = QFileDialog.getOpenFileName(self, 'Open Linelist', current_dir, filters)
+            linelist_fname = QFileDialog.getOpenFileName(self, 'Open Linelist', current_dir + '/calib', filters)
             linelist_fname = str(linelist_fname[0])
             if self.first_time_open:
                 print(" [INFO] - Don't worry about the warning above. It's an OS warning that can not be suppressed.")

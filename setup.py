@@ -21,7 +21,7 @@ mypackage_root_dir = path.dirname(path.abspath(__file__))
 with open(path.join(mypackage_root_dir, 'pynot', 'VERSION')) as v_file:
     version = v_file.read().strip()
 
-python_version_requirement = '>=3.6'
+python_version_requirement = '==3.8'
 programming_language = 'Programming Language :: Python :: 3'
 
 setup(
@@ -87,7 +87,8 @@ setup(
     # https://packaging.python.org/en/latest/requirements.html
     install_requires=['matplotlib', 'numpy', 'scipy', 'PyQt5',
                       'lmfit', 'astropy', 'astroscrappy', 'spectres',
-                      'PyYAML', 'sep', 'astroalign', 'astroquery'],
+                      'PyYAML', 'sep', 'astroalign', 'astroquery',
+                      'beautifulsoup4'],
 
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,
@@ -127,6 +128,10 @@ setup(
                             'bd75325.dat'],
 
         'pynot/data': ['alfosc.rules'],
+
+        'pynot/data/help': ['welcome_msg_extract.html',
+                            'welcome_msg_identify.html',
+                            'welcome_msg_response.html'],
 
         'pynot': ['VERSION'],
     },

@@ -1,0 +1,52 @@
+
+<title> Welcome to PyNOT : Extract </title>
+
+
+<div class="no-file">
+
+<h4>Start-up</h4>
+First, <u>load a 2D spectrum</u> by pressing the <i>Load 2D Spectrum</i> button or using the keyboard shortcut 'cmd + O' (if on Mac, otherwise use 'control + O').<br><br>
+
+Make sure that the spectrum is oriented correctly. The dispersion axis should be <b>horizontal</b>. If the spectrum is not aligned correctly, you can rotate it by clicking the menu "Edit > Flip 2D Image Axes" or by using the keyboard shortcut 'cmd + R' / 'control + R'.
+<br><br>
+
+</div>
+
+
+<div class="main">
+<h4>Overview</h4>
+The <i>main panel</i> contains 3 tabs: <i>2D View</i>, <i>Fitting Points</i>, and <i>1D View</i>. The 2D view shows 2 plotting areas, which indicate the loaded 2D spectrum (top) and the background model (bottom). The bottom row of the main panel shows the ranges for the color-bar of the plotting (v<sub>min</sub> and v<sub>max</sub>). These can be changed by typing in new values and hitting the <i>Update Plot</i> button.<br>
+The <i>right-hand panel</i> shows the spatial profile of the 2D spectrum averaged over the full x-axis. To change the region over which to average the spatial profile, change the "SPSF Ranges" and hit <i>Enter</i>.<br><br>
+
+The tabs <i>Fitting Points</i> and <i>1D View</i> will be described in detail below.
+
+<h4>Sky Subtraction</h4>
+If the sky background has not been subtracted, start by defining a range of 'background regions' either by pressing the button <i>Select Background</i> or by pressing the key <i>B</i> after clicking in the 'SPSF view' panel. You can then click on the left and right extent of the region you want to mark as sky background. The selected region will show up as a light blue vertical band. Sky background ranges can be removed by clicking on the button <i>Delete Object</i> and then clicking on the blue band that should be removed.<br>
+
+When you have selected the sky background regions, fit the background by clicking <i>Fit Background</i> in the bottom row of the <i>main panel</i> (cmd + shift + F).This will update the background model view in the bottom part of the main panel and will show a model in the 'SPSF view' as a dashed blue line. The polynomial order for the background model can be changed by pressing the <i>Options</i> button on the top row (cmd + ,).<br><br>
+
+<h4>Fitting the Spectral Trace</h4>
+The spectral trace denotes the location of the spectrum along the dispersion axis (for bright objects, this is visible as a striahgt or slightly curved band in the 2D View). When loading a spectrum, PyNOT automatically tried to locate any objects in the data. These will show up as vertical solid lines (with dashed lines around) in the SPSF View (top right). If the auto-localization failed, you can manually define the location by pressing the <i>Add Object</i> button. Similarly, objects that are not of interest for the extraction should be removed by clicking the <i>Delete Object</i> button and clicking on the vertical line that should be removed. All objects are listed in the bottom part of the right-hand panel <i>List of Extraction Apertues</i>. Right-clicking on an object in this list will bring up an option-menu which allows you to remove or copy the aperture, as well as change the aperture properties.<br><br>
+
+The spectral trace is fitted using a parametric model of the spatial profile in bins along the dispersion axis (you change this <i>Bin Size</i> below the SPSF View). There are 2 options for the parametric <i>SPSF model</i> which subsequently determine the profile for the <u>optimal extraction</u>: Moffat or Gaussian. For a <u>standard aperture extraction</u>, select the <i>Tophat</i> model (note that the centroid of the Tophat profile is fitted using a Moffat profile).<br>
+To fit the position (and width of the trace model, if Moffat or Gaussian) click the <i>Fit Spectral Trace</i> button (cmd + F).<br><br>
+
+A progress bar will then appear. If the fit is slow, try to use a narrower region of <i>Y pixels</i> (Y-min/Y-max) and/or exclude the ends of the X-axis where the object may be too faint, alternatively use a larger <i>Bin Size</i>.<br><br>
+
+Once the fitting is done, the program will switch to the <i>Fitting Points</i> tab. Here the parameters of the fitted spectral trace are shown: the centroid and width parameters (if Moffat or Gaussian). The points indicate the fitted positions of the spatial profile. The dashed lines mark the polynomial representation as a function of wavelength (or dispersion axis, if no wavelength solution has been applied). The order of the polynomial used to fit the points is given as the <i>Polynomial Orders</i> on the right. One order for the centroid and one for the width parameters (for the Moffat profile, both parameters alpha and beta are fitted using the same order).<br><br>
+
+<u>Manipulating Fitting Points:</u><br>
+The fitted points (solid circles) often contain outliers. These outliers can be removed by clicking on the given point, which will change the appearance to transparent with a black cross over it. An excluded point can be included again by clicking on it. You can also perform a median filtering by changing the <i>Filter Width</i> and the significance threshold <i>Kappa</i> and then clicking the <i>Median Filter Points</i> button.<br>
+The gray shaded regions mark the X-min and X-max limits defined in the right-hand panel. Points in these shaded regions are excluded in the polynomial fit along the dispersion axis. If several objects are defined you can toggle them visible/invisible by clicking on the given tick-mark in the List of Extraction Apertures.<br><br>
+
+When you are happy with the trace model (dashed lines) along the dispersion axis, you can verify the given profile in the <i>2D View</i>. The given spectral trace will be over-plotted on the top panel (if toggled visible in the List of Apertures). The points shown in the 2D View can also be used to remove outlier points. This will deactivate all parameters (centroid and widths) of the given point (they can be re-activated under the tab Fitting Points).<br><br>
+
+<u>Extracting the 1D Spectrum:</u><br>
+When the model of the spectral trace has been defined, you are ready to extract the given aperture by clicking the <i>Extract 1D Spectrum</i> button in the middle of the top row (cmd + E). The program will change to the <i>1D View</i> tab where the extracted spectrum (or spectra, if several objects are defined) is shown. The units on the X-axis (dispersion) are pixels by default, if no wavelength solution has been applied. If a wavelength solution is present, the proper units will be shown. Similar for the flux on the Y-axis, the default units are counts unless other units are present in the header of the input FITS file. The FITS Header can be shown by going to the menu: 'View > Display Header'. <br><br>
+
+<h4>Saving the Output</h4>
+When you have successfully extracted the 1D spectrum and verified that it looks as expected, you can save the 1D extraction by pressing the button <i>Done</i> on the top row. This will promt you to save the spectrum in various formats: FITS, FITS Table or ASCII (a short example of the format is shown). If several objects are defined, you can save them all as individual extensions of a FITS Table by pressing <i>Save All</i>.<br><br>
+
+You can also save the sky-subtracted 2D spectrum and the sky model by using the <i>File</i> menu.
+
+</div>

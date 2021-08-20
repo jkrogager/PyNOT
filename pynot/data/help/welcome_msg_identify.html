@@ -1,0 +1,34 @@
+
+<title> Welcome to PyNOT : Identify </title>
+
+
+<div class="no-file">
+
+<h4>Start-up</h4>
+First, <u>load a 2D calibration lamp spectrum</u> (arc frame) by pressing the <i>Load Spectrum</i> button or using the keyboard shortcut 'cmd + O' (if on Mac, otherwise use 'control + O').
+
+</div>
+
+
+<div class="main">
+
+<h4>Loading a Line List</h4>
+If the line list is not automatically loaded, you have to load it by pressing the <i>Load Line List</i> button. For NOT/ALFOSC there are only two options, Helium-Neon (HeNe_linelist) or Thorium-Argon (ThAr_linelist), both are given in vacuum wavelengths. Alternatively, you can locate your own line list.
+
+<h4>Loading a Pixel Table</h4>
+If an existing pixel table already exists, you can load it by clicking the <i>Load PixTable</i> button. In this case, there might be small shifts between the previously tabulated lines and the given arc frame. You can then re-fit the lines either one-by-one by clicking the <i>Refit Line</i> button and clicking on the line to re-fit, or by clicking on the <i>Refit All</i> button.
+
+<h4>Identifying Lines</h4>
+Identify reference lines by clicking on the plotting view (right-hand side) and hitting the <i>A</i> key or the <i>Add Line</i> button on the top row (make sure to have your reference line map at hand). Then click on the position of the emission line you want to identify. The program will then fit the centroid of the line and mark it by a vertical dashed line. The fitted position shows up in the <i>Pixel Table</i> (middle panel). The input area of the given line will then be highlighted for you to give the reference wavelength. The wavelength just has to be given approximately (within 5 Å) and the exact wavelength will be looked up using the <i>Reference Line List</i>.
+
+<h4>Fitting the Wavelength Solution</h4>
+Once a number of lines has been identified, you can fit the wavelength solution with a polynomium by clicking on the <i>Fit</i> button (cmd + F). The default order is 3, change this by typing in the field marked <i>Polynomial Order</i>. You can inspect the residuals of the fit by clicking the <i>Residual/Data</i> button.<br><br>
+
+The dispersion of the best-fit solution is shown in the upper right corner of the wavelength solution plot (as σ<sub>λ</sub>).<br><br>
+
+Once a solution has been fitted, the wavelength of newly added lines will automatically be estimated from the fit. Wrongly identified lines or outliers can be removed by clicking the <i>Delete Line</i> button on the top row and then clicking on the vertical red line to be removed.
+
+<h4>Saving the Pixel Table</h4>
+When you are happy with a wavelength solution, save the corresponding pixel table by clicking <i>Done</i>.
+
+</div>

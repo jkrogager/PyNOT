@@ -212,3 +212,30 @@ def decimal_to_string(ra, dec, delimiter=':'):
     dec_str = delimiter.join(dms)
 
     return (ra_str, dec_str)
+
+
+
+def air2vac(air):
+    # From Donald Morton 1991, ApJS 77,119
+    if type(air) == float or type(air) == int:
+        air = np.array(air)
+    air = np.array(air)
+    ij = (np.array(air) >= 2000)
+    out = np.array(air).copy()
+    sigma2 = (1.e4/air)**2
+    # fact = 1.0 + 6.4328e-5 + 2.94981e-2/(146.0 - sigma2) + 2.5540e-4/( 41.0 - sigma2)
+    fact = 1.0 + 6.4328e-5 + 2.94981e-2/(146.0 - sigma2) + 2.5540e-4/(41.0 - sigma2)
+    out[ij] = air[ij]*fact[ij]
+    return out
+
+
+def vac2air(vac):
+    # From Donald Morton 1991, ApJS 77,119
+    vac = np.array(vac)
+    ij = (np.array(vac) >= 2000)
+    air = np.array(vac).copy()
+    sigma2 = (1.e4/vac)**2
+    # fact = 1.0 + 6.4328e-5 + 2.94981e-2/(146.0 - sigma2) + 2.5540e-4/( 41.0 - sigma2)
+    fact = 1.0 + 6.4328e-5 + 2.94981e-2/(146.0 - sigma2) + 2.5540e-4/(41.0 - sigma2)
+    air[ij] = vac[ij]/fact[ij]
+    return air

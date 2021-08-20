@@ -142,7 +142,7 @@ def detect_borders(arc2D, kappa=20.):
     N_lines = np.zeros(arc2D.shape[0])
     for i, row in enumerate(arc2D):
         mad = np.median(np.abs(row-np.median(row)))
-        peaks, _ = find_peaks(row, prominence=kappa*mad)
+        peaks, _ = find_peaks(row - np.median(row), prominence=kappa*mad)
         N_lines[i] = len(peaks)
 
     mask = (N_lines >= np.median(N_lines)).nonzero()
@@ -481,12 +481,12 @@ def format_table2D_residuals(pixtab2d, fit_table2d, ref_table):
 
 def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_bg=5, order_2d=5,
             order_wl=4, log=False, N_out=None, interpolate=True, binning=1, dispaxis=2, fit_window=20,
-            plot=True, overwrite=True, verbose=False, overscan=50):
+            plot=True, overwrite=True, verbose=False, overscan=50, edge_kappa=10.):
 
     msg = list()
     arc2D = fits.getdata(arc_fname)
-    arc_hdr = get_alfosc_header(arc_fname)
-    arc2D, arc_hdr = trim_overscan(arc2D, arc_hdr, overscan=overscan)
+    # arc_hdr = get_alfosc_header(arc_fname)
+    # arc2D, arc_hdr = trim_overscan(arc2D, arc_hdr, overscan=overscan)
     img2D = fits.getdata(img_fname)
     msg.append("          - Loaded image: %s" % img_fname)
     msg.append("          - Loaded reference arc image: %s" % arc_fname)
@@ -531,7 +531,7 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
         if 'DETXBIN' in hdr:
             binning = hdr['DETXBIN']
 
-    ilow, ihigh = detect_borders(arc2D)
+    ilow, ihigh = detect_borders(arc2D, kappa=edge_kappa)
     msg.append("          - Image shape: (%i, %i)" % arc2D.shape)
     msg.append("          - Detecting arc line borders: %i -- %i" % (ilow, ihigh))
     hdr['CRPIX2'] += ilow

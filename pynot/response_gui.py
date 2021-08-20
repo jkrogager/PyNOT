@@ -15,23 +15,23 @@ import os
 import re
 import sys
 import numpy as np
-import matplotlib
 from matplotlib.backends.backend_qt5agg import FigureCanvas, NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
 from scipy.interpolate import UnivariateSpline
-from numpy.polynomial import Chebyshev
 from astropy.io import fits
 from PyQt5 import QtCore, QtGui, QtWidgets
 import warnings
 
 from pynot import alfosc
 from pynot.functions import get_version_number
+from pynot.welcome import WelcomeMessage
 
 
+code_dir = os.path.dirname(os.path.abspath(__file__))
 __version__ = get_version_number()
 
 
-def run_gui(input_fname, output_fname, app=None, order=3, smoothing=0.02):
+def run_gui(input_fname, output_fname='', app=None, order=3, smoothing=0.02):
     if app is None:
         app = QtWidgets.QApplication(sys.argv)
     gui = ResponseGUI(input_fname, output_fname=output_fname, locked=True, order=order, smoothing=smoothing)
@@ -61,6 +61,7 @@ class ResponseGUI(QtWidgets.QMainWindow):
         self.setWindowTitle('PyNOT: Response')
         self._main = QtWidgets.QWidget()
         self.setCentralWidget(self._main)
+        self.welcome_msg = None
 
         # Set attributes:
         self.spectrum = None
@@ -101,7 +102,7 @@ class ResponseGUI(QtWidgets.QMainWindow):
         self.order_edit.setValidator(QtGui.QIntValidator(1, 5))
         self.order_edit.returnPressed.connect(self.fit_response)
 
-        self.smooth_edit = QtWidgets.QLineEdit("%.2f" % smoothing)
+        self.smooth_edit = QtWidgets.QLineEdit("%.3f" % smoothing)
         self.smooth_edit.setValidator(QtGui.QDoubleValidator())
         self.smooth_edit.returnPressed.connect(self.fit_response)
 
@@ -123,19 +124,14 @@ class ResponseGUI(QtWidgets.QMainWindow):
         self.response_points = None
 
         # == TOP MENU BAR:
-        self.save_btn = QtWidgets.QPushButton("Save")
-        self.save_btn.clicked.connect(self.save_response)
+        # self.save_btn = QtWidgets.QPushButton("Save")
+        # self.save_btn.clicked.connect(self.save_response)
         self.load_btn = QtWidgets.QPushButton("Load")
         self.load_btn.clicked.connect(self.load_spectrum)
+        self.close_btn = QtWidgets.QPushButton("Done")
+        self.close_btn.clicked.connect(lambda x: self.done(locked=locked))
         if locked:
-            self.close_btn = QtWidgets.QPushButton("Done")
-            self.close_btn.clicked.connect(self.done)
             self.load_btn.setEnabled(False)
-            self.save_btn.setEnabled(False)
-            self.save_btn.setText("")
-        else:
-            self.close_btn = QtWidgets.QPushButton("Close")
-            self.close_btn.clicked.connect(self.close)
 
 
         # == Layout ===========================================================
@@ -145,7 +141,7 @@ class ResponseGUI(QtWidgets.QMainWindow):
 
         top_menubar = QtWidgets.QHBoxLayout()
         top_menubar.addWidget(self.close_btn)
-        top_menubar.addWidget(self.save_btn)
+        # top_menubar.addWidget(self.save_btn)
         top_menubar.addWidget(self.load_btn)
         top_menubar.addStretch(1)
 
@@ -228,15 +224,63 @@ class ResponseGUI(QtWidgets.QMainWindow):
 
         self.create_menu()
 
+        self.show()
         # -- Set Data:
         if fname:
             self.load_spectrum(fname)
+            self.show_welcome(has_file=True)
+        else:
+            self.show_welcome(has_file=False)
 
 
-    def done(self):
-        success = self.save_response(self.output_fname)
-        if success:
-            self.close()
+    def show_welcome(self, has_file=False, force=False):
+        if self.welcome_msg is not None:
+            self.welcome_msg.close()
+
+        cache_file = os.path.join(code_dir, '.response_msg')
+        if os.path.exists(cache_file):
+            if not force:
+                return
+
+        html_file = code_dir + '/data/help/welcome_msg_response.html'
+        self.welcome_msg = WelcomeMessage(cache_file, html_file,
+                                          has_file=has_file)
+        self.welcome_msg.exec_()
+
+
+    def done(self, locked=False):
+        msg = "You're about to quit PyNOT: Response"
+        messageBox = QtWidgets.QMessageBox()
+        messageBox.setText(msg)
+        if self.welcome_msg is not None:
+            self.welcome_msg.close()
+
+        if locked:
+            info_msg = "Save the fitted response function and move on?"
+            info_msg += "\nCurrent filename: %s" % self.output_fname
+            messageBox.setStandardButtons(QtWidgets.QMessageBox.Cancel | QtWidgets.QMessageBox.Save)
+            messageBox.setInformativeText(info_msg)
+            messageBox.setDefaultButton(QtWidgets.QMessageBox.Save)
+            retval = messageBox.exec_()
+            if retval == QtWidgets.QMessageBox.Save:
+                success = self.save_response(self.output_fname)
+                if success:
+                    self.close()
+
+        else:
+            info_msg = "Do you want to save the fitted response function before quitting?"
+            messageBox.setStandardButtons(QtWidgets.QMessageBox.Discard | QtWidgets.QMessageBox.Cancel | QtWidgets.QMessageBox.Save)
+            messageBox.setInformativeText(info_msg)
+            messageBox.setDefaultButton(QtWidgets.QMessageBox.Save)
+            retval = messageBox.exec_()
+            if retval == QtWidgets.QMessageBox.Save:
+                success = self.save_response(self.output_fname)
+                if success:
+                    self.close()
+
+            elif retval == QtWidgets.QMessageBox.Discard:
+                self.close()
+
 
     def save_response(self, fname=''):
         if self.response is None:
@@ -245,7 +289,8 @@ class ResponseGUI(QtWidgets.QMainWindow):
             return False
 
         if not fname:
-            current_dir = os.path.dirname(os.path.abspath(__file__))
+            # current_dir = os.path.dirname(os.path.abspath(__file__))
+            current_dir = './'
             basename = os.path.join(current_dir, "response_%s.fits" % (self.spectrum.header['OBJECT']))
             filters = "FITS Files (*.fits *.fit)"
             fname, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save Response Function', basename, filters)
@@ -291,7 +336,7 @@ class ResponseGUI(QtWidgets.QMainWindow):
 
     def load_spectrum(self, fname=''):
         if fname is False:
-            current_dir = os.path.dirname(os.path.abspath(__file__))
+            current_dir = './'
             filters = "FITS files (*.fits | *.fit)"
             fname, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Open 1D Spectrum', current_dir, filters)
             fname = str(fname)
@@ -317,7 +362,7 @@ class ResponseGUI(QtWidgets.QMainWindow):
         else:
             self.exptime_edit.setEnabled(True)
         if 'AIRMASS' in hdr:
-            self.airmass_edit.setText("%.1f" % hdr['AIRMASS'])
+            self.airmass_edit.setText("%.3f" % hdr['AIRMASS'])
             self.airmass_edit.setEnabled(False)
         else:
             self.airmass_edit.setEnabled(True)
@@ -439,7 +484,6 @@ class ResponseGUI(QtWidgets.QMainWindow):
                 self.fit_line.set_data(self.spectrum.wl, self.response)
         self.canvas_points.draw()
 
-
     def fit_response(self):
         if self.resp_bins is None:
             WarningDialog(self, "No response data!", "No response data to fit.\nMake sure to load a spectrum and reference star data.")
@@ -452,7 +496,6 @@ class ResponseGUI(QtWidgets.QMainWindow):
         resp_fit = UnivariateSpline(self.wl_bins[mask], self.resp_bins[mask], k=order, s=smoothing)
         self.response = resp_fit(wl)
         self.update_points()
-
 
     def pick_points(self, event):
         x0 = event.mouseevent.xdata
@@ -479,7 +522,6 @@ class ResponseGUI(QtWidgets.QMainWindow):
             return
         self.update_points()
 
-
     def create_menu(self):
         load_file_action = QtWidgets.QAction("Load Spectrum", self)
         load_file_action.setShortcut("ctrl+O")
@@ -493,6 +535,10 @@ class ResponseGUI(QtWidgets.QMainWindow):
         view_hdr_action.setShortcut("ctrl+shift+H")
         view_hdr_action.triggered.connect(self.display_header)
 
+        view_info_action = QtWidgets.QAction("Display Welcome Message", self)
+        view_info_action.setShortcut("ctrl+shift+I")
+        view_info_action.triggered.connect(lambda x: self.show_welcome(force=True))
+
         main_menu = self.menuBar()
         file_menu = main_menu.addMenu("File")
         file_menu.addAction(load_file_action)
@@ -500,7 +546,7 @@ class ResponseGUI(QtWidgets.QMainWindow):
 
         view_menu = main_menu.addMenu("View")
         view_menu.addAction(view_hdr_action)
-
+        view_menu.addAction(view_info_action)
 
     def display_header(self):
         if self.spectrum is not None:
@@ -575,6 +621,7 @@ class HeaderViewer(QtWidgets.QDialog):
     def next_match(self):
         self.cursor = self.header_text.find(self.pattern, self.cursor)
         self.text_edit.setTextCursor(self.cursor)
+
 
 
 class WarningDialog(QtWidgets.QDialog):

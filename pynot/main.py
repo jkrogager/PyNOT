@@ -219,7 +219,7 @@ def main():
     # -- response :: Calculate Response Function
     parser_resp = tasks.add_parser('response', formatter_class=set_help_width(31),
                                    help="Interactive determination of instrument response function")
-    parser_resp.add_argument("input", type=str,
+    parser_resp.add_argument("input", type=str, default='', nargs='?',
                              help="Input filename of 1D spectrum of flux standard star")
     parser_resp.add_argument("-o", "--output", type=str, default='',
                              help="Output filename of response function")

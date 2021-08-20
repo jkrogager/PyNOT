@@ -31,6 +31,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 import warnings
 
 from pynot.functions import fix_nans, mad, tophat, NN_moffat, NN_gaussian
+from pynot.welcome import WelcomeMessage
 
 
 code_dir = os.path.dirname(os.path.abspath(__file__))
@@ -642,6 +643,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.setWindowTitle('PyNOT: Extract')
         self._main = QtWidgets.QWidget()
         self.setCentralWidget(self._main)
+        self.welcome_msg = None
 
         # Set attributes:
         self.image2d = None
@@ -989,10 +991,15 @@ class ExtractGUI(QtWidgets.QMainWindow):
 
         self.create_menu()
 
+        self.show()
         # -- Set Data:
         if fname:
             self.load_spectrum(fname, dispaxis)
             self.filename_2d = fname
+            self.show_welcome(has_file=True)
+        else:
+            self.show_welcome(has_file=False)
+
 
     def done(self, locked=False):
         msg = "You're about to quit PyNOT: Extract"
@@ -1024,6 +1031,19 @@ class ExtractGUI(QtWidgets.QMainWindow):
             elif retval == QtWidgets.QMessageBox.Discard:
                 self.close()
 
+    def show_welcome(self, has_file=False, force=False):
+        if self.welcome_msg is not None:
+            self.welcome_msg.close()
+
+        cache_file = os.path.join(code_dir, '.extract_msg')
+        if os.path.exists(cache_file):
+            if not force:
+                return
+
+        html_file = code_dir + '/data/help/welcome_msg_extract.html'
+        self.welcome_msg = WelcomeMessage(cache_file, html_file,
+                                          has_file=has_file)
+        self.welcome_msg.exec_()
 
     def save_aperture_model(self, index):
         """Save the 2D trace model profile of a given object"""
@@ -1113,7 +1133,6 @@ class ExtractGUI(QtWidgets.QMainWindow):
 
         save_gui = SaveWindow(parent=self, index=index)
         save_gui.exec_()
-        print("Did it save?  %r" % save_gui.saved)
         saved = save_gui.saved
         return saved
 
@@ -2075,6 +2094,10 @@ class ExtractGUI(QtWidgets.QMainWindow):
         view_hdr_action.setShortcut("ctrl+shift+H")
         view_hdr_action.triggered.connect(self.display_header)
 
+        view_info_action = QtWidgets.QAction("Display Welcome Message", self)
+        view_info_action.setShortcut("ctrl+shift+I")
+        view_info_action.triggered.connect(lambda x: self.show_welcome(force=True))
+
         main_menu = self.menuBar()
         file_menu = main_menu.addMenu("File")
         file_menu.addAction(load_file_action)
@@ -2098,6 +2121,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
 
         view_menu = main_menu.addMenu("View")
         view_menu.addAction(view_hdr_action)
+        view_menu.addAction(view_info_action)
 
     def listItemDoubleClicked(self, item):
         index = self.list_widget.currentIndex().row()
@@ -2262,15 +2286,25 @@ class SaveWindow(QtWidgets.QDialog):
         # middle_row.addStretch(1)
         middle_row.addWidget(self.aper_btn)
 
+        # -- Set Focus Policy : Strong
+        btn_fits.setFocusPolicy(QtCore.Qt.StrongFocus)
+        btn_fits_table.setFocusPolicy(QtCore.Qt.StrongFocus)
+        btn_ascii.setFocusPolicy(QtCore.Qt.StrongFocus)
+        self.aper_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
+
         # -- Save and Cancel buttons:
         btn_save_all = QtWidgets.QPushButton("Save All")
         btn_save_all.clicked.connect(self.save_all)
+        btn_save_all.setFocusPolicy(QtCore.Qt.StrongFocus)
 
         btn_save = QtWidgets.QPushButton("Save")
         btn_save.clicked.connect(self.save)
+        btn_save.setFocusPolicy(QtCore.Qt.StrongFocus)
 
         btn_cancel = QtWidgets.QPushButton("Cancel")
         btn_cancel.clicked.connect(self.close)
+        btn_cancel.setFocusPolicy(QtCore.Qt.StrongFocus)
+
         bottom_row = QtWidgets.QHBoxLayout()
         bottom_row.addStretch(1)
         bottom_row.addWidget(btn_save_all)
@@ -2330,6 +2364,7 @@ class SaveWindow(QtWidgets.QDialog):
         main_layout.addLayout(right_layout, 1)
         self.setLayout(main_layout)
         self.show()
+        btn_save.setFocus()
 
 
     def set_ascii(self, checked):

@@ -1,0 +1,30 @@
+
+<title> Welcome to PyNOT : Response </title>
+
+
+<div class="no-file">
+
+<h4>Start-up</h4>
+First, <u>load a 1D-extracted spectrum</u> of a spectroscopic standard star by pressing the <i>Load</i> button or using the keyboard shortcut 'cmd + O' (if on Mac) otherwise use 'control + O'.<br><br>
+
+If the star name is not found in the FITS header, then you must manually select the star name in the drop-down menu on the right (if the star you observed is not in the list, you have to use another spectrum or install the corresponding flux table for the star, see <a href=''>online documentation</a>).<br><br>
+
+Once a star has been loaded, a range of blue points show up in the plotting area on top of the spectrum. These points indicate the regions where the standard star has flux measurements defined.
+<br><br>
+
+</div>
+
+
+<div class="main">
+
+<h4>Fitting the Response Function</h4>
+Interpolate the instrumental response function shown as blue points by pressing <i>Fit Response</i>. Outlying points (affected by emission or absorption) should be removed by clicking on them. This turns a given blue point into a red cross which will not be included in the fit.<br><br>
+
+If you want to include a point again, simply click on the red cross to re-activate it (changes back to blue point).<br><br>
+
+You can change the <i>spline order</i> and the <i>smoothing value</i> in order to obtain a better fit. A smoothing value of 0 forces the spline interpolation to go through <b>all</b> the red points.
+<br><br>
+
+When you are happy with a solution, save the response function by clicking <i>Done</i>.
+
+</div>
