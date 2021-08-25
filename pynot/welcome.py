@@ -32,7 +32,7 @@ class WelcomeMessage(QtWidgets.QDialog):
         self.setWindowTitle(title)
         self.cache_fname = cache_fname
 
-        info_msg = """<h3>%s</h3><br>""" % title
+        info_msg = """<h3>%s</h3>""" % title
 
         if not has_file:
             info_msg += no_file_msg
