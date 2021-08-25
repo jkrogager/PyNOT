@@ -214,6 +214,10 @@ def main():
                            help="Dispersion axis: 1 horizontal, 2: vertical")
     parser_id.add_argument("-o", "--output", type=str, default='',
                            help="Output filename of arc line identification table")
+    parser_id.add_argument("--air", action='store_true',
+                           help="Use air reference wavelengths")
+    parser_id.add_argument("--loc", type=int, default=-1,
+                           help="Location along the slit to extract lamp spectrum [pixels].")
 
 
     # -- response :: Calculate Response Function
@@ -514,6 +518,8 @@ def main():
         gui = GraphicInterface(args.arc,
                                linelist_fname=args.lines,
                                dispaxis=args.axis,
+                               air=args.air,
+                               loc=args.loc,
                                output=args.output)
         gui.show()
         app.exit(app.exec_())

@@ -32,7 +32,7 @@ code_dir = os.path.dirname(os.path.abspath(__file__))
 calib_dir = os.path.join(code_dir, 'calib/')
 
 # -- Function to call from PyNOT.main
-def create_pixtable(arc_image, grism_name, pixtable_name, linelist_fname, order_wl=4, app=None):
+def create_pixtable(arc_image, grism_name, pixtable_name, linelist_fname, order_wl=4, air=False, loc=-1, app=None):
     """
     arc_image : str
         Filename of arc image
@@ -53,6 +53,7 @@ def create_pixtable(arc_image, grism_name, pixtable_name, linelist_fname, order_
                            linelist_fname=linelist_fname,
                            output=output_pixtable,
                            order_wl=order_wl,
+                           air=air, loc=loc,
                            locked=True)
     gui.show()
     app.exit(app.exec_())
@@ -145,7 +146,7 @@ def load_linelist(fname):
 
 class GraphicInterface(QMainWindow):
     def __init__(self, arc_fname='', grism_name='', pixtable='', linelist_fname='', output='',
-                 dispaxis=2, order_wl=3, parent=None, locked=False, vac=True):
+                 dispaxis=2, order_wl=3, air=False, loc=-1, parent=None, locked=False, vac=True):
         QMainWindow.__init__(self, parent)
         self.setWindowTitle('PyNOT: Identify Arc Lines')
         self._main = QWidget()
@@ -169,6 +170,8 @@ class GraphicInterface(QMainWindow):
         self.state = None
         self.message = ""
         self.first_time_open = True
+        self.air = air
+        self.loc = loc
 
         # Create Toolbar and Menubar
         toolbar = QToolBar()
@@ -224,7 +227,7 @@ class GraphicInterface(QMainWindow):
         clear_action.triggered.connect(self.clear_lines)
         toolbar.addAction(clear_action)
 
-        refit_action = QAction("Refit Line (r)", self)
+        refit_action = QAction("Refit Line", self)
         refit_action.setShortcut("ctrl+R")
         refit_action.setFont(toolbar_fontsize)
         refit_action.triggered.connect(lambda x: self.set_state('move'))
@@ -234,6 +237,17 @@ class GraphicInterface(QMainWindow):
         refit_all_action.setFont(toolbar_fontsize)
         refit_all_action.triggered.connect(self.refit_all)
         toolbar.addAction(refit_all_action)
+
+        toolbar.addSeparator()
+        self.airvac = QComboBox()
+        self.airvac.addItems(['vacuum', 'air'])
+        if self.air:
+            self.airvac.setCurrentText('air')
+        else:
+            self.airvac.setCurrentText('vacuum')
+        # self.airvac.currentTextChanged.connect(self.update_airvac)
+        toolbar.addWidget(QLabel("Ref. Type:"))
+        toolbar.addWidget(self.airvac)
         self.addToolBar(toolbar)
 
         main_menu = self.menuBar()
@@ -268,6 +282,12 @@ class GraphicInterface(QMainWindow):
             update_cache_action.triggered.connect(self.update_cache)
             edit_menu.addSeparator()
             edit_menu.addAction(update_cache_action)
+
+        view_menu = main_menu.addMenu("View")
+        view_info_action = QAction("Display Welcome Message", self)
+        view_info_action.setShortcut("ctrl+shift+I")
+        view_info_action.triggered.connect(lambda x: self.show_welcome(force=True))
+        view_menu.addAction(view_info_action)
 
 
         # =============================================================
@@ -487,9 +507,15 @@ class GraphicInterface(QMainWindow):
 
             if self.dispaxis == 1:
                 raw_data = raw_data.T
-            ilow = raw_data.shape[1]//2 - 1
-            ihigh = raw_data.shape[1]//2 + 1
-            self.arc1d = np.sum(raw_data[:, ilow:ihigh], axis=1)
+
+            if self.loc == -1:
+                ilow = raw_data.shape[1]//2 - 1
+                ihigh = raw_data.shape[1]//2 + 1
+                self.loc = ilow + 1
+            else:
+                ilow = max(0, self.loc - 1)
+                ihigh = min(raw_data.shape[1], self.loc + 1)
+            self.arc1d = np.nanmean(raw_data[:, ilow:ihigh], axis=1)
             self.pix = create_pixel_array(primhdr, self.dispaxis)
 
             self.ax.lines[0].set_data(self.pix, self.arc1d)
@@ -585,8 +611,12 @@ class GraphicInterface(QMainWindow):
                     return False
                 else:
                     order = int(self.poly_order.text())
+                    ref_type = self.airvac.currentText().lower()
                     tab_file.write("# Pixel Table for ALFOSC grism: %s\n" % self.grism_name)
-                    tab_file.write("# order = %i\n#\n" % order)
+                    tab_file.write("# order = %i\n" % order)
+                    tab_file.write("# ref = %s\n" % ref_type)
+                    tab_file.write("# loc = %i\n" % self.loc)
+                    tab_file.write("# fname = %s\n#\n" % self.arc_fname)
                     tab_file.write("# Pixel    Wavelength [Å]\n")
                     np.savetxt(tab_file, np.column_stack([pixvals, wavelengths]),
                                fmt=" %8.2f   %8.2f")
@@ -971,6 +1001,9 @@ class GraphicInterface(QMainWindow):
             self.linetable.removeRow(idx)
             self.clear_fit()
         self.set_dataview()
+
+    # def update_airvac(self):
+    #     ref_type = self.airvac.currentText().lower()
 
 
 if __name__ == '__main__':
