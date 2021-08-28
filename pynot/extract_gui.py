@@ -665,50 +665,8 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.bg_value1 = None
         self.xmask = list()
 
-        # SPSF controls:
-        self.add_btn = QtWidgets.QPushButton("Add Object")
-        self.add_btn.clicked.connect(lambda x: self.set_state('add'))
-        self.add_btn.setShortcut("ctrl+A")
-        self.add_bg_btn = QtWidgets.QPushButton("Select Background")
-        self.add_bg_btn.setShortcut("ctrl+B")
-        self.add_bg_btn.clicked.connect(lambda x: self.set_state('bg1'))
-
-        self.remove_btn = QtWidgets.QPushButton("Delete Object")
-        self.remove_btn.setShortcut("ctrl+D")
-        self.remove_btn.clicked.connect(lambda x: self.set_state('delete'))
-        QtWidgets.QShortcut(QtGui.QKeySequence("Escape"), self, activated=self.clear_state)
 
 
-        # Limits for profile averaging and fitting:
-        self.xmin_edit = QtWidgets.QLineEdit("%i" % xmin)
-        if xmax is not None:
-            self.xmax_edit = QtWidgets.QLineEdit("%i" % xmax)
-        else:
-            self.xmax_edit = QtWidgets.QLineEdit("")
-        self.xmin_edit.setValidator(QtGui.QIntValidator(0, 1000000))
-        self.xmax_edit.setValidator(QtGui.QIntValidator(0, 1000000))
-        self.xmin_edit.returnPressed.connect(self.limits_updated)
-        self.xmax_edit.returnPressed.connect(self.limits_updated)
-
-        self.ymin_edit = QtWidgets.QLineEdit("%i" % ymin)
-        if ymax is not None:
-            self.ymax_edit = QtWidgets.QLineEdit("%i" % ymax)
-        else:
-            self.ymax_edit = QtWidgets.QLineEdit("")
-        self.ymin_edit.setValidator(QtGui.QIntValidator(0, 1000000))
-        self.ymax_edit.setValidator(QtGui.QIntValidator(0, 1000000))
-        self.ymin_edit.returnPressed.connect(self.limits_updated)
-        self.ymax_edit.returnPressed.connect(self.limits_updated)
-
-        # Fitting Parameters:
-        self.model_chooser = QtWidgets.QComboBox()
-        self.model_chooser.addItems(["Moffat", "Gaussian", "Tophat"])
-        self.model_chooser.setCurrentText(model_name.title())
-        # self.model_chooser.currentTextChanged.connect(self.model_change)
-
-        self.bins_edit = QtWidgets.QLineEdit("%i" % dx)
-        self.bins_edit.setValidator(QtGui.QIntValidator(0, 9999))
-        self.bins_edit.returnPressed.connect(self.fit_trace)
 
         self.med_kappa_edit = QtWidgets.QLineEdit("3")
         self.med_kappa_edit.setValidator(QtGui.QDoubleValidator())
@@ -736,22 +694,10 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.fit_btn.setShortcut("ctrl+F")
         self.fit_btn.clicked.connect(self.fit_trace)
 
-        # SPSF Viewer:
-        self.fig_spsf = Figure(figsize=(4, 3))
-        self.canvas_spsf = FigureCanvas(self.fig_spsf)
-        self.canvas_spsf.mpl_connect('key_press_event', self.on_key_press)
-        self.canvas_spsf.mpl_connect('pick_event', self.on_pick)
-        self.canvas_spsf.mpl_connect('motion_notify_event', self.on_motion)
-        self.canvas_spsf.mpl_connect('button_release_event', self.on_release)
-        self.canvas_spsf.mpl_connect('button_press_event', self.on_mouse_press)
-        self.canvas_spsf.setFocusPolicy(QtCore.Qt.ClickFocus)
-        self.spsf_mpl_toolbar = NavigationToolbar(self.canvas_spsf, self)
-        self.spsf_mpl_toolbar.setFixedHeight(20)
-        # self.spsf_mpl_toolbar.setFixedWidth(400)
-        self.axis_spsf = self.fig_spsf.add_subplot(111)
-        self.axis_spsf.axhline(0., color='k', ls=':', alpha=0.7, lw=0.9)
-        self.spsf_data_line = None
-        self.spsf_bg_line = None
+        self.fit_btn1 = QtWidgets.QPushButton("Fit Spectral Trace")
+        self.fit_btn1.setShortcut("ctrl+F")
+        self.fit_btn1.clicked.connect(lambda x: self.fit_trace(force=True))
+
 
         # List of Trace Models:
         self.list_widget = QtWidgets.QListWidget()
@@ -763,6 +709,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
 
         # == Tab Widget =======================================================
         self.tab_widget = QtWidgets.QTabWidget(self._main)
+
         # -- Tab 1: (2D view)
         self.tab1 = QtWidgets.QWidget()
         self.tab_widget.addTab(self.tab1, "2D View")
@@ -804,11 +751,151 @@ class ExtractGUI(QtWidgets.QMainWindow):
         row_imvals.addStretch(1)
         row_imvals.addWidget(self.bg_fit_btn)
 
-        layout_tab1 = QtWidgets.QVBoxLayout()
-        layout_tab1.addWidget(self.canvas_2d)
-        layout_tab1.addWidget(self.fig2d_mpl_toolbar)
+        # SPSF controls:
+        self.add_btn = QtWidgets.QPushButton("Add Object")
+        self.add_btn.clicked.connect(lambda x: self.set_state('add'))
+        self.add_btn.setShortcut("ctrl+A")
+        self.add_bg_btn = QtWidgets.QPushButton("Select Background")
+        self.add_bg_btn.setShortcut("ctrl+B")
+        self.add_bg_btn.clicked.connect(lambda x: self.set_state('bg1'))
+
+        self.remove_btn = QtWidgets.QPushButton("Delete Object")
+        self.remove_btn.setShortcut("ctrl+D")
+        self.remove_btn.clicked.connect(lambda x: self.set_state('delete'))
+        QtWidgets.QShortcut(QtGui.QKeySequence("Escape"), self, activated=self.clear_state)
+
+        tab1_side_toprow = QtWidgets.QHBoxLayout()
+        tab1_side_toprow.addWidget(self.add_btn)
+        tab1_side_toprow.addWidget(self.add_bg_btn)
+        tab1_side_toprow.addWidget(self.remove_btn)
+
+
+        # SPSF Viewer:
+        self.fig_spsf = Figure(figsize=(4, 3))
+        self.canvas_spsf = FigureCanvas(self.fig_spsf)
+        self.canvas_spsf.mpl_connect('key_press_event', self.on_key_press)
+        self.canvas_spsf.mpl_connect('pick_event', self.on_pick)
+        self.canvas_spsf.mpl_connect('motion_notify_event', self.on_motion)
+        self.canvas_spsf.mpl_connect('button_release_event', self.on_release)
+        self.canvas_spsf.mpl_connect('button_press_event', self.on_mouse_press)
+        self.canvas_spsf.setFocusPolicy(QtCore.Qt.ClickFocus)
+        self.canvas_spsf.setMinimumHeight(200)
+        self.spsf_mpl_toolbar = NavigationToolbar(self.canvas_spsf, self)
+        self.spsf_mpl_toolbar.setFixedHeight(20)
+        # self.spsf_mpl_toolbar.setFixedWidth(400)
+        self.axis_spsf = self.fig_spsf.add_subplot(111)
+        self.axis_spsf.axhline(0., color='k', ls=':', alpha=0.7, lw=0.9)
+        self.spsf_data_line = None
+        self.spsf_bg_line = None
+
+        # Limits for profile averaging and fitting:
+        self.xmin_edit = QtWidgets.QLineEdit("%i" % xmin)
+        if xmax is not None:
+            self.xmax_edit = QtWidgets.QLineEdit("%i" % xmax)
+        else:
+            self.xmax_edit = QtWidgets.QLineEdit("")
+        self.xmin_edit.setValidator(QtGui.QIntValidator(0, 1000000))
+        self.xmax_edit.setValidator(QtGui.QIntValidator(0, 1000000))
+        self.xmin_edit.returnPressed.connect(self.limits_updated)
+        self.xmax_edit.returnPressed.connect(self.limits_updated)
+
+        self.ymin_edit = QtWidgets.QLineEdit("%i" % ymin)
+        if ymax is not None:
+            self.ymax_edit = QtWidgets.QLineEdit("%i" % ymax)
+        else:
+            self.ymax_edit = QtWidgets.QLineEdit("")
+        self.ymin_edit.setValidator(QtGui.QIntValidator(0, 1000000))
+        self.ymax_edit.setValidator(QtGui.QIntValidator(0, 1000000))
+        self.ymin_edit.returnPressed.connect(self.limits_updated)
+        self.ymax_edit.returnPressed.connect(self.limits_updated)
+
+        # Fitting Parameters:
+        self.model_chooser = QtWidgets.QComboBox()
+        self.model_chooser.addItems(["Moffat", "Gaussian", "Tophat"])
+        self.model_chooser.setCurrentText(model_name.title())
+        # self.model_chooser.currentTextChanged.connect(self.model_change)
+
+        self.bins_edit = QtWidgets.QLineEdit("%i" % dx)
+        self.bins_edit.setValidator(QtGui.QIntValidator(0, 9999))
+        self.bins_edit.returnPressed.connect(self.fit_trace)
+
+
+        # Layout Handler for Figure Canvas of Tab1:
+        layout_tab1_fig = QtWidgets.QVBoxLayout()
+        layout_tab1_fig.addWidget(self.canvas_2d)
+        layout_tab1_fig.addWidget(self.fig2d_mpl_toolbar)
+        layout_tab1_fig.addLayout(row_imvals)
+
+        # Layout Handler for Right-hand Sidebar:
+        layout_tab1_side = QtWidgets.QVBoxLayout()
+        layout_tab1_side.setContentsMargins(5, 5, 5, 5)
+        layout_tab1_side.addLayout(tab1_side_toprow)
+        layout_tab1_side.addWidget(self.canvas_spsf)
+        layout_tab1_side.addWidget(self.spsf_mpl_toolbar)
+
+        separatorLine = QtWidgets.QFrame()
+        separatorLine.setFrameShape(QtWidgets.QFrame.HLine)
+        separatorLine.setFrameShadow(QtWidgets.QFrame.Sunken)
+        separatorLine.setMinimumSize(3, 20)
+        layout_tab1_side.addWidget(separatorLine)
+
+        layout_tab1_side.addWidget(gui_label("SPSF Ranges", color='dimgray'))
+
+        row_xr = QtWidgets.QHBoxLayout()
+        row_xr.addWidget(QtWidgets.QLabel("X-min: "))
+        row_xr.addWidget(self.xmin_edit)
+        row_xr.addStretch(1)
+        row_xr.addWidget(QtWidgets.QLabel("X-max: "))
+        row_xr.addWidget(self.xmax_edit)
+        row_xr.addStretch(1)
+        layout_tab1_side.addLayout(row_xr)
+
+        row_yr = QtWidgets.QHBoxLayout()
+        row_yr.addWidget(QtWidgets.QLabel("Y-min: "))
+        row_yr.addWidget(self.ymin_edit)
+        row_yr.addStretch(1)
+        row_yr.addWidget(QtWidgets.QLabel("Y-max: "))
+        row_yr.addWidget(self.ymax_edit)
+        row_yr.addStretch(1)
+        layout_tab1_side.addLayout(row_yr)
+
+        separatorLine = QtWidgets.QFrame()
+        separatorLine.setFrameShape(QtWidgets.QFrame.HLine)
+        separatorLine.setFrameShadow(QtWidgets.QFrame.Sunken)
+        separatorLine.setMinimumSize(3, 20)
+        layout_tab1_side.addWidget(separatorLine)
+
+        row_model = QtWidgets.QHBoxLayout()
+        row_model.addWidget(QtWidgets.QLabel("SPSF Model: "))
+        row_model.addWidget(self.model_chooser)
+        row_model.addStretch(1)
+        row_model.addWidget(QtWidgets.QLabel("Bin size: "))
+        row_model.addWidget(self.bins_edit)
+        row_model.addStretch(1)
+        layout_tab1_side.addLayout(row_model)
+
+        separatorLine = QtWidgets.QFrame()
+        separatorLine.setFrameShape(QtWidgets.QFrame.HLine)
+        separatorLine.setFrameShadow(QtWidgets.QFrame.Sunken)
+        separatorLine.setMinimumSize(3, 20)
+        layout_tab1_side.addWidget(separatorLine)
+
+        row_fit = QtWidgets.QHBoxLayout()
+        row_fit.addStretch(1)
+        row_fit.addWidget(self.fit_btn1)
+        row_fit.addStretch(1)
+        layout_tab1_side.addLayout(row_fit)
+
+        separatorLine = QtWidgets.QFrame()
+        separatorLine.setFrameShape(QtWidgets.QFrame.HLine)
+        separatorLine.setFrameShadow(QtWidgets.QFrame.Sunken)
+        separatorLine.setMinimumSize(3, 20)
+
+        layout_tab1 = QtWidgets.QHBoxLayout()
+        layout_tab1.addLayout(layout_tab1_fig)
+        layout_tab1.addLayout(layout_tab1_side)
         self.tab1.setLayout(layout_tab1)
-        layout_tab1.addLayout(row_imvals)
+
 
 
         # -- Tab 2: (Points view)
@@ -822,20 +909,62 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.figp_mpl_toolbar = NavigationToolbar(self.canvas_points, self)
         self.figp_mpl_toolbar.setFixedHeight(20)
 
-        row_median = QtWidgets.QHBoxLayout()
-        row_median.addWidget(self.median_btn)
-        row_median.addStretch(1)
-        row_median.addWidget(QtWidgets.QLabel("Kappa: "))
-        row_median.addWidget(self.med_kappa_edit)
-        row_median.addWidget(QtWidgets.QLabel("Filter Width: "))
-        row_median.addWidget(self.med_window_edit)
-        row_median.addStretch(1)
+        # Figure Canvas Layout Tab 2:
+        layout_tab2_fig = QtWidgets.QVBoxLayout()
+        layout_tab2_fig.addWidget(self.canvas_points)
+        layout_tab2_fig.addWidget(self.figp_mpl_toolbar)
 
-        layout_tab2 = QtWidgets.QVBoxLayout()
-        layout_tab2.addWidget(self.canvas_points)
-        layout_tab2.addWidget(self.figp_mpl_toolbar)
-        layout_tab2.addLayout(row_median)
+        # Right Panel Layout Tab 2:
+        layout_tab2_side = QtWidgets.QVBoxLayout()
+        layout_tab2_side.setContentsMargins(5, 5, 5, 5)
+        layout_tab2_side.addStretch(1)
+        layout_tab2_side.addWidget(gui_label("Polynomial Orders", color='dimgray'))
+
+        row_orders = QtWidgets.QHBoxLayout()
+        row_orders.addWidget(QtWidgets.QLabel("Centroid:"))
+        row_orders.addWidget(self.c_order_edit)
+        row_orders.addStretch(1)
+        row_orders.addWidget(QtWidgets.QLabel("Width:"))
+        row_orders.addWidget(self.w_order_edit)
+        row_orders.addStretch(1)
+        layout_tab2_side.addLayout(row_orders)
+
+        row_fit = QtWidgets.QHBoxLayout()
+        row_fit.addStretch(1)
+        row_fit.addWidget(self.fit_btn)
+        row_fit.addStretch(1)
+        layout_tab2_side.addLayout(row_fit)
+        layout_tab2_side.addStretch(1)
+
+        separatorLine = QtWidgets.QFrame()
+        separatorLine.setFrameShape(QtWidgets.QFrame.HLine)
+        separatorLine.setFrameShadow(QtWidgets.QFrame.Sunken)
+        separatorLine.setMinimumSize(3, 20)
+        layout_tab2_side.addWidget(separatorLine)
+
+        row_median_kappa = QtWidgets.QHBoxLayout()
+        row_median_kappa.addWidget(QtWidgets.QLabel("Kappa: "))
+        row_median_kappa.addWidget(self.med_kappa_edit)
+        row_median_win = QtWidgets.QHBoxLayout()
+        row_median_win.addWidget(QtWidgets.QLabel("Filter Width: "))
+        row_median_win.addWidget(self.med_window_edit)
+
+        layout_tab2_side.addLayout(row_median_kappa)
+        layout_tab2_side.addLayout(row_median_win)
+
+        row_med = QtWidgets.QHBoxLayout()
+        row_med.addStretch(1)
+        row_med.addWidget(self.median_btn)
+        row_med.addStretch(1)
+        layout_tab2_side.addLayout(row_med)
+        layout_tab2_side.addStretch(1)
+
+        layout_tab2 = QtWidgets.QHBoxLayout()
+        layout_tab2.addLayout(layout_tab2_fig)
+        layout_tab2.addLayout(layout_tab2_side)
         self.tab2.setLayout(layout_tab2)
+
+
 
         # -- Tab 3: (1D view)
         self.tab3 = QtWidgets.QWidget()
@@ -848,11 +977,18 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.canvas_1d = FigureCanvas(self.figure_1d)
         self.fig1d_mpl_toolbar = NavigationToolbar(self.canvas_1d, self)
         self.fig1d_mpl_toolbar.setFixedHeight(20)
-        layout_tab3 = QtWidgets.QVBoxLayout()
-        layout_tab3.addWidget(self.canvas_1d)
-        layout_tab3.addWidget(self.fig1d_mpl_toolbar)
+
+        # Figure Canvas Layout Tab 3:
+        layout_tab3_fig = QtWidgets.QVBoxLayout()
+        layout_tab3_fig.addWidget(self.canvas_1d)
+        layout_tab3_fig.addWidget(self.fig1d_mpl_toolbar)
+
+        # Main Layout Tab 3:
+        layout_tab3 = QtWidgets.QHBoxLayout()
+        layout_tab3.addLayout(layout_tab3_fig)
         self.tab3.setLayout(layout_tab3)
 
+        # -- Tab Shortcuts:
         self.tab_shortcut1 = QtWidgets.QShortcut(self)
         self.tab_shortcut1.setKey(QtGui.QKeySequence("Ctrl+1"))
         self.tab_shortcut1.activated.connect(lambda: self.tab_widget.setCurrentIndex(0))
@@ -865,7 +1001,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.tab_shortcut3.setKey(QtGui.QKeySequence("Ctrl+3"))
         self.tab_shortcut3.activated.connect(lambda: self.tab_widget.setCurrentIndex(2))
 
-        # == TOP MENU BAR:
+        # -- TOP MENU BAR:
         self.load_btn = QtWidgets.QPushButton("Load 2D Spectrum")
         self.load_btn.clicked.connect(self.load_spectrum)
         self.options_btn = QtWidgets.QPushButton("Options")
@@ -874,6 +1010,19 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.close_btn.clicked.connect(lambda x: self.done(locked=locked))
         if locked:
             self.load_btn.setEnabled(False)
+
+        # -- Side Bar:
+        sidebar = QtWidgets.QVBoxLayout()
+        sidebar.setContentsMargins(5, 5, 5, 5)
+        self.fileviewer = QtWidgets.QLabel("")
+        self.fileviewer.setFixedWidth(200)
+        sidebar.addWidget(QtWidgets.QLabel("Filename:"))
+        sidebar.addWidget(self.fileviewer)
+
+        sidebar.addStretch(1)
+
+        sidebar.addWidget(gui_label("List of Extraction Apertures", color='dimgray'))
+        sidebar.addWidget(self.list_widget)
 
 
         # == Layout ===========================================================
@@ -887,11 +1036,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
         top_menubar.addStretch(1)
 
         top_menubar.addWidget(self.extract_btn)
-        top_menubar.addStretch(1)
-
-        top_menubar.addWidget(self.add_btn)
-        top_menubar.addWidget(self.remove_btn)
-        top_menubar.addWidget(self.add_bg_btn)
+        top_menubar.addStretch(2)
 
         main_layout = QtWidgets.QHBoxLayout()
         main_layout.setSpacing(2)
@@ -903,89 +1048,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
 
         # TabWidget Layout:
         main_layout.addWidget(self.tab_widget, 1)
-
-        # Right Panel Layout:
-        right_panel = QtWidgets.QVBoxLayout()
-        right_panel.setContentsMargins(5, 5, 5, 5)
-        right_panel.addWidget(self.canvas_spsf)
-        right_panel.addWidget(self.spsf_mpl_toolbar)
-
-        separatorLine = QtWidgets.QFrame()
-        separatorLine.setFrameShape(QtWidgets.QFrame.HLine)
-        separatorLine.setFrameShadow(QtWidgets.QFrame.Sunken)
-        separatorLine.setMinimumSize(3, 20)
-        right_panel.addWidget(separatorLine)
-
-        right_panel.addWidget(gui_label("SPSF Ranges", color='dimgray'))
-
-        row_xr = QtWidgets.QHBoxLayout()
-        row_xr.addWidget(QtWidgets.QLabel("X-min: "))
-        row_xr.addWidget(self.xmin_edit)
-        row_xr.addStretch(1)
-        row_xr.addWidget(QtWidgets.QLabel("X-max: "))
-        row_xr.addWidget(self.xmax_edit)
-        row_xr.addStretch(1)
-        right_panel.addLayout(row_xr)
-
-        row_yr = QtWidgets.QHBoxLayout()
-        row_yr.addWidget(QtWidgets.QLabel("Y-min: "))
-        row_yr.addWidget(self.ymin_edit)
-        row_yr.addStretch(1)
-        row_yr.addWidget(QtWidgets.QLabel("Y-max: "))
-        row_yr.addWidget(self.ymax_edit)
-        row_yr.addStretch(1)
-        right_panel.addLayout(row_yr)
-
-        separatorLine = QtWidgets.QFrame()
-        separatorLine.setFrameShape(QtWidgets.QFrame.HLine)
-        separatorLine.setFrameShadow(QtWidgets.QFrame.Sunken)
-        separatorLine.setMinimumSize(3, 20)
-        right_panel.addWidget(separatorLine)
-
-        row_model = QtWidgets.QHBoxLayout()
-        row_model.addWidget(QtWidgets.QLabel("SPSF Model: "))
-        row_model.addWidget(self.model_chooser)
-        row_model.addStretch(1)
-        row_model.addWidget(QtWidgets.QLabel("Bin size: "))
-        row_model.addWidget(self.bins_edit)
-        row_model.addStretch(1)
-        right_panel.addLayout(row_model)
-
-        separatorLine = QtWidgets.QFrame()
-        separatorLine.setFrameShape(QtWidgets.QFrame.HLine)
-        separatorLine.setFrameShadow(QtWidgets.QFrame.Sunken)
-        separatorLine.setMinimumSize(3, 20)
-        right_panel.addWidget(separatorLine)
-
-        right_panel.addWidget(gui_label("Polynomial Orders", color='dimgray'))
-
-        row_orders = QtWidgets.QHBoxLayout()
-        row_orders.addWidget(QtWidgets.QLabel("Centroid:"))
-        row_orders.addWidget(self.c_order_edit)
-        row_orders.addStretch(1)
-        row_orders.addWidget(QtWidgets.QLabel("Width:"))
-        row_orders.addWidget(self.w_order_edit)
-        row_orders.addStretch(1)
-        right_panel.addLayout(row_orders)
-
-
-        row_fit = QtWidgets.QHBoxLayout()
-        row_fit.addStretch(1)
-        row_fit.addWidget(self.fit_btn)
-        row_fit.addStretch(1)
-        # row_fit.addWidget(self.extract_btn)
-        right_panel.addLayout(row_fit)
-
-        separatorLine = QtWidgets.QFrame()
-        separatorLine.setFrameShape(QtWidgets.QFrame.HLine)
-        separatorLine.setFrameShadow(QtWidgets.QFrame.Sunken)
-        separatorLine.setMinimumSize(3, 20)
-        right_panel.addWidget(separatorLine)
-
-        right_panel.addWidget(gui_label("List of Extraction Apertures", color='dimgray'))
-        right_panel.addWidget(self.list_widget)
-
-        main_layout.addLayout(right_panel)
+        main_layout.addLayout(sidebar)
 
         self.canvas_2d.setFocus()
 
@@ -1221,6 +1284,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.localize_trace()
         self.axis_1d.set_xlabel("Wavelength  [%s]" % self.image2d.wl_unit)
         self.axis_1d.set_ylabel("Flux  [%s]" % self.image2d.flux_unit)
+        self.fileviewer.setText(os.path.basename(fname))
 
     def rotate_image(self):
         if len(self.trace_models) > 0:
@@ -1520,6 +1584,21 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.axis_spsf.tick_params(axis='x', which='major', labelsize=8)
         self.axis_spsf.set_title("SPSF view", fontsize=10)
         self.canvas_spsf.figure.tight_layout()
+
+        # Fit SPSF and plot line:
+        if len(self.background.ranges) > 0 and self.background is not None:
+            bg_order = self.settings['BACKGROUND_POLY_ORDER']
+            x_data, SPSF = self.spsf_data_line.get_data()
+            mask = np.zeros_like(SPSF, dtype=bool)
+            for y1, y2 in self.background.ranges:
+                mask += (x_data >= y1) & (x_data <= y2)
+            spsf_bg_fit = Chebyshev.fit(x_data[mask], SPSF[mask], bg_order, domain=(x_data.min(), x_data.max()))
+            spsf_bg_model = spsf_bg_fit(x_data)
+            if self.spsf_bg_line is not None:
+                self.spsf_bg_line.set_data(x_data, spsf_bg_model)
+            else:
+                self.spsf_bg_line, = self.axis_spsf.plot(x_data, spsf_bg_model, color='Blue', alpha=0.7, lw=1.5, ls='--')
+
         self.canvas_spsf.draw()
 
     def update_2d(self):
@@ -1650,7 +1729,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
                 self.xmask.append(vspan2)
             self.canvas_points.draw()
 
-    def fit_trace(self):
+    def fit_trace(self, force=False):
         if self.image2d is None:
             return
         elif len(self.trace_models) == 0:
@@ -1677,7 +1756,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
                 prominences.append(trace_model.amp)
         this_fit = (dx, original_model, ymin, ymax, self.trace_models)
 
-        if self.last_fit != this_fit:
+        if self.last_fit != this_fit or force is True:
             # Update the fitted points only if the parameters have changed:
             N_obj = len(peaks)
             trace_parameters = list()
