@@ -1,5 +1,8 @@
 include *.py *.dat *.yml *.html *.txt
 include pynot/data/alfosc.rules
+include pynot/data/help/*
 include pynot/calib/lapalma.ext
 include pynot/VERSION
-prune tests/docs/build
+prune tests
+prune docs
+prune build
