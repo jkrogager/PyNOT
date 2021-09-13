@@ -399,6 +399,7 @@ class GraphicInterface(QMainWindow):
         self._fit_view = 'data'
 
         self.show()
+        print("Showing main window... now!  [line 402]")
         if os.path.exists(arc_fname):
             self.load_spectrum(arc_fname)
             self.show_welcome(has_file=True)
@@ -413,18 +414,23 @@ class GraphicInterface(QMainWindow):
 
 
     def show_welcome(self, has_file=False, force=False):
+        print("Opening welcome message window  [line 417]")
         if self.welcome_msg is not None:
             self.welcome_msg.close()
 
         cache_file = os.path.join(code_dir, '.identify_msg')
         if os.path.exists(cache_file):
             if not force:
+                print("Ooops you told me not to... nevermind!")
                 return
 
         html_file = code_dir + '/data/help/welcome_msg_identify.html'
         self.welcome_msg = WelcomeMessage(cache_file, html_file,
                                           has_file=has_file)
+        print("Here we go!")
         self.welcome_msg.exec_()
+        print("Welcome message done!")
+
 
     def load_linelist_fname(self, linelist_fname=None):
         if linelist_fname is False:
