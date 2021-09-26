@@ -23,7 +23,7 @@ from numpy.polynomial import Chebyshev
 from astropy.io import fits
 
 from pynot.alfosc import create_pixel_array
-from pynot.functions import get_version_number, NN_mod_gaussian
+from pynot.functions import get_version_number, NN_mod_gaussian, air2vac, vac2air, get_pixtab_parameters
 from pynot.welcome import WelcomeMessage
 
 __version__ = get_version_number()
@@ -131,9 +131,12 @@ def load_linelist(fname):
         all_lines = raw.readlines()
 
     linelist = list()
+    ref_type = 'vacuum'
     for line in all_lines:
         line = line.strip()
         if line[0] == '#':
+            if 'ref' in line.lower():
+                ref_type = line.split('=')[1].strip()
             continue
 
         l_ref = line.split()[0]
@@ -141,7 +144,7 @@ def load_linelist(fname):
         linelist.append([float(l_ref), comment])
 
     sorted_list = sorted(linelist, key=lambda x: x[0])
-    return sorted_list
+    return (sorted_list, ref_type)
 
 
 class GraphicInterface(QMainWindow):
@@ -156,6 +159,8 @@ class GraphicInterface(QMainWindow):
         self.pix = np.array([])
         self.arc1d = np.array([])
         self.arc_fname = arc_fname
+        self.primhdr = None
+        self.arc_image_data = None
         self.grism_name = grism_name
         self.pixtable = pixtable
         self.output_fname = output
@@ -253,6 +258,9 @@ class GraphicInterface(QMainWindow):
         main_menu = self.menuBar()
         file_menu = main_menu.addMenu("File")
         file_menu.addAction(load_file_action)
+        set_loc_action = QAction("Set 1D Location", self)
+        set_loc_action.triggered.connect(self.set_loc)
+        file_menu.addAction(set_loc_action)
         file_menu.addAction(load_ref_action)
         file_menu.addSeparator()
         file_menu.addAction(save_pixtab_action)
@@ -261,6 +269,9 @@ class GraphicInterface(QMainWindow):
         file_menu.addAction(quit_action)
 
         edit_menu = main_menu.addMenu("Edit")
+        clear_all_action = QAction("Clear All", self)
+        clear_all_action.triggered.connect(self.clear_all)
+        edit_menu.addAction(clear_all_action)
         edit_menu.addAction(add_action)
         edit_menu.addAction(del_action)
         edit_menu.addAction(clear_action)
@@ -277,6 +288,12 @@ class GraphicInterface(QMainWindow):
         edit_menu.addAction(fit_action)
         edit_menu.addAction(clear_fit_action)
         edit_menu.addAction(save_fit_action)
+
+        airvac_action = QAction("Toggle Air <-> Vacuum Conversion", self)
+        airvac_action.triggered.connect(self.toggle_airvac)
+        edit_menu.addSeparator()
+        edit_menu.addAction(airvac_action)
+
         if locked:
             update_cache_action = QAction("Update PyNOT cache", self)
             update_cache_action.triggered.connect(self.update_cache)
@@ -385,7 +402,7 @@ class GraphicInterface(QMainWindow):
         self.ax = self.fig.add_axes([0.15, 0.40, 0.82, 0.54])
         self.ax.set_ylabel("Intensity")
         self.ax.set_title("Add line by pressing 'a'")
-        self.ax.plot(self.pix, self.arc1d)
+        self.ax.plot(self.pix, self.arc1d, lw=0.9)
         self.ax.set_xlim(0, 2048)
         self.ax.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
 
@@ -395,11 +412,12 @@ class GraphicInterface(QMainWindow):
         self.ax2.set_ylim(0, 1)
         self.ax2.set_xlabel("Pixel Coordinate")
         self.ax2.set_ylabel("Ref. Wavelength")
+
+        self.ax2.get_shared_x_axes().join(self.ax, self.ax2)
         self.resid_view = ResidualView(self.ax2)
         self._fit_view = 'data'
 
         self.show()
-        print("Showing main window... now!  [line 402]")
         if os.path.exists(arc_fname):
             self.load_spectrum(arc_fname)
             self.show_welcome(has_file=True)
@@ -414,22 +432,22 @@ class GraphicInterface(QMainWindow):
 
 
     def show_welcome(self, has_file=False, force=False):
-        print("Opening welcome message window  [line 417]")
+        print("Opening welcome message window of identify")
         if self.welcome_msg is not None:
             self.welcome_msg.close()
 
         cache_file = os.path.join(code_dir, '.identify_msg')
         if os.path.exists(cache_file):
             if not force:
-                print("Ooops you told me not to... nevermind!")
+                # print("Ooops you told me not to... nevermind!")
                 return
 
         html_file = code_dir + '/data/help/welcome_msg_identify.html'
         self.welcome_msg = WelcomeMessage(cache_file, html_file,
                                           has_file=has_file)
-        print("Here we go!")
+        # print("Here we go!")
         self.welcome_msg.exec_()
-        print("Welcome message done!")
+        # print("Welcome message done!")
 
 
     def load_linelist_fname(self, linelist_fname=None):
@@ -446,11 +464,13 @@ class GraphicInterface(QMainWindow):
         if linelist_fname:
             try:
                 self.linelist = np.loadtxt(linelist_fname, usecols=(0,))
-                self._full_linelist = load_linelist(linelist_fname)
+                self._full_linelist, linelist_ref_type = load_linelist(linelist_fname)
+                self.airvac.setCurrentText(linelist_ref_type)
                 self.set_reftable_data()
             except (ValueError, IOError) as err_msg:
                 print(" [ERROR] - Something went wrong...")
                 print(err_msg)
+                QMessageBox.critical(None, 'Invalid line list', "Could not load the given linelist. Check the format!")
 
     def set_reftable_data(self):
         self.reftable.clearContents()
@@ -513,23 +533,31 @@ class GraphicInterface(QMainWindow):
 
             if self.dispaxis == 1:
                 raw_data = raw_data.T
+            self.primhdr = primhdr
+            self.arc_image_data = raw_data
 
             if self.loc == -1:
-                ilow = raw_data.shape[1]//2 - 1
-                ihigh = raw_data.shape[1]//2 + 1
-                self.loc = ilow + 1
-            else:
-                ilow = max(0, self.loc - 1)
-                ihigh = min(raw_data.shape[1], self.loc + 1)
-            self.arc1d = np.nanmean(raw_data[:, ilow:ihigh], axis=1)
-            self.pix = create_pixel_array(primhdr, self.dispaxis)
+                self.loc = raw_data.shape[1]//2
+            self.set_loc(gui=False)
 
-            self.ax.lines[0].set_data(self.pix, self.arc1d)
-            self.ax.relim()
-            self.ax.autoscale()
-            self.ax.set_xlim(np.min(self.pix), np.max(self.pix))
-            self.ax2.set_xlim(np.min(self.pix), np.max(self.pix))
-            self.canvas.draw()
+    def set_loc(self, dump=None, gui=True):
+        if gui and self.arc_image_data is not None:
+            # -- Open new window...
+            self.image_editor_window = Image2DWindow(self)
+            self.image_editor_window.exec_()
+
+        ilow = max(0, self.loc - 1)
+        ihigh = min(self.arc_image_data.shape[1], self.loc + 1)
+
+        self.arc1d = np.nanmean(self.arc_image_data[:, ilow:ihigh], axis=1)
+        self.pix = create_pixel_array(self.primhdr, self.dispaxis)
+
+        self.ax.lines[0].set_data(self.pix, self.arc1d)
+        self.ax.relim()
+        self.ax.autoscale()
+        self.ax.set_xlim(np.min(self.pix), np.max(self.pix))
+        self.ax2.set_xlim(np.min(self.pix), np.max(self.pix))
+        self.canvas.draw()
 
     def load_pixtable(self, filename=None):
         if filename is False:
@@ -543,9 +571,17 @@ class GraphicInterface(QMainWindow):
                 self.first_time_open = False
 
         if filename:
+            self.clear_lines()
             self._main.setUpdatesEnabled(False)
             self.pixtable = filename
             pixtable = np.loadtxt(filename)
+            file_pars, found_all = get_pixtab_parameters(filename)
+            table_ref_type = file_pars['ref_type']
+            ref_type = self.airvac.currentText().lower()
+            if table_ref_type != ref_type:
+                warning_msg = 'The pixel table is given in %s but the current linelist is given in %s!' % (table_ref_type, ref_type)
+                QMessageBox.critical(None, 'Wavelength type mismatch', warning_msg)
+
             for x, wl in pixtable:
                 self.append_table(x, wl)
             self.update_plot()
@@ -667,7 +703,10 @@ class GraphicInterface(QMainWindow):
         self.pixel_list.pop(idx)
         self.linetable.removeRow(idx)
         self.ax.set_title("")
-        self.update_plot()
+        if self.cheb_fit is not None:
+            self.fit()
+        else:
+            self.update_plot()
 
     def append_table(self, x0, wl0=None):
         n_rows = self.linetable.rowCount()
@@ -722,7 +761,8 @@ class GraphicInterface(QMainWindow):
             else:
                 wl_predicted = self.linelist[line_idx]
             self.append_table(x_cen, wl_predicted)
-            self.update_plot()
+            # self.update_plot()
+            self.fit()
 
         self.ax.set_title("")
         self.canvas.draw()
@@ -953,7 +993,7 @@ class GraphicInterface(QMainWindow):
             p_fit = Chebyshev.fit(pixvals[mask], wavelengths[mask], order, domain=[self.pix.min(), self.pix.max()])
             wave_solution = p_fit(self.pix)
             scatter = np.std(wavelengths[mask] - p_fit(pixvals[mask]))
-            scatter_label = r"$\sigma_{\lambda} = %.2f$ Å" % scatter
+            scatter_label = r"$\sigma_{\lambda} = %.3f$ Å" % scatter
             self.cheb_fit = p_fit
             self._scatter = scatter
             self._residuals = wavelengths - p_fit(pixvals)
@@ -1008,8 +1048,145 @@ class GraphicInterface(QMainWindow):
             self.clear_fit()
         self.set_dataview()
 
-    # def update_airvac(self):
-    #     ref_type = self.airvac.currentText().lower()
+    def clear_ref_lines(self):
+        n_rows = self.reftable.rowCount()
+        for idx in range(n_rows)[::-1]:
+            self.reftable.removeRow(idx)
+        self.linelist = np.array([])
+        self._full_linelist = [['', '']]
+
+    def clear_plot(self):
+        self.pix = np.array([])
+        self.arc1d = np.array([])
+        self.ax.lines[0].set_data(self.pix, self.arc1d)
+
+    def clear_all(self):
+        self.primhdr = None
+        self.arc_image_data = None
+        self.loc = -1
+        self.arc_fname = ''
+        self.grism_name = ''
+        self.clear_plot()
+        self.clear_lines()
+        self.clear_ref_lines()
+
+    def toggle_airvac(self):
+        ref_type = self.airvac.currentText().lower()
+        pixvals, wavelengths = self.get_table_values()
+        if ref_type == 'vacuum':
+            new_linelist = vac2air(self.linelist)
+            new_wavelengths = vac2air(wavelengths)
+            self.airvac.setCurrentText('air')
+
+        else:
+            new_linelist = air2vac(self.linelist)
+            new_wavelengths = air2vac(wavelengths)
+            self.airvac.setCurrentText('vacuum')
+
+        # Update rows in self.reftable:
+        for num, ref_wl in enumerate(new_linelist):
+            ref_item = self.reftable.item(num, 0)
+            ref_item.setText("%.2f" % ref_wl)
+
+        # Update self.linetable:
+        for num, new_wl in enumerate(new_wavelengths):
+            wl_widget = self.linetable.cellWidget(num, 1)
+            wl_widget.setText("%.2f" % new_wl)
+
+        if self.cheb_fit is None:
+            self.update_plot()
+        else:
+            self.fit()
+
+
+class Image2DWindow(QDialog):
+    def __init__(self, parent):
+        super(Image2DWindow, self).__init__()
+        self.setWindowTitle("Edit Raw Arc Frame")
+        self.parent = parent
+        self.image = parent.arc_image_data.copy()
+        self.loc = parent.loc
+        self.dispaxis = parent.dispaxis
+
+        self.loc_editor = QLineEdit("%i" % self.loc)
+        self.loc_editor.setFixedWidth(30)
+        self.loc_editor.setAlignment(Qt.AlignCenter)
+        self.loc_editor.setValidator(QIntValidator(0, self.image.shape[1]))
+        self.loc_editor.returnPressed.connect(self.update_loc)
+        self.loc_editor.textChanged.connect(self.update_loc)
+
+        self.flip_button = QPushButton("Flip Axes")
+        self.flip_button.clicked.connect(self.flip_axes)
+
+        self.update_button = QPushButton("Done")
+        self.update_button.clicked.connect(self.update_info)
+
+        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.clicked.connect(self.close)
+
+        button_row = QHBoxLayout()
+        button_row.addWidget(QLabel("Loc: "))
+        button_row.addWidget(self.loc_editor)
+        button_row.addStretch(1)
+        button_row.addWidget(self.flip_button)
+        button_row.addStretch(1)
+        button_row.addWidget(self.cancel_button)
+        button_row.addWidget(self.update_button)
+
+        main_layout = QVBoxLayout()
+
+        # Figure canvas:
+        self.fig = Figure(figsize=(6, 8))
+        self.canvas = FigureCanvasQTAgg(self.fig)
+        self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.canvas.updateGeometry()
+        self.canvas.setFocusPolicy(Qt.StrongFocus)
+        self.canvas.setFocus()
+        main_layout.addWidget(self.canvas, 1)
+
+        main_layout.addLayout(button_row)
+
+        self.update_plot()
+
+        self.setLayout(main_layout)
+        self.show()
+
+
+    def update_plot(self):
+        self.fig.clf()
+        self.ax = self.fig.add_subplot(111)
+        self.ax.set_ylabel("Dispersion Axis  [pixels]")
+        self.ax.set_xlabel("Slit Axis  [pixels]")
+        med = np.nanmedian(self.image)
+        noise = np.nanmedian(np.fabs(self.image - med))
+        vmin = med - 10*noise
+        vmax = med + 20*noise
+        self.ax.imshow(self.image, origin='lower', aspect='auto',
+                       vmin=vmin, vmax=vmax)
+        self.loc_line = self.ax.axvline(self.loc, color='r', lw=2, alpha=0.8)
+        self.fig.tight_layout()
+        self.canvas.draw()
+
+    def flip_axes(self):
+        self.image = self.image.T
+        if self.dispaxis == 1:
+            self.dispaxis = 2
+        else:
+            self.dispaxis = 1
+        self.loc_editor.setValidator(QIntValidator(0, self.image.shape[1]))
+        self.update_plot()
+
+    def update_loc(self):
+        new_loc = int(self.loc_editor.text())
+        self.loc = new_loc
+        self.loc_line.set_xdata(new_loc)
+        self.canvas.draw()
+
+    def update_info(self):
+        self.parent.loc = self.loc
+        self.parent.arc_image_data = self.image
+        self.parent.dispaxis = self.dispaxis
+        self.close()
 
 
 if __name__ == '__main__':

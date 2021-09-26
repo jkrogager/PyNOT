@@ -214,6 +214,41 @@ def decimal_to_string(ra, dec, delimiter=':'):
     return (ra_str, dec_str)
 
 
+def get_pixtab_parameters(pixtable_fname):
+    """Find the polynomial degree, ref_type, loc used when creating the pixel table"""
+    found_order = False
+    order_wl = 4
+    found_ref = False
+    ref_type = 'vacuum'
+    found_loc = False
+    loc = -1
+    with open(pixtable_fname) as tab_file:
+        all_lines = tab_file.readlines()
+
+    for line in all_lines:
+        if line[0] != '#':
+            # Reached the end of the header
+            break
+        elif 'order' in line:
+            order_str = line.split('=')[1]
+            order_wl = int(order_str.strip())
+            found_order = True
+        elif 'ref' in line:
+            ref_str = line.split('=')[1]
+            ref_type = ref_str.strip()
+            found_ref = True
+        elif 'loc' in line:
+            loc_str = line.split('=')[1]
+            loc = int(loc_str.strip())
+            found_loc = True
+
+    pars = {'order_wl': order_wl,
+            'ref_type': ref_type,
+            'loc': loc}
+    found_all = found_order & found_loc & found_ref
+
+    return pars, found_all
+
 
 def air2vac(air):
     # From Donald Morton 1991, ApJS 77,119

@@ -17,7 +17,7 @@ import warnings
 import spectres
 
 from pynot.alfosc import get_alfosc_header, create_pixel_array
-from pynot.functions import get_version_number, NN_mod_gaussian
+from pynot.functions import get_version_number, NN_mod_gaussian, get_pixtab_parameters
 from pynot.scired import trim_overscan
 
 __version__ = get_version_number()
@@ -196,7 +196,8 @@ def fit_2dwave_solution(pixtab2d, deg=5):
     return fit_table2d.T
 
 
-def apply_transform(img2D, pix, fit_table2d, ref_table, err2D=None, mask2D=None, header={}, order_wl=4, log=False, N_out=None, interpolate=True):
+def apply_transform(img2D, pix, fit_table2d, ref_table, err2D=None, mask2D=None, header={},
+                    order_wl=4, ref_type='vacuum', log=False, N_out=None, interpolate=True):
     """
     Apply 2D wavelength transformation to the input image
 
@@ -264,13 +265,18 @@ def apply_transform(img2D, pix, fit_table2d, ref_table, err2D=None, mask2D=None,
     wl_central = central_solution(pix_in)
     wl_residuals = np.std(ref_wl - central_solution(fit_table2d[cen]))
     msg.append("          - Residuals of wavelength solution: %.2f Å" % wl_residuals)
+    if ref_type == 'air':
+        ctype = 'AWAV'
+    else:
+        ctype = 'WAVE'
+
     if log:
         wl = np.logspace(np.log10(wl_central.min()), np.log10(wl_central.max()), N_out)
         hdr_tr = header.copy()
         hdr_tr['CRPIX1'] = 1
         hdr_tr['CDELT1'] = np.diff(np.log10(wl))[0]
         hdr_tr['CRVAL1'] = np.log10(wl[0])
-        hdr_tr['CTYPE1'] = 'LOGLAM  '
+        hdr_tr['CTYPE1'] = ctype+'-LOG'
         hdr_tr['CUNIT1'] = 'Angstrom'
         msg.append("          - Creating logarithmically sampled wavelength grid")
         msg.append("          - Sampling: %.3f  (logÅ/pix)" % np.diff(np.log10(wl))[0])
@@ -280,7 +286,7 @@ def apply_transform(img2D, pix, fit_table2d, ref_table, err2D=None, mask2D=None,
         hdr_tr['CRPIX1'] = 1
         hdr_tr['CDELT1'] = np.diff(wl)[0]
         hdr_tr['CRVAL1'] = wl[0]
-        hdr_tr['CTYPE1'] = 'LINEAR  '
+        hdr_tr['CTYPE1'] = ctype
         hdr_tr['CUNIT1'] = 'Angstrom'
         msg.append("          - Creating linearly sampled wavelength grid")
         msg.append("          - Sampling: %.3f  (Å/pix)" % np.diff(wl)[0])
@@ -354,17 +360,24 @@ def wavecal_1d(input_fname, pixtable_fname, *, output, order_wl=None, log=False,
 
     pixtable = np.loadtxt(pixtable_fname)
     msg.append("          - Loaded pixel table: %s" % pixtable_fname)
+    pixtab_pars, found_all = get_pixtab_parameters(pixtable_fname)
     if order_wl is None:
-        order_wl, found_in_file = get_order_from_file(pixtable_fname)
-        if found_in_file:
+        order_wl = pixtab_pars['order_wl']
+        if found_all:
             msg.append("          - Loaded polynomial order from file: %i" % order_wl)
         else:
             msg.append("          - Using default polynomial order: %i" % order_wl)
     else:
         msg.append("          - Using polynomial order: %i" % order_wl)
 
+    if pixtab_pars['ref_type'] == 'air':
+        ctype = 'AWAV'
+    else:
+        ctype = 'WAVE'
+
     if log:
         linearize = True
+        ctype = ctype + '-LOG'
 
     # Load input data:
     hdu_list = fits.open(input_fname)
@@ -382,6 +395,19 @@ def wavecal_1d(input_fname, pixtable_fname, *, output, order_wl=None, log=False,
         pix = tab['WAVE']
         flux1d = tab['FLUX']
         err1d = tab['ERR']
+        if 'APER_CEN' in hdr:
+            aper_cen = hdr['APER_CEN']
+            msg.append("          - Extraction aperture along slit at pixel no. %i" % aper_cen)
+            if pixtab_pars['loc'] != -1:
+                aperture_offset = np.abs(aper_cen - pixtab_pars['loc'])
+                if aperture_offset > 10:
+                    msg.append("[WARNING] - The wavelength solution may not be accurate!")
+                    msg.append("[WARNING] - The wavelength solution was calculated at position %i along the slit")
+                    msg.append("[WARNING] - but the spectrum was extracted at position %i along the slit.")
+        else:
+            aper_cen = -1
+            msg.append("[WARNING] - Extraction aperture not found.")
+            msg.append("[WARNING] - Double check if the wavelength solution is for the correct location along the slit!")
 
         if N_out is None:
             N_out = len(pix)
@@ -395,7 +421,9 @@ def wavecal_1d(input_fname, pixtable_fname, *, output, order_wl=None, log=False,
         res = np.std(pixtable[:, 1] - solution(pixtable[:, 0]))
         msg.append("          - Fitting wavelength solution with polynomium of order: %i" % order_wl)
         msg.append("          - Standard deviation of wavelength residuals: %.3f Å" % res)
+        msg.append("          - Setting header keyword: CTYPE1 = %s" % ctype)
         hdr['CUNIT1'] = 'Angstrom'
+        hdr['CTYPE1'] = ctype
         hdr['WAVERES'] = (np.round(res, 2), "RMS of wavelength residuals")
         if linearize:
             if log:
@@ -485,8 +513,6 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
 
     msg = list()
     arc2D = fits.getdata(arc_fname)
-    # arc_hdr = get_alfosc_header(arc_fname)
-    # arc2D, arc_hdr = trim_overscan(arc2D, arc_hdr, overscan=overscan)
     img2D = fits.getdata(img_fname)
     msg.append("          - Loaded image: %s" % img_fname)
     msg.append("          - Loaded reference arc image: %s" % arc_fname)
@@ -503,7 +529,13 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
     hdr = fits.getheader(img_fname)
 
     ref_table = np.loadtxt(pixtable_fname)
+    pixtab_pars, found_all = get_pixtab_parameters(pixtable_fname)
     msg.append("          - Loaded reference pixel table: %s" % pixtable_fname)
+    ref_type = pixtab_pars['ref_type']
+    msg.append("          - Wavelength solution is in reference system: %s" % ref_type)
+    if found_all:
+        order_wl = pixtab_pars['order_wl']
+
     if 'DISPAXIS' in hdr.keys():
         dispaxis = hdr['DISPAXIS']
 
@@ -530,6 +562,7 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
         pix_in = create_pixel_array(hdr, dispaxis=1)
         if 'DETXBIN' in hdr:
             binning = hdr['DETXBIN']
+
 
     ilow, ihigh = detect_borders(arc2D, kappa=edge_kappa)
     msg.append("          - Image shape: (%i, %i)" % arc2D.shape)
@@ -563,7 +596,8 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
 
     msg.append("          - Interpolating input image onto rectified wavelength solution")
     transform_output = apply_transform(img2D, pix_in, fit_table2d, ref_table,
-                                       err2D=err2D, mask2D=mask2D, header=hdr, order_wl=order_wl,
+                                       err2D=err2D, mask2D=mask2D, header=hdr,
+                                       order_wl=order_wl, ref_type=ref_type,
                                        log=log, N_out=N_out, interpolate=interpolate)
     img2D_corr, err2D_corr, mask2D, wl, hdr_corr, trans_msg = transform_output
     msg.append(trans_msg)

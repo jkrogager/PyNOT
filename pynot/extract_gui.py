@@ -2067,7 +2067,9 @@ class ExtractGUI(QtWidgets.QMainWindow):
                 bg1d = np.sum(M*P*bg2d, axis=0) / np.sum(M*P**2, axis=0)
 
             wl = self.image2d.wl
-            spec1d = Spectrum(wl=wl, data=data1d, error=err1d, hdr=self.image2d.header,
+            spec_hdr = self.image2d.header.copy()
+            spec_hdr['APER_CEN'] = model.cen
+            spec1d = Spectrum(wl=wl, data=data1d, error=err1d, hdr=spec_hdr,
                               wl_unit=self.image2d.wl_unit, flux_unit=self.image2d.flux_unit)
             spec1d.background = bg1d
             data1d_list.append(spec1d)

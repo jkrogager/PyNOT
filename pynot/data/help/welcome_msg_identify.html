@@ -5,7 +5,7 @@
 <div class="no-file">
 
 <h4>Start-up</h4>
-First, <u>load a 2D calibration lamp spectrum</u> (arc frame) by pressing the <i>Load Spectrum</i> button or using the keyboard shortcut 'cmd + O' (if on Mac, otherwise use 'control + O').
+First, <u>load a 2D calibration lamp spectrum</u> (arc frame) by pressing the <i>Load Spectrum</i> button or using the keyboard shortcut 'cmd + O' (if on Mac, otherwise use 'control + O'). The 1D spectrum is by default constructed from the central 3 rows. If you want to determine the wavelength solution for a different location along the slit, you can specify the '--loc' option when starting PyNOT identify. You can also change this from the menu "File > Set 1D Location" (see section <u>Manage 2D Image</u> below).
 
 </div>
 
@@ -13,7 +13,7 @@ First, <u>load a 2D calibration lamp spectrum</u> (arc frame) by pressing the <i
 <div class="main">
 
 <h4>Loading a Line List</h4>
-If the line list is not automatically loaded, you have to load it by pressing the <i>Load Line List</i> button. For NOT/ALFOSC there are only two options, Helium-Neon (HeNe_linelist) or Thorium-Argon (ThAr_linelist), both are given in vacuum wavelengths. Alternatively, you can locate your own line list.
+If the line list is not automatically loaded, you have to load it by pressing the <i>Load Line List</i> button. For NOT/ALFOSC there are only two options, Helium-Neon (HeNe_linelist) or Thorium-Argon (ThAr_linelist), both are given in vacuum wavelengths. Alternatively, you can locate your own line list. If the line list you want to load is given in air wavelengths, you have to manually switch the <i>Ref. Type</i> in the upper right corner to <i>air</i>. Alternatively, you can put the following line in the top of the line list file: <i>'# ref = air'</i>, which automatically sets the right reference type.
 
 
 <h4>Loading a Pixel Table</h4>
@@ -22,6 +22,14 @@ If an existing pixel table already exists, you can load it by clicking the <i>Lo
 
 <h4>Identifying Lines</h4>
 Identify reference lines by clicking on the plotting view (right-hand side) and hitting the <i>A</i> key or the <i>Add Line</i> button on the top row (make sure to have your reference line map at hand). Then click on the position of the emission line you want to identify. The program will then fit the centroid of the line and mark it by a vertical dashed line. The fitted position shows up in the <i>Pixel Table</i> (middle panel). The input area of the given line will then be highlighted for you to give the reference wavelength. The wavelength just has to be given approximately (within 5 Å) and the exact wavelength will be looked up using the <i>Reference Line List</i>.
+
+
+<h4>Air to Vacuum Conversion</h4>
+The wavelength solution in PyNOT is by default calculated in a vacuum reference frame. If instead you want to convert the wavelengths to air (or vice versa), you can toggle the conversion by clicking the menu "Edit > Toggle Air <-> Vacuum Conversion".
+
+
+<h4>Manage 2D Image</h4>
+The location along the slit where the arc line spectrum is extracted can be changed by going to the menu "File > Set 1D Location". Here the loaded 2D image can also be flipped, if the axes are not aligned correctly.
 
 
 <h4>Fitting the Wavelength Solution</h4>
