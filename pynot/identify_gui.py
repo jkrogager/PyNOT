@@ -253,7 +253,13 @@ class GraphicInterface(QMainWindow):
         # self.airvac.currentTextChanged.connect(self.update_airvac)
         toolbar.addWidget(QLabel("Ref. Type:"))
         toolbar.addWidget(self.airvac)
+
+        airvac_toolbar_btn = QPushButton("Air <-> Vac")
+        airvac_toolbar_btn.clicked.connect(self.toggle_airvac)
+        toolbar.addWidget(airvac_toolbar_btn)
+
         self.addToolBar(toolbar)
+
 
         main_menu = self.menuBar()
         file_menu = main_menu.addMenu("File")
@@ -289,7 +295,7 @@ class GraphicInterface(QMainWindow):
         edit_menu.addAction(clear_fit_action)
         edit_menu.addAction(save_fit_action)
 
-        airvac_action = QAction("Toggle Air <-> Vacuum Conversion", self)
+        airvac_action = QAction("Air <-> Vacuum Conversion", self)
         airvac_action.triggered.connect(self.toggle_airvac)
         edit_menu.addSeparator()
         edit_menu.addAction(airvac_action)
