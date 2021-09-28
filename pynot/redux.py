@@ -456,6 +456,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                 status[pixtable] = order_wl
                 status[grism+'_pixtab'] = pixtable
                 log.commit(msg)
+                log.add_linebreak()
             except:
                 log.error("Identification of arc lines failed!")
                 log.fatal_error()

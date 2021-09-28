@@ -438,7 +438,6 @@ class GraphicInterface(QMainWindow):
 
 
     def show_welcome(self, has_file=False, force=False):
-        print("Opening welcome message window of identify")
         if self.welcome_msg is not None:
             self.welcome_msg.close()
 

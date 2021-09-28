@@ -216,7 +216,7 @@ def fit_background_image(data, order_bg=3, xmin=0, xmax=None, kappa=10, fwhm_sca
     return bg2D
 
 
-def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, kappa=10, fwhm_scale=3, xmin=0, xmax=None, plot_fname=''):
+def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, kappa=10, fwhm_scale=3, xmin=0, xmax=None, plot_fname='', **kwargs):
     """
     Fit background in 2D spectral data. The background is fitted along the spatial rows by a Chebyshev polynomium.
 
@@ -249,6 +249,9 @@ def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, kappa=
 
     plot_fname : string  [default='']
         Filename of diagnostic plots. If nothing is given, do not plot.
+
+    kwargs : dict
+        This has no effect. It's just to catch the unused options passed from the pipeline.
 
     Returns
     =======
