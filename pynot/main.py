@@ -70,16 +70,33 @@ def set_help_width(max_width=30):
         return ArgumentDefaultsHelpFormatter
 
 
-def initialize(args):
+def initialize(path, mode, pfc_fname='dataset.pfc', pars_fname='options.yml', verbose=True):
+    """
+    Initialize new dataset with file classification table and default options.
+
+    path : str
+        Path to the folder containing the raw files to classify
+
+    mode : str  ['spex'/'spec' or 'phot']
+        The mode for the default options: `spec` for spectroscopy, and `phot` for photometry
+        `spex` is allowed for backwards compatibility.
+
+    pfc_fname : str
+        The filename of the file classification table
+
+    pars_filename : str
+        The filename of the default options
+
+    verbose : bool  [default=True]
+        Print logging to terminal
+    """
     print_credits()
     from pynot.data import organizer as do
     from pynot.data import io
 
     # Classify files:
     # args.silent is set to "store_false", so by default it is true!
-    verbose = args.silent
-    database, message = do.classify(args.path, progress=verbose)
-    pfc_fname = args.output
+    database, message = do.classify(path, progress=verbose)
 
     if pfc_fname[-4:] != '.pfc':
         pfc_fname += '.pfc'
@@ -88,7 +105,7 @@ def initialize(args):
         print(message)
     print(" [OUTPUT] - Saved file classification database: %s" % pfc_fname)
 
-    if args.mode == 'spex':
+    if mode.lower() in ['spex', 'spec']:
         defaults_fname = defaults_fname_spec
     else:
         defaults_fname = defaults_fname_phot
@@ -110,9 +127,8 @@ def initialize(args):
     dataset_input = "%s:  %s #%s" % (root, fmt % pfc_fname, comment)
     all_lines[num] = dataset_input
 
-    pars_fname = args.pars
     if pars_fname == 'options.yml':
-        pars_fname = 'options_spex.yml' if args.mode == 'spex' else 'options_phot.yml'
+        pars_fname = 'options_spex.yml' if mode == 'spex' else 'options_phot.yml'
 
     if pars_fname[-4:] != '.yml':
         pars_fname += '.yml'
@@ -123,7 +139,7 @@ def initialize(args):
 
     print(" [OUTPUT] - Initiated new parameter file: %s\n" % pars_fname)
     print("\n You can now start the reduction pipeline by running:")
-    print("   ]%% pynot %s  %s\n" % (args.mode, pars_fname))
+    print("   ]%% pynot %s  %s\n" % (mode, pars_fname))
 
 
 def main():
@@ -134,7 +150,7 @@ def main():
 
     parser_init = tasks.add_parser('init', formatter_class=set_help_width(31),
                                    help="Initiate a default parameter file")
-    parser_init.add_argument("mode", type=str, choices=['spex', 'phot'],
+    parser_init.add_argument("mode", type=str, choices=['spec', 'spex', 'phot'],
                              help="Create parameter file for spectroscopy or imaging?")
     parser_init.add_argument("path", type=str, nargs='+',
                              help="Path (or paths) to raw ALFOSC data to be classified")
@@ -452,7 +468,7 @@ def main():
 
 
     if task == 'init':
-        initialize(args)
+        initialize(args.path, args.mode, pfc_fname=args.output, pars_fname=args.pars, verbose=args.silent)
 
     elif task == 'spex':
         from pynot.redux import run_pipeline
@@ -494,6 +510,7 @@ def main():
         else:
             input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
 
+        # Mode determines the header keywords to update (CDELT or CD-matrix)
         if args.img:
             mode = 'img'
         else:
