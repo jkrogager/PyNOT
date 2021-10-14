@@ -18,9 +18,13 @@ import spectres
 
 from pynot.alfosc import get_alfosc_header, create_pixel_array
 from pynot.functions import get_version_number, NN_mod_gaussian, get_pixtab_parameters
-from pynot.scired import trim_overscan
 
 __version__ = get_version_number()
+
+
+class WavelengthError(Exception):
+    def __init__(self, message):
+        self.message = message
 
 
 def verify_arc_frame(arc_fname, dispaxis=2):
@@ -257,14 +261,38 @@ def apply_transform(img2D, pix, fit_table2d, ref_table, err2D=None, mask2D=None,
             msg.append("[WARNING] - Interpolation turned off!")
             msg.append("[WARNING] - N_out was given: %i" % N_out)
             msg.append("[WARNING] - Cannot change sampling without interpolating")
+            msg.append("[WARNING] - Going back to default: no interpolation and same dimension as input!")
 
     pix_in = pix
     cen = fit_table2d.shape[0]//2
     ref_wl = ref_table[:, 1]
     central_solution = Chebyshev.fit(fit_table2d[cen], ref_wl, deg=order_wl, domain=[pix_in.min(), pix_in.max()])
     wl_central = central_solution(pix_in)
+    if all(np.diff(wl_central) < 0):
+        # Wavelengths are decreasing: Flip arrays
+        flip_array = True
+    elif all(np.diff(wl_central) > 0):
+        # Wavelength are increasing: Nothing to do
+        flip_array = False
+    elif all(np.diff(wl_central) == 0):
+        # Wavelengths do not increase: WHAT?!
+        msg.append(" [ERROR]  - Wavelength array does not increase! Something went wrong.")
+        msg.append("          - Check the parameters `fit_window` and `order_wl`.")
+        exit_msg = "\n".join(msg)
+        raise WavelengthError(exit_msg)
+    else:
+        msg.append(" [ERROR]  - Wavelength array is not monotonic.")
+        msg.append("          - Check the parameters `fit_window` and `order_wl`.")
+        exit_msg = "\n".join(msg)
+        raise WavelengthError(exit_msg)
+
     wl_residuals = np.std(ref_wl - central_solution(fit_table2d[cen]))
-    msg.append("          - Residuals of wavelength solution: %.2f Å" % wl_residuals)
+    if wl_residuals > 5.:
+        msg.append("[WARNING] - Large residuals of wavelength solution: %.2f Å" % wl_residuals)
+        msg.append("[WARNING] - Try changing the fitting window of each arc line (par:`fit_window`)")
+    else:
+        msg.append("          - Residuals of wavelength solution: %.2f Å" % wl_residuals)
+
     if ref_type == 'air':
         ctype = 'AWAV'
     else:
@@ -302,36 +330,47 @@ def apply_transform(img2D, pix, fit_table2d, ref_table, err2D=None, mask2D=None,
         img2D_tr = np.zeros((img2D.shape[0], N_out))
         err2D_tr = np.zeros((img2D.shape[0], N_out))
         mask2D_tr = np.zeros((img2D.shape[0], N_out))
+        if err2D is None:
+            msg.append("[WARNING] - Interpolating data without errors!")
+        else:
+            msg.append("          - Interpolating data with errors")
+
         for i, row in enumerate(img2D):
             # - fit the chebyshev polynomium
             solution_row = Chebyshev.fit(fit_table2d[i], ref_wl, deg=order_wl, domain=[pix_in.min(), pix_in.max()])
             wl_row = solution_row(pix_in)
-            if np.diff(wl_row)[0] < 0:
+            if flip_array:
                 # Wavelengths are decreasing: Flip arrays
                 row = row[::-1]
                 wl_row = wl_row[::-1]
-                flip_array = True
-            else:
-                flip_array = False
 
             # -- interpolate the data onto the fixed wavelength grid
             if err2D is not None:
                 err_row = err2D[i]
                 if flip_array:
                     err_row = err_row[::-1]
-                interp_row, interp_err = spectres.spectres(wl, wl_row, row, spec_errs=err_row, verbose=False, fill=0.)
+
+                # interp_row, interp_err = spectres.spectres(wl, wl_row, row, spec_errs=err_row, verbose=False, fill=0.)
+                interp_row = np.interp(wl, wl_row, row, left=0., right=0.)
+                interp_err = np.interp(wl, wl_row, err_row, left=-1, right=-1)
                 err2D_tr[i] = interp_err
+                img2D_tr[i] = interp_row
             else:
-                interp_row = spectres.spectres(wl, wl_row, row, verbose=False, fill=0.)
+                # interp_row = spectres.spectres(wl, wl_row, row, verbose=False, fill=0.)
+                interp_row = np.interp(wl, wl_row, row, left=0., right=0.)
+                img2D_tr[i] = interp_row
 
             mask_row = mask2D[i]
             mask_int = np.interp(wl, wl_row, mask_row)
             mask2D_tr[i] = np.ceil(mask_int).astype(int)
-            img2D_tr[i] = interp_row
+
     else:
+        msg.append("          - No interpolation used!")
         img2D_tr = img2D
         err2D_tr = err2D
         mask2D_tr = mask2D
+    if np.sum(img2D_tr) == 0:
+        msg.append(" [ERROR]  - Something went wrong! All fluxes are 0!")
     output_msg = "\n".join(msg)
     return img2D_tr, err2D_tr, mask2D_tr, wl, hdr_tr, output_msg
 
@@ -501,8 +540,9 @@ def format_table2D_residuals(pixtab2d, fit_table2d, ref_table):
     resid2D = pixtab2d - fit_table2d
     for wl, resid_col, col in zip(wavelengths, resid2D.T, fit_table2d.T):
         line_resid = np.std(resid_col)
+        median_pix = np.median(col)
         delta_col = np.max(col) - np.min(col)
-        resid_log.append([wl, line_resid, delta_col])
+        resid_log.append([wl, median_pix, line_resid, delta_col])
     return resid_log
 
 # ============== MAIN ===========================================================
@@ -535,6 +575,9 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
     msg.append("          - Wavelength solution is in reference system: %s" % ref_type)
     if found_all:
         order_wl = pixtab_pars['order_wl']
+        msg.append("          - Polynomial order for wavelength as function of pixels : %i" % order_wl)
+    else:
+        msg.append("[WARNING] - Not all parameters were loaded from the pixel table!")
 
     if 'DISPAXIS' in hdr.keys():
         dispaxis = hdr['DISPAXIS']
@@ -563,7 +606,6 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
         if 'DETXBIN' in hdr:
             binning = hdr['DETXBIN']
 
-
     ilow, ihigh = detect_borders(arc2D, kappa=edge_kappa)
     msg.append("          - Image shape: (%i, %i)" % arc2D.shape)
     msg.append("          - Detecting arc line borders: %i -- %i" % (ilow, ihigh))
@@ -590,24 +632,32 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
     msg.append("          - Residuals of arc line positions relative to fitted 2D grid:")
     fit_residuals = format_table2D_residuals(pixtab2d, fit_table2d, ref_table)
 
-    msg.append("              Wavelength    Arc Residual   Max. Curvature")
-    for l0, line_residual, line_minmax in fit_residuals:
-        msg.append("              %10.3f    %-12.3f   %-14.3f" % (l0, line_residual, line_minmax))
+    msg.append("              Wavelength    Mean Position   Arc Residual   Max. Curvature")
+    for l0, med_line_pos, line_residual, line_minmax in fit_residuals:
+        msg.append("              %10.2f    %-13.2f   %-12.3f   %-14.3f" % (l0, med_line_pos, line_residual, line_minmax))
 
-    msg.append("          - Interpolating input image onto rectified wavelength solution")
-    transform_output = apply_transform(img2D, pix_in, fit_table2d, ref_table,
-                                       err2D=err2D, mask2D=mask2D, header=hdr,
-                                       order_wl=order_wl, ref_type=ref_type,
-                                       log=log, N_out=N_out, interpolate=interpolate)
-    img2D_corr, err2D_corr, mask2D, wl, hdr_corr, trans_msg = transform_output
-    msg.append(trans_msg)
-    hdr.add_comment('PyNOT version %s' % __version__)
     if plot:
         plot_fname = os.path.join(fig_dir, 'PixTable2D.pdf')
         plot_2d_pixtable(arc2D_sub, pix_in, pixtab2d, fit_table2d, filename=plot_fname)
         msg.append("          - Plotting fitted arc line positions in 2D frame")
         msg.append(" [OUTPUT] - Saving figure: %s" % plot_fname)
 
+    msg.append("          - Interpolating input image onto rectified wavelength solution")
+    try:
+        transform_output = apply_transform(img2D, pix_in, fit_table2d, ref_table,
+                                           err2D=err2D, mask2D=mask2D, header=hdr,
+                                           order_wl=order_wl, ref_type=ref_type,
+                                           log=log, N_out=N_out, interpolate=interpolate)
+        img2D_corr, err2D_corr, mask2D, wl, hdr_corr, trans_msg = transform_output
+        msg.append(trans_msg)
+
+    except WavelengthError as error:
+        msg.append(error.message)
+        output_str = "\n".join(msg)
+        print(output_str)
+        return "FATAL ERROR"
+
+    hdr.add_comment('PyNOT version %s' % __version__)
     if output:
         if output[-5:] != '.fits':
             output += '.fits'

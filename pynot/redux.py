@@ -15,7 +15,7 @@ from pynot.calibs import combine_bias_frames, combine_flat_frames, normalize_spe
 from pynot.extraction import auto_extract
 from pynot import extract_gui
 from pynot.functions import get_options, get_version_number
-from pynot.wavecal import rectify
+from pynot.wavecal import rectify, WavelengthError
 from pynot.identify_gui import create_pixtable
 from pynot.scired import raw_correction, auto_fit_background, correct_cosmics, correct_raw_file
 from pynot.response import calculate_response, flux_calibrate
@@ -537,10 +537,11 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                                dispaxis=sci_img.dispaxis, order_wl=order_wl, **options['rectify'])
             log.commit(rect_msg)
             log.add_linebreak()
-        except:
+        except WavelengthError:
             log.error("2D rectification failed!")
             log.fatal_error()
             print("Unexpected error:", sys.exc_info()[0])
+            print("")
             raise
 
 
