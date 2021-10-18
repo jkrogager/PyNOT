@@ -28,7 +28,7 @@ identify:
   all:         False         # Interactively reidentify arc reference frame for each target?
 
 rectify:
-  order_bg:    5             # Polynomial order for background subtraction of line continuum
+  order_bg:    5             # Polynomial order for background subtraction of calibration lamp continuum
   order_2d:    3             # Polynomial order for spatial reconstruction of arc lines
   log:         False         # Use logarithmic binning in wavelength?
   N_out:       null          # No. of output pixels along dispersion axis. If null is given, use No. of pixels in input image.

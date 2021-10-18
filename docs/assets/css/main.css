@@ -25,6 +25,20 @@ section, summary, time, mark, audio, video {
   vertical-align: baseline;
 }
 
+figure {
+  float: center;
+  width: 100%;
+  text-align: center;
+  font-style: italic;
+  font-size: smaller;
+  text-indent: 0;
+  margin: 0.5em;
+  padding: 0.5em;
+}
+img.scaled {
+  width: 100%;
+}
+
 article, aside, details, figcaption, figure,
 footer, header, hgroup, menu, nav, section {
   display: block;
@@ -38,12 +52,28 @@ ol, ul {
   list-style: none;
 }
 
+ul.subtasklist {
+  margin-left: 2em;
+  lin
+}
+
+.subtasklist li + li {
+  margin-top: 7px;
+}
+
 blockquote, q {
   quotes: none;
 }
 blockquote:before, blockquote:after, q:before, q:after {
   content: "";
   content: none;
+}
+
+p.note {
+  color: #999999;
+  margin-left: 2em;
+  font-weight: lighter;
+  margin-top: -1.5em;
 }
 
 table {
@@ -1749,11 +1779,14 @@ dl {
 dl dt {
   display: block;
   font-weight: 600;
-  margin: 0 0 1em 0;
+  color: #375da1;
+  /* margin: 0 0 1em 0; */
 }
 dl dd {
   margin-left: 2em;
+  margin-bottom: 1em;
 }
+
 
 /* Actions */
 ul.actions {
