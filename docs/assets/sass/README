@@ -1,2 +1,0 @@
-# Compile the CSS from SASS, run:
-sass main.scss ../css/main.css
