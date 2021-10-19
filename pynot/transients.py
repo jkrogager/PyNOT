@@ -57,6 +57,10 @@ def find_new_sources(img_fname, sep_fname, loc_bat=(0., 0., 1.), loc_xrt=(0., 0.
 
     Returns
     -------
+    new_subset : astropy.table.Table
+        Subset of the source catalog which are not in the Gaia catalog above the flux limit.
+        Contains the following columns: 'ra', 'dec', 'mag_auto', 'a', 'b', 'theta', 'flux_auto', 'flux_err_auto'
+
     output_msg : string
         Log of messages from the function call.
     """
@@ -93,14 +97,14 @@ def find_new_sources(img_fname, sep_fname, loc_bat=(0., 0., 1.), loc_xrt=(0., 0.
             msg.append("            or provide a zeropoint using the option: -z")
             msg.append("          - Terminating script...")
             msg.append("")
-            return "\n".join(msg)
+            return [], "\n".join(msg)
         else:
             try:
                 sep_cat['mag_auto'] += zp
             except ValueError:
                 msg.append(" [ERROR]  - Invalid zeropoint: %r" % zp)
                 msg.append("")
-                return "\n".join(msg)
+                return [], "\n".join(msg)
 
     # Find sources with r < 20, with no match in Gaia:
     filter = alfosc.filter_translate[alfosc.get_filter(hdr)]
@@ -211,6 +215,8 @@ def find_new_sources(img_fname, sep_fname, loc_bat=(0., 0., 1.), loc_xrt=(0., 0.
         msg.append(" [OUTPUT] - Saving figure: %s" % fig_fname)
 
     else:
+        new_subset = []
         msg.append("          - No new sources identified brighter than %s < %.2f" % (band, mag_lim))
     msg.append("")
-    return new_subset, "\n".join(msg)
+    output_msg = "\n".join(msg)
+    return new_subset, output_msg

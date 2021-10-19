@@ -46,7 +46,7 @@ sep-background:
 
 sep-extract:
   aperture:         10.0     # Circular aperture radius in pixels
-  threshold:        5.0      # Detection threshold
+  threshold:        5.0      # Detection threshold (sigma)
   minarea:          15       # Minimum number of pixels required for an object
   deblend_nthresh:  32       # Number of thresholds used for object deblending
   deblend_cont:     0.005    # Minimum contrast ratio used for object deblending. Disable deblending by setting to 1.0
