@@ -12,24 +12,6 @@ from pynot.data.organizer import TagDatabase, get_filter
 veclen = np.vectorize(len)
 
 
-def _save_database_old(database, output_fname):
-    """Save file database to file."""
-    collection = database.file_database
-    output_strings = ['%s: %s' % item for item in collection.items()]
-    # Sort the files based on their classification:
-    sorted_output = sorted(output_strings, key=lambda x: x.split(':')[1])
-    with open(output_fname, 'w') as output:
-        output.write("\n".join(sorted_output))
-
-
-def get_binning_from_hdr(hdr):
-    binx = hdr['DETXBIN']
-    biny = hdr['DETYBIN']
-    read = hdr['FPIX']
-    ccd_setup = "%ix%i_%i" % (binx, biny, read)
-    return ccd_setup
-
-
 def get_header_info(fname):
     primhdr = fits.getheader(fname)
     imhdr = fits.getheader(fname, 1)

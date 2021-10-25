@@ -3,10 +3,11 @@
 import numpy as np
 import os
 import sys
+import datetime
 from glob import glob
 from astropy.io import fits
 
-from pynot.alfosc import get_mjd, get_binning_from_hdr, get_filter, get_header, lookup_std_star
+from pynot.alfosc import get_binning_from_hdr, get_filter, get_header, lookup_std_star
 import pynot.alfosc as instrument
 
 # -- use os.path
@@ -42,43 +43,13 @@ def occurence(inlist):
     return single_values
 
 
-# def get_mjd(date_str):
-#     """Input Date String in ISO format as in ALFOSC header: '2016-08-01T16:03:57.796'"""
-#     date = datetime.datetime.fromisoformat(date_str)
-#     mjd_0 = datetime.datetime(1858, 11, 17)
-#     dt = date - mjd_0
-#     mjd = dt.days + dt.seconds/(24*3600.)
-#     return mjd
-#
-#
-# def get_binning(fname):
-#     hdr = fits.getheader(fname)
-#     binx = hdr['DETXBIN']
-#     biny = hdr['DETYBIN']
-#     read = hdr['FPIX']
-#     ccd_setup = "%ix%i_%i" % (binx, biny, read)
-#     return ccd_setup
-#
-#
-# def get_binning_from_hdr(hdr):
-#     binx = hdr['DETXBIN']
-#     biny = hdr['DETYBIN']
-#     read = hdr['FPIX']
-#     ccd_setup = "%ix%i_%i" % (binx, biny, read)
-#     return ccd_setup
-#
-#
-# def get_filter(hdr):
-#     filter = 'Open'
-#     for keyword in ['FAFLTNM', 'FBFLTNM', 'ALFLTNM']:
-#         if 'open' in hdr[keyword].lower():
-#             pass
-#         else:
-#             filter = hdr[keyword]
-#             break
-#     if '  ' in filter:
-#         filter = filter.replace('  ', ' ')
-#     return filter
+def get_mjd(date_str):
+    """Input Date String in ISO format as in ALFOSC header: '2016-08-01T16:03:57.796'"""
+    date = datetime.datetime.fromisoformat(date_str)
+    mjd_0 = datetime.datetime(1858, 11, 17)
+    dt = date - mjd_0
+    mjd = dt.days + dt.seconds/(24*3600.)
+    return mjd
 
 
 def match_date(files, date_mjd):

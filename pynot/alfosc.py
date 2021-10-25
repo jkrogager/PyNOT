@@ -1,12 +1,11 @@
 """
 Instrument definitions for NOT/ALFOSC
 """
-import glob
 import numpy as np
-from os.path import basename, dirname, abspath
+from os.path import dirname, abspath
 from astropy.io import fits
 from astropy.table import Table
-import datetime
+
 
 # Define header keyword to use as object name
 # OBJECT is not always reliable, TCS target name is more robust
@@ -14,6 +13,9 @@ target_keyword = 'TCSTGT'
 
 # path = '/Users/krogager/coding/PyNOT'
 path = dirname(abspath(__file__))
+
+# path to extinction table:
+extinction_fname = path + '/calib/lapalma.ext'
 
 grism_translate = {'Grism_#3': 'grism3',
                    'Grism_#4': 'grism4',
@@ -42,46 +44,8 @@ slits = ['Ech_0.7', 'Ech_0.8', 'Ech_1.0', 'Ech_1.2', 'Ech_1.6',
          'VertOff_1.0', 'VertOff_1.3', 'VertOff_1.9', 'VertOff_8.8']
 
 
-# --- Data taken from: ftp://ftp.stsci.edu/cdbs/current_calspec/
-standard_star_files = glob.glob(path + '/calib/std/*.dat')
-standard_star_files = [basename(fname) for fname in standard_star_files]
-# List of star names in lowercase:
-standard_stars = [fname.strip('.dat') for fname in standard_star_files]
-
-# Look-up table from TCS targetnames -> star names
-standard_star_names = {'SP0305+261': 'HD19445',
-                       'SP0644+375': 'He3',
-                       'SP0946+139': 'HD84937',
-                       'SP1036+433': 'Feige34',
-                       'SP1045+378': 'HD93521',
-                       'SP1446+259': 'BD262606',
-                       'SP1550+330': 'BD332642',
-                       'SP2032+248': 'Wolf1346',
-                       'SP2209+178': 'BD174708',
-                       'SP2317-054': 'Feige110',
-                       'SP0642+021': 'Hiltner600',
-                       'GD71': 'GD71',
-                       'GD153': 'GD153'}
-
-def lookup_std_star(input_name):
-    for name in standard_star_names:
-        if input_name.upper() in name:
-            return name
-    return None
-
 filter_table = Table.read(path + '/calib/alfosc_filters.dat', format='ascii.fixed_width')
 filter_translate = {long: short for long, short in filter_table['name', 'short_name']}
-
-
-def get_alfosc_header(fname):
-    with fits.open(fname) as hdu:
-        primhdr = hdu[0].header
-        if len(hdu) > 1:
-            imghdr = hdu[1].header
-            primhdr.update(imghdr)
-    if primhdr['INSTRUME'] != 'ALFOSC_FASU':
-        print("[WARNING] - FITS file not originating from NOT/ALFOSC!")
-    return primhdr
 
 
 def get_header(fname):
@@ -114,15 +78,6 @@ def create_pixel_array(hdr, dispaxis):
     return pix_array
 
 
-def get_mjd(date_str):
-    """Input Date String in ISO format as in ALFOSC header: '2016-08-01T16:03:57.796'"""
-    date = datetime.datetime.fromisoformat(date_str)
-    mjd_0 = datetime.datetime(1858, 11, 17)
-    dt = date - mjd_0
-    mjd = dt.days + dt.seconds/(24*3600.)
-    return mjd
-
-
 def get_binning(fname):
     hdr = fits.getheader(fname)
     binx = hdr['DETXBIN']
@@ -151,3 +106,7 @@ def get_filter(hdr):
     if '  ' in filter:
         filter = filter.replace('  ', ' ')
     return filter
+
+def get_grism(hdr):
+    grism_name = grism_translate(hdr['ALGRNM'])
+    return grism_name

@@ -16,7 +16,7 @@ import warnings
 
 import spectres
 
-from pynot.alfosc import get_alfosc_header, create_pixel_array
+from pynot.alfosc import get_header, create_pixel_array
 from pynot.functions import get_version_number, NN_mod_gaussian, get_pixtab_parameters
 
 __version__ = get_version_number()
@@ -36,7 +36,7 @@ def verify_arc_frame(arc_fname, dispaxis=2):
     `dispaxis` = 2 for vertical spectra, 1 for horizontal spectra.
     """
     arc2D = fits.getdata(arc_fname)
-    hdr = get_alfosc_header(arc_fname)
+    hdr = get_header(arc_fname)
     if 'DISPAXIS' in hdr:
         dispaxis = hdr['DISPAXIS']
 

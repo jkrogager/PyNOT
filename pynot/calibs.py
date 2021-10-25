@@ -60,7 +60,7 @@ def combine_bias_frames(bias_frames, output='', kappa=15, method='mean', overwri
     for frame in bias_frames:
         msg.append("          - Loaded bias frame: %s" % frame)
         raw_img = pf.getdata(frame)
-        bias_hdr = alfosc.get_alfosc_header(frame)
+        bias_hdr = alfosc.get_header(frame)
         trim_bias, bias_hdr = trim_overscan(raw_img, bias_hdr, overscan)
         msg.append("          - Trimming overscan of bias images: %i!" % overscan)
         # if mode == 'spec':
@@ -166,7 +166,7 @@ def combine_flat_frames(raw_frames, output, mbias='', mode='spec', dispaxis=2,
     msg = list()
     if mbias and exists(mbias):
         bias = pf.getdata(mbias)
-        bias_hdr = alfosc.get_alfosc_header(mbias)
+        # bias_hdr = alfosc.get_header(mbias)
 
     else:
         msg.append("[WARNING] - No master bias frame provided!")
@@ -175,7 +175,7 @@ def combine_flat_frames(raw_frames, output, mbias='', mode='spec', dispaxis=2,
     flats = list()
     flat_peaks = list()
     for fname in raw_frames:
-        hdr = alfosc.get_alfosc_header(fname)
+        hdr = alfosc.get_header(fname)
         flat = pf.getdata(fname)
         flat, hdr = trim_overscan(flat, hdr, overscan)
         msg.append("          - Trimming overscan of Flat images: %i!" % overscan)
@@ -339,7 +339,7 @@ def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=2, overscan=5
     """
     msg = list()
     flat = pf.getdata(fname)
-    hdr = alfosc.get_alfosc_header(fname)
+    hdr = alfosc.get_header(fname)
 
     msg.append("          - Input file: %s" % fname)
 

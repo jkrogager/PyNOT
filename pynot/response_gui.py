@@ -23,6 +23,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 import warnings
 
 from pynot import alfosc
+from pynot import response
 from pynot.functions import get_version_number
 from pynot.welcome import WelcomeMessage
 
@@ -70,9 +71,9 @@ class ResponseGUI(QtWidgets.QMainWindow):
         self.output_fname = output_fname
         self.first_time_open = True
         # Extinction table attributes:
-        self.ext_fname = alfosc.path + '/calib/lapalma.ext'
+        self.ext_fname = alfosc.extinction_fname
         try:
-            ext_wl, ext = np.loadtxt(alfosc.path + '/calib/lapalma.ext', unpack=True)
+            ext_wl, ext = np.loadtxt(self.ext_fname, unpack=True)
         except:
             ext_wl, ext = None, None
         self.ext_wl = ext_wl
@@ -88,7 +89,7 @@ class ResponseGUI(QtWidgets.QMainWindow):
 
         # Fitting Parameters:
         self.star_chooser = QtWidgets.QComboBox()
-        self.all_names = sorted([name.upper() for name in alfosc.standard_stars] + [''])
+        self.all_names = sorted([name.upper() for name in response.standard_stars] + [''])
         self.star_chooser.addItems(self.all_names)
         self.star_chooser.setCurrentText(star_name)
         self.star_chooser.currentTextChanged.connect(self.set_star)
@@ -369,9 +370,9 @@ class ResponseGUI(QtWidgets.QMainWindow):
 
         if 'TCSTGT' in hdr:
             TCSname = hdr['TCSTGT']
-            TCSname = alfosc.lookup_std_star(TCSname)
+            TCSname = response.lookup_std_star(TCSname)
             if TCSname:
-                star_name = alfosc.standard_star_names[TCSname]
+                star_name = response.standard_star_names[TCSname]
                 self.star_chooser.setCurrentText(star_name.upper())
         elif 'OBJECT' in hdr:
             object_name = hdr['OBJECT']
@@ -386,7 +387,7 @@ class ResponseGUI(QtWidgets.QMainWindow):
 
     def set_star(self, text):
         star_name = str(text).lower()
-        self.ref_tab = np.loadtxt(alfosc.path+'/calib/std/%s.dat' % star_name)
+        self.ref_tab = np.loadtxt(response.path+'/calib/std/%s.dat' % star_name)
         self.calculate_flux_in_bins()
         self.calculate_response_bins()
         self.update_plot()

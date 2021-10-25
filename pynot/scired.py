@@ -47,7 +47,7 @@ import warnings
 
 from astroscrappy import detect_cosmics
 
-from pynot.alfosc import create_pixel_array, get_alfosc_header
+from pynot.alfosc import create_pixel_array, get_header
 from pynot.functions import mad, get_version_number
 
 
@@ -88,7 +88,7 @@ def detect_filter_edge(fname, overscan=50):
     """Automatically detect edges in the normalized flat field"""
     # Get median profile along slit:
     img = fits.getdata(fname)
-    hdr = get_alfosc_header(fname)
+    hdr = get_header(fname)
     if 'OVERSCAN' in hdr:
         overscan = 0
 
@@ -263,7 +263,7 @@ def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, kappa=
     """
     msg = list()
     data = fits.getdata(data_fname)
-    hdr = get_alfosc_header(data_fname)
+    hdr = get_header(data_fname)
     if 'DISPAXIS' in hdr:
         dispaxis = hdr['DISPAXIS']
 
@@ -446,12 +446,12 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname='', output='', overscan=
     """
     msg = list()
     mbias = fits.getdata(bias_fname)
-    bias_hdr = get_alfosc_header(bias_fname)
+    # bias_hdr = get_header(bias_fname)
     msg.append("          - Loaded bias image: %s" % bias_fname)
     if flat_fname:
         mflat = fits.getdata(flat_fname)
         mflat[mflat == 0] = 1
-        flat_hdr = get_alfosc_header(flat_fname)
+        # flat_hdr = get_header(flat_fname)
         msg.append("          - Loaded flat field image: %s" % flat_fname)
         # mflat, flat_hdr = trim_overscan(mflat, flat_hdr, overscan=overscan, mode=mode)
     else:
@@ -528,7 +528,7 @@ def correct_raw_file(input_fname, *, output, bias_fname, flat_fname='', overscan
     output_msg : string
         Log of status messages
     """
-    hdr = get_alfosc_header(input_fname)
+    hdr = get_header(input_fname)
     sci_raw = fits.getdata(input_fname)
     msg = "          - Loaded input image: %s" % input_fname
 

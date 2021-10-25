@@ -13,13 +13,12 @@ import matplotlib.pyplot as plt
 from matplotlib import ticker
 from scipy.ndimage import gaussian_filter1d, median_filter
 from scipy.interpolate import UnivariateSpline
-from numpy.polynomial import Chebyshev
 import os
+from os.path import basename, dirname, abspath
 import sys
-import warnings
+import glob
 
 from pynot import alfosc
-from pynot.alfosc import get_alfosc_header
 from pynot.extraction import auto_extract
 from pynot import extract_gui
 from pynot.functions import get_version_number, my_formatter, mad
@@ -29,6 +28,35 @@ from pynot.wavecal import rectify
 
 
 __version__ = get_version_number()
+
+
+# --- Data taken from: ftp://ftp.stsci.edu/cdbs/current_calspec/
+path = dirname(abspath(__file__))
+standard_star_files = glob.glob(path + '/calib/std/*.dat')
+standard_star_files = [basename(fname) for fname in standard_star_files]
+# List of star names in lowercase:
+standard_stars = [fname.strip('.dat') for fname in standard_star_files]
+
+# Look-up table from TCS targetnames -> star names
+standard_star_names = {'SP0305+261': 'HD19445',
+                       'SP0644+375': 'He3',
+                       'SP0946+139': 'HD84937',
+                       'SP1036+433': 'Feige34',
+                       'SP1045+378': 'HD93521',
+                       'SP1446+259': 'BD262606',
+                       'SP1550+330': 'BD332642',
+                       'SP2032+248': 'Wolf1346',
+                       'SP2209+178': 'BD174708',
+                       'SP2317-054': 'Feige110',
+                       'SP0642+021': 'Hiltner600',
+                       'GD71': 'GD71',
+                       'GD153': 'GD153'}
+
+def lookup_std_star(input_name):
+    for name in standard_star_names:
+        if input_name.upper() in name:
+            return name
+    return None
 
 
 def load_spectrum1d(fname):
@@ -52,9 +80,10 @@ def flux_calibrate(input_fname, *, output, response):
     wl = (np.arange(hdr['NAXIS1']) - (crpix - 1))*cdelt + crval
 
     # Load Extinction Table:
-    wl_ext, A0 = np.loadtxt(alfosc.path + '/calib/lapalma.ext', unpack=True)
+    wl_ext, A0 = np.loadtxt(alfosc.extinction_fname, unpack=True)
     ext = np.interp(wl, wl_ext, A0)
-    msg.append("          - Loaded average extinction table for La Palma")
+    msg.append("          - Loaded average extinction table:")
+    msg.append("            %s" % alfosc.extinction_fname)
 
     # Load Sensitivity Function:
     resp_tab = fits.getdata(response)
@@ -99,8 +128,9 @@ def flux_calibrate_1d(input_fname, *, output, response):
     msg = list()
 
     # Load Extinction Table:
-    wl_ext, A0 = np.loadtxt(alfosc.path + '/calib/lapalma.ext', unpack=True)
-    msg.append("          - Loaded average extinction table for La Palma")
+    wl_ext, A0 = np.loadtxt(alfosc.extinction_fname, unpack=True)
+    msg.append("          - Loaded average extinction table:")
+    msg.append("            %s" % alfosc.extinction_fname)
 
     # Load Sensitivity Function:
     resp_tab = fits.getdata(response)
@@ -222,7 +252,7 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
     """
     msg = list()
 
-    hdr = get_alfosc_header(raw_fname)
+    hdr = alfosc.get_header(raw_fname)
     raw2D = fits.getdata(raw_fname)
     msg.append("          - Loaded flux standard image: %s" % raw_fname)
 
@@ -230,7 +260,7 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
     grism = alfosc.grism_translate[hdr['ALGRNM']]
     star = hdr['TCSTGT']
     # Check if the star name is in the header:
-    star = alfosc.lookup_std_star(star)
+    star = lookup_std_star(star)
     if star is None:
         msg.append("[WARNING] - No reference data found for the star %s (TCS Target Name)" % hdr['TCSTGT'])
         msg.append("[WARNING] - The reduced spectra will not be flux calibrated")
@@ -312,8 +342,8 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
 
     # Load the spectroscopic standard table:
     # The files are located in 'calib/std/'
-    star_name = alfosc.standard_star_names[star]
-    std_tab = np.loadtxt(alfosc.path+'/calib/std/%s.dat' % star_name.lower())
+    star_name = standard_star_names[star]
+    std_tab = np.loadtxt(path+'/calib/std/%s.dat' % star_name.lower())
     msg.append("          - Loaded reference data for object: %s" % star_name)
 
     # Calculate the flux in the pass bands:
@@ -344,9 +374,10 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
     good[:3] = True
     good[-3:] = True
 
-    # Load extinction table:
-    msg.append("          - Loaded the average extinction data for La Palma")
-    wl_ext, A0 = np.loadtxt(alfosc.path + '/calib/lapalma.ext', unpack=True)
+    # Load Extinction Table:
+    wl_ext, A0 = np.loadtxt(alfosc.extinction_fname, unpack=True)
+    msg.append("          - Loaded average extinction table:")
+    msg.append("            %s" % alfosc.extinction_fname)
     ext = np.interp(wl0, wl_ext, A0)
     exptime = hdr['EXPTIME']
     airmass = hdr['AIRMASS']
@@ -441,48 +472,3 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
     msg.append("")
     output_msg = "\n".join(msg)
     return response_output, output_msg
-
-
-#
-# def run_response():
-#     parser = ArgumentParser()
-#     parser.add_argument("input", type=str,
-#                         help="Raw flux standard star frame")
-#     parser.add_argument("arc", type=str,
-#                         help="Raw arc lamp frame")
-#     parser.add_argument("--bias", type=str,
-#                         help="Combined bias frame")
-#     parser.add_argument("--flat", type=str,
-#                         help="Normalized spectral flat frame")
-#     parser.add_argument("-o", "--output", type=str, default='',
-#                         help="Filename of output response function")
-#     parser.add_argument("-d", "--dir", type=str, default='',
-#                         help="Output directory, default='./'")
-#     parser.add_argument("-O", "--options", type=str, default='',
-#                         help="Option file (.yml)")
-#     parser.add_argument("-I", "--interactive", action='store_true',
-#                         help="Interactive mode")
-#
-#     args = parser.parse_args()
-#
-#     from functions import get_options
-#     code_dir = os.path.dirname(os.path.abspath(__file__))
-#     calib_dir = os.path.join(code_dir, 'calib/')
-#     defaults_fname = os.path.join(calib_dir, 'default_options.yml')
-#     options = get_options(defaults_fname)
-#     if args.options:
-#         user_options = get_options(args.options)
-#         for section_name, section in user_options.items():
-#             if isinstance(section, dict):
-#                 options[section_name].update(section)
-#             else:
-#                 options[section_name] = section
-#
-#     options['response']['interactive'] = args.interactive
-#
-#     _, output_msg = calculate_response(args.input, output=args.output, arc_fname=args.arc, pixtable_fname=args.pixtable,
-#                                        bias_fname=args.bias, flat_fname=args.flat,
-#                                        output_dir=args.dir, order=args.order, smoothing=args.smooth,
-#                                        interactive=args.int, dispaxis=args.axis,
-#                                        order_wl=args.order_wl, order_bg=5, rectify_options=options['rectify'])
-#     print(output_msg)
