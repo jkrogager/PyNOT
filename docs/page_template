@@ -1,0 +1,103 @@
+<!DOCTYPE HTML>
+<!--
+	Editorial by HTML5 UP
+	html5up.net | @ajlkn
+	Free for personal and commercial use under the CCA 3.0 license (html5up.net/license)
+-->
+<html>
+	<head>
+		<title>{title}</title>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+		<link rel="stylesheet" href="{root_path}assets/css/main.css" />
+	</head>
+	<body class="is-preload">
+
+		<!-- Wrapper -->
+			<div id="wrapper">
+
+				<!-- Main -->
+					<div id="main">
+						<div class="inner">
+
+							<!-- Header -->
+								<header id="header">
+									<a href="{root_path}index.html" class="logo"><strong>PyNOT</strong> / data processing pipeline</a>
+									<ul class="icons">
+										<li><a href="https://jkrogager.github.io/"><span class="label">About Me</span></a></li>
+										<li><a href="https://github.com/jkrogager/pynot" class="icon brands fa-github"><span class="label">Github</span></a></li>
+									</ul>
+								</header>
+
+							<!-- Content -->
+                                <section>
+{section}
+								</section>
+
+						</div>
+					</div>
+
+				<!-- Sidebar -->
+					<div id="sidebar">
+						<div class="inner">
+
+							<!-- Search
+								<section id="search" class="alt">
+									<form method="post" action="#">
+										<input type="text" name="query" id="query" placeholder="Search" />
+									</form>
+								</section>
+                             -->
+
+							<!-- Menu -->
+							<nav id="menu">
+								<header class="major">
+									<h2>PyNOT</h2>
+								</header>
+{sidebar}
+							</nav>
+
+							<!-- Section -->
+							<section>
+								<header class="major">
+									<h2>Get in touch</h2>
+								</header>
+								<div class="mini-posts">
+									<p>If you are having issues or find bugs in the code, please contact me. You can either contact me via GitHub or send an e-mail:</p>
+									<ul class="contact">
+										<li class="icon solid fa-envelope"><a href="#">krogager.jk@gmail.com</a></li>
+									</ul>
+									<article>
+										<p>For more information about me and my research, visit my homepage:</p>
+									</article>
+								</div>
+								<ul class="actions">
+									<li><a href="https://jkrogager.github.io/" class="button">jkrogager.github.io</a></li>
+								</ul>
+							</section>
+
+							<!-- Footer -->
+							<footer id="footer">
+								<p class="copyright">&copy; Jens-Kristian Krogager (2021) &mdash; MIT license<br>
+									Design: <a href="https://html5up.net">HTML5 UP</a>.</p>
+							</footer>
+
+						</div>
+					</div>
+
+			</div>
+
+		<!-- Scripts -->
+			<script src="{root_path}assets/js/jquery.min.js"></script>
+			<script src="{root_path}assets/js/browser.min.js"></script>
+			<script src="{root_path}assets/js/breakpoints.min.js"></script>
+			<script src="{root_path}assets/js/util.js"></script>
+			<script src="{root_path}assets/js/main.js"></script>
+
+			<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+			<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3.0.1/es5/tex-mml-chtml.js"></script>
+
+
+	</body>
+</html>
+

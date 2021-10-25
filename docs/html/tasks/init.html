@@ -1,0 +1,192 @@
+<!DOCTYPE HTML>
+<!--
+	Editorial by HTML5 UP
+	html5up.net | @ajlkn
+	Free for personal and commercial use under the CCA 3.0 license (html5up.net/license)
+-->
+<html>
+	<head>
+		<title>PyNOT : init</title>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+		<link rel="stylesheet" href="../assets/css/main.css" />
+	</head>
+	<body class="is-preload">
+
+		<!-- Wrapper -->
+			<div id="wrapper">
+
+				<!-- Main -->
+					<div id="main">
+						<div class="inner">
+
+							<!-- Header -->
+								<header id="header">
+									<a href="../index.html" class="logo"><strong>PyNOT</strong> / data processing pipeline</a>
+									<ul class="icons">
+										<li><a href="https://jkrogager.github.io/"><span class="label">About Me</span></a></li>
+										<li><a href="https://github.com/jkrogager/pynot" class="icon brands fa-github"><span class="label">Github</span></a></li>
+									</ul>
+								</header>
+
+							<!-- Content -->
+                                <section>
+
+									<header class="main">
+										<h1>PyNOT : init</h1>
+									</header>
+
+									<p>
+										This task creates the file classification table and initiates the default parameter file for either the spectroscopic or photometric  pipeline. The task takes two positional arguments <code>mode</code> (either spex or phot) and <code>path</code> which points to the directory holding the raw data files to be processed.
+
+										<ul class="subtasklist">
+										<li> <a href="#classification"> File classification</a> </li>
+										<li> <a href="#options"> Default options</a> </li>
+										<li> <a href="#summary"> Overview of parameters</a> </li>
+									  </ul>
+									</p>
+
+									<hr class="major" />
+
+									<h2 id="classification">File classification</h2>
+
+									<p>
+										The classification task analyzes each image header and assigns an image type based on a set of pre-defined rules. The files are then sorted alphabetically for each type and saved as a PyNOT File Classification table (pfc). The filename is by default 'dataset.pfc'.
+									</p>
+									<p>
+										The file classification table is a plain text file, and can be edited for fast and flexible adjustments to the pipeline. For instance, any file that should be ignored by the pipeline can simply be commented out (by use of the '#' symbol). The file can also be used to create sublists for running individual tasks. One example would be to copy the full PFC table to a new file called 'bias.list' and remove all files that are not bias files. This list of bias images can then be passed to the task <code>pynot bias</code>.
+									</p>
+
+									<h2 id="options">Default options</h2>
+
+									<p>
+										The default options are generated based on the first argument: either 'spex'/'spec' or 'phot'. The filename of the PFC file created by the subtask above is inserted to the options file for easy execution of the pipeline afterwards.
+										The options file is a YAML file and is sensitive to the indenting. Any changes to parameters should therefore maintain the same indent structure, otherwise the pipeline might not function as intended.
+									</p>
+									<p class="note">
+										Note: An overview of the options for individual tasks can be shown by running the command line help function:
+										<br>
+										<code>pynot init -h</code> will show the available parameters for the <code>init</code> task.
+									</p>
+
+
+									<h2 id="summary"> Overview of parameters</h2>
+
+									<dl>
+										<dt>mode  &nbsp;&nbsp;<span style="font-size:smaller">[mandatory]</span></dt>
+												<dd>Create parameter file for spectroscopy or imaging? {spec, spex or phot}</dd>
+									  <dt>path  &nbsp;&nbsp;<span style="font-size:smaller">[mandatory]</span></dt>
+												<dd>Path (or paths) to raw ALFOSC data to be classified</dd>
+									  <dt>pars: options.yml</dt>
+												<dd>Filename of parameter file  (default: options.yml)</dd>
+									  <dt>output: dataset.pfc</dt>
+												<dd>Filename of file classification table (*.pfc) (default: dataset.pfc)</dd>
+									  <dt>silent: True</dt>
+												<dd>Minimze the output to terminal (default: True)</dd>
+									</dl>
+
+								</section>
+
+						</div>
+					</div>
+
+				<!-- Sidebar -->
+					<div id="sidebar">
+						<div class="inner">
+
+							<!-- Search
+								<section id="search" class="alt">
+									<form method="post" action="#">
+										<input type="text" name="query" id="query" placeholder="Search" />
+									</form>
+								</section>
+                             -->
+
+							<!-- Menu -->
+							<nav id="menu">
+								<header class="major">
+									<h2>PyNOT</h2>
+								</header>
+                                <ul>
+                                    <li><a href="../index.html">Homepage</a></li>
+                                    <li><a href="../install.html">Installation</a></li>
+                                    <li><a href="../tasks/init.html">PyNOT : init</a></li>
+                                    <li>
+                                    <span class="opener">SPEX: tasks</span>
+                                    <ul>
+                                        <li><a href="../tasks/spex/bias.html">bias</a></li>
+                                        <li><a href="../tasks/spex/corr.html">corr</a></li>
+                                        <li><a href="../tasks/spex/crr.html">crr</a></li>
+                                        <li><a href="../tasks/spex/extract.html">extract</a></li>
+                                        <li><a href="../tasks/spex/flux1.html">flux1</a></li>
+                                        <li><a href="../tasks/spex/flux2.html">flux2</a></li>
+                                        <li><a href="../tasks/spex/identify.html">identify</a></li>
+                                        <li><a href="../tasks/spex/response.html">response</a></li>
+                                        <li><a href="../tasks/spex/sflat.html">sflat</a></li>
+                                        <li><a href="../tasks/spex/skysub.html">skysub</a></li>
+                                        <li><a href="../tasks/spex/wave1d.html">wave1d</a></li>
+                                        <li><a href="../tasks/spex/wave2d.html">wave2d</a></li>
+                                    </ul>
+                                    </li>
+                                    <li>
+                                    <span class="opener">PHOT: tasks</span>
+                                    <ul>
+                                        <li><a href="../tasks/phot/autozp.html">autozp</a></li>
+                                        <li><a href="../tasks/phot/bias.html">bias</a></li>
+                                        <li><a href="../tasks/phot/corr.html">corr</a></li>
+                                        <li><a href="../tasks/phot/findnew.html">findnew</a></li>
+                                        <li><a href="../tasks/phot/fringe.html">fringe</a></li>
+                                        <li><a href="../tasks/phot/imcombine.html">imcombine</a></li>
+                                        <li><a href="../tasks/phot/imflat.html">imflat</a></li>
+                                        <li><a href="../tasks/phot/imtrim.html">imtrim</a></li>
+                                        <li><a href="../tasks/phot/sep.html">sep</a></li>
+                                        <li><a href="../tasks/phot/wcs.html">wcs</a></li>
+                                    </ul>
+                                    </li>
+                                </ul>
+							</nav>
+
+							<!-- Section -->
+							<section>
+								<header class="major">
+									<h2>Get in touch</h2>
+								</header>
+								<div class="mini-posts">
+									<p>If you are having issues or find bugs in the code, please contact me. You can either contact me via GitHub or send an e-mail:</p>
+									<ul class="contact">
+										<li class="icon solid fa-envelope"><a href="#">krogager.jk@gmail.com</a></li>
+									</ul>
+									<article>
+										<p>For more information about me and my research, visit my homepage:</p>
+									</article>
+								</div>
+								<ul class="actions">
+									<li><a href="https://jkrogager.github.io/" class="button">jkrogager.github.io</a></li>
+								</ul>
+							</section>
+
+							<!-- Footer -->
+							<footer id="footer">
+								<p class="copyright">&copy; Jens-Kristian Krogager (2021) &mdash; MIT license<br>
+									Design: <a href="https://html5up.net">HTML5 UP</a>.</p>
+							</footer>
+
+						</div>
+					</div>
+
+			</div>
+
+		<!-- Scripts -->
+			<script src="../assets/js/jquery.min.js"></script>
+			<script src="../assets/js/browser.min.js"></script>
+			<script src="../assets/js/breakpoints.min.js"></script>
+			<script src="../assets/js/util.js"></script>
+			<script src="../assets/js/main.js"></script>
+
+			<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+			<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3.0.1/es5/tex-mml-chtml.js"></script>
+
+
+	</body>
+</html>
+
