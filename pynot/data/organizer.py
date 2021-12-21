@@ -7,7 +7,8 @@ import datetime
 from glob import glob
 from astropy.io import fits
 
-from pynot.alfosc import get_binning_from_hdr, get_filter, get_header, lookup_std_star
+from pynot.alfosc import get_binning_from_hdr, get_filter, get_header
+from pynot.response import lookup_std_star
 import pynot.alfosc as instrument
 
 # -- use os.path
