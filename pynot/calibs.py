@@ -177,7 +177,7 @@ def combine_flat_frames(raw_frames, output, mbias='', mode='spec', dispaxis=2,
     for fname in raw_frames:
         hdr = alfosc.get_header(fname)
         flat = pf.getdata(fname)
-        flat, hdr = trim_overscan(flat, hdr, overscan)
+        flat, hdr = trim_overscan(flat, hdr, overscan, mode=mode)
         msg.append("          - Trimming overscan of Flat images: %i!" % overscan)
 
         if mode == 'spec':

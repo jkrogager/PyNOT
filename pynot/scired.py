@@ -160,7 +160,7 @@ def trim_filter_edge(fname, x1, x2, y1, y2, output='', output_dir=''):
     return output_msg
 
 
-def fit_background_image(data, order_bg=3, xmin=0, xmax=None, kappa=10, fwhm_scale=3):
+def fit_background_image(data, order_bg=3, xmin=0, xmax=None, kappa=5, fwhm_scale=1):
     """
     Fit background in 2D spectral data. The background is fitted along the spatial rows by a Chebyshev polynomium.
 
@@ -194,7 +194,7 @@ def fit_background_image(data, order_bg=3, xmin=0, xmax=None, kappa=10, fwhm_sca
         xmax = len(x) + xmax
     SPSF = np.nanmedian(data, 0)
     noise = 1.5*mad(SPSF)
-    peaks, properties = signal.find_peaks(SPSF, prominence=kappa*noise, width=3)
+    peaks, properties = signal.find_peaks(SPSF, prominence=10*noise, width=3)
     mask = (x >= xmin) & (x <= xmax)
     for num, center in enumerate(peaks):
         width = properties['widths'][num]
@@ -208,7 +208,7 @@ def fit_background_image(data, order_bg=3, xmin=0, xmax=None, kappa=10, fwhm_sca
         # Median filter the data to remove outliers:
         med_row = median_filter(row, 15)
         noise = mad(row)*1.4826
-        this_mask = mask * (np.abs(row - med_row) < 10*noise)
+        this_mask = mask * (np.abs(row - med_row) < kappa*noise)
         if np.sum(this_mask) > order_bg+1:
             bg_model = Chebyshev.fit(x[this_mask], row[this_mask], order_bg, domain=[x.min(), x.max()])
             bg2D[i] = bg_model(x)
@@ -284,9 +284,9 @@ def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, kappa=
         noise = mad(data)
         v1 = np.median(data) - 5*noise
         v2 = np.median(data) + 5*noise
-        ax1_2d.imshow(data, origin='lower', vmin=v1, vmax=v2)
+        ax1_2d.imshow(data, origin='lower', vmin=v1, vmax=v2, aspect='auto')
         ax1_2d.set_title("Input Image")
-        ax2_2d.imshow(data-bg2D, origin='lower', vmin=v1, vmax=v2)
+        ax2_2d.imshow(data-bg2D, origin='lower', vmin=v1, vmax=v2, aspect='auto')
         ax2_2d.set_title("Background Subtracted")
         ax1_2d.set_xlabel("Spatial Axis  [pixels]")
         ax2_2d.set_xlabel("Spatial Axis  [pixels]")

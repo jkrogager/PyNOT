@@ -62,8 +62,8 @@ extract:
   width_scale:  2            # If model_name is 'tophat', this scales the width in terms of FWHM below and above the centroid
   xmin:         0            # Exclude pixels above this index for the fitting and object identification [dispersion axis]
   xmax:         null         # Exclude pixels below this index for the fitting and object identification [dispersion axis]
-  ymin:         5            # Exclude pixels above this index for the fitting and object identification [spatial axis]
-  ymax:         -5           # Exclude pixels below this index for the fitting and object identification [spatial axis]
+  ymin:         0            # Exclude pixels above this index for the fitting and object identification [spatial axis]
+  ymax:         null           # Exclude pixels below this index for the fitting and object identification [spatial axis]
   order_center: 3            # Polynomial order used to fit the centroid along the spectral trace
   order_width:  0            # Polynomial order used to fit the width of the spectral trace
   w_cen:        15           # Kernel width of median filter for trace position
