@@ -110,3 +110,10 @@ def get_filter(hdr):
 def get_grism(hdr):
     grism_name = grism_translate(hdr['ALGRNM'])
     return grism_name
+
+def get_slit(hdr):
+    return hdr['ALAPRTNM']
+
+def get_airmass(hdr):
+    """Return the average airmass at mid-exposure"""
+    return hdr['AIRMASS']

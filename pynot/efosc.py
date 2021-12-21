@@ -1,4 +1,118 @@
 
+"""
+Instrument definitions for NTT/EFOSC2
+"""
+
+import numpy as np
+from os.path import dirname, abspath
+from astropy.io import fits
+from astropy.table import Table
+
+
+# Define header keyword to use as object name
+# OBJECT is not always reliable, TCS target name is more robust
+target_keyword = 'OBJECT'
+# or
+# target_keyword = 'ESO OBS TARG NAME'
+
+# path = '/Users/krogager/coding/PyNOT'
+path = dirname(abspath(__file__))
+
+# path to extinction table:
+extinction_fname = path + '/calib/lasilla.ext'
+
+# List grisms, slits and filters, and define filter translations if needed.
+
+grism_translate = {'Gr#3': 'grism3',
+                   'Gr#4': 'grism4',
+                   'Gr#5': 'grism5',
+                   'Gr#6': 'grism6',
+                   'Gr#7': 'grism7',
+                   'Gr#8': 'grism8',
+                   'Gr#10': 'grism10',
+                   'Gr#11': 'grism11',
+                   'Gr#12': 'grism12',
+                   'Gr#14': 'grism14',
+                   'Gr#15': 'grism15',
+                   'Gr#16': 'grism16',
+                   'Gr#17': 'grism17',
+                   'Gr#18': 'grism18',
+                   'Gr#19': 'grism19',
+                   'Gr#20': 'grism20'}
+
+slit_translate = {'slit#1.0': 'slit_1.0',
+                  'slit#1.2': 'slit_1.2',
+                  'slit#1.5': 'slit_1.5',
+                  'slit#2.0': 'slit_2.0',
+                  'slit#0.7': 'slit_0.7',
+                  'slit#0.5': 'slit_0.5',
+                  'slit#5.0': 'slit_5.0',
+                  }
+
+
+
+def get_header(fname):
+    with fits.open(fname) as hdu:
+        primhdr = hdu[0].header
+        if len(hdu) > 1:
+            imghdr = hdu[1].header
+            primhdr.update(imghdr)
+    if primhdr['INSTRUME'] != 'EFOSC':
+        print("[WARNING] - FITS file not originating from NTT/EFOSC!")
+    return primhdr
+
+
+def create_pixel_array(hdr, dispaxis):
+    """Load reference array from header using CRVAL, CDELT, CRPIX along dispersion axis"""
+    if dispaxis not in [1, 2]:
+        raise ValueError("Dispersion Axis must be 1 (X-axis) or 2 (Y-axis)!")
+    p = hdr['CRVAL%i' % dispaxis]
+    s = hdr['CDELT%i' % dispaxis]
+    r = hdr['CRPIX%i' % dispaxis]
+    N = hdr['NAXIS%i' % dispaxis]
+    # -- If data are from NOT then check for binning and rescale CRPIX:
+    pix_array = p + s*(np.arange(N) - (r - 1))
+    return pix_array
+
+
+def get_binning(fname):
+    hdr = fits.getheader(fname)
+    ccd_setup = get_binning_from_hdr(hdr)
+    return ccd_setup
+
+
+def get_binning_from_hdr(hdr):
+    binx = hdr['ESO DET WIN1 BINX']
+    biny = hdr['ESO DET WIN1 BINY']
+    read = hdr['ESO DET READ SPEED'].strip()
+    ccd_setup = "%ix%i_%i" % (binx, biny, read)
+    return ccd_setup
+
+
+def get_filter(hdr):
+    filter_name = hdr['ESO INS FILT1 NAME']
+    if filter_name == 'Free':
+        return "Open"
+    return filter_name
+
+def get_grism(hdr):
+    grism_name = grism_translate(hdr['ESO INS GRIS1 NAME'])
+    return grism_name
+
+def get_slit(hdr):
+    # HIERARCH ESO INS SLIT1 NAME    = 'slit#1.2' / Slit common name.
+    slit_name = slit_translate(hdr['ESO INS SLIT1 NAME'])
+    return slit_name
+
+def get_airmass(hdr):
+    """Return the average airmass at mid-exposure"""
+    airm_start = hdr['ESO TEL AIRM START']
+    airm_end = hdr['ESO TEL AIRM END']
+    airmass = 0.5*(airm_start + airm_end)
+    return airmass
+
+
+
 #Example header:
 # SIMPLE  =                    T / Written by IDL:  Sat Mar 17 04:23:05 2012
 # BITPIX  =                  -32 / Bits per pixel
