@@ -32,7 +32,7 @@ import warnings
 
 from pynot.functions import fix_nans, mad, tophat, NN_moffat, NN_gaussian
 from pynot.welcome import WelcomeMessage
-
+from pynot.fitsio import save_fits_spectrum, save_fitstable_spectrum
 
 code_dir = os.path.dirname(os.path.abspath(__file__))
 v_file = os.path.join(code_dir, 'VERSION')
@@ -48,72 +48,6 @@ def run_gui(input_fname, output_fname, app=None, **ext_kwargs):
     gui.show()
     app.exit(app.exec_())
     del gui
-
-
-def save_fits_spectrum(fname, wl, flux, err, hdr, bg=None, aper=None):
-    """Write spectrum to a FITS file with 3 extensions: FLUX, ERR and SKY"""
-    # Check if wavelength array increases linearly (to less than 1%):
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-        delta_log_wl = np.diff(np.log10(wl))
-        delta_wl = np.diff(wl)
-
-    if (np.abs(np.diff(delta_wl)) < delta_wl[0]/100.).all():
-        # linear wavelength solution: OK
-        hdr['CRVAL1'] = np.min(wl)
-        hdr['CDELT1'] = delta_wl[0]
-        hdr['CTYPE1'] = 'WAVE-LIN'
-    elif (np.abs(np.diff(delta_log_wl)) < delta_log_wl[0]/100.).all():
-        # logarithmic wavelength solution: OK
-        hdr['CRVAL1'] = np.log10(np.min(wl))
-        hdr['CDELT1'] = delta_wl[0]
-        hdr['CTYPE1'] = 'WAVE-LOG'
-    else:
-        return False, "Improper wavelength solution: wavelength should increase linearly or logarithmically!"
-
-    hdr['CRPIX1'] = 1
-    hdr['NAXIS1'] = len(wl)
-    hdr['NAXIS'] = 1
-
-    hdu1 = fits.PrimaryHDU(data=flux, header=hdr)
-    hdu1.name = 'FLUX'
-    hdu2 = fits.ImageHDU(data=err, header=hdr, name='ERR')
-    hdu = fits.HDUList([hdu1, hdu2])
-    if bg is not None:
-        hdu3 = fits.ImageHDU(data=bg, header=hdr, name='SKY')
-        hdu.append(hdu3)
-    if aper is not None:
-        aper_hdr = fits.Header()
-        aper_hdr['AUTHOR'] = 'PyNOT'
-        aper_hdr['COMMENT'] = '2D Extraction Aperture'
-        aper_hdu = fits.ImageHDU(data=aper, header=aper_hdr, name='APER')
-        hdu.append(aper_hdu)
-    hdu.writeto(fname, output_verify='silentfix', overwrite=True)
-    return True, "File saved successfully"
-
-
-def save_fitstable_spectrum(fname, wl, flux, err, hdr, bg=None, aper=None):
-    """Write spectrum to a FITS Table with 4 columns: Wave, FLUX, ERR and SKY"""
-    hdu = fits.HDUList()
-    hdr['COMMENT'] = 'PyNOT extracted spectrum'
-    hdr['COMMENT'] = 'Each spectrum in its own extension'
-    if bg is None:
-        bg = np.zeros_like(flux)
-    col_wl = fits.Column(name='WAVE', array=wl, format='D')
-    col_flux = fits.Column(name='FLUX', array=flux, format='D')
-    col_err = fits.Column(name='ERR', array=err, format='D')
-    col_sky = fits.Column(name='SKY', array=bg, format='D')
-    tab = fits.BinTableHDU.from_columns([col_wl, col_flux, col_err, col_sky], header=hdr)
-    tab.name = 'DATA'
-    hdu.append(tab)
-    if aper is not None:
-        aper_hdr = fits.Header()
-        aper_hdr['AUTHOR'] = 'PyNOT'
-        aper_hdr['COMMENT'] = '2D Extraction Aperture'
-        aper_hdu = fits.ImageHDU(data=aper, header=aper_hdr, name='APER')
-        hdu.append(aper_hdu)
-    hdu.writeto(fname, overwrite=True, output_verify='silentfix')
-    return True, "File saved successfully"
 
 
 def save_ascii_spectrum(fname, wl, flux, err, hdr, bg=None):
