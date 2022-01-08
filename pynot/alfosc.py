@@ -1,11 +1,14 @@
+# pynot-instrument-module
 """
 Instrument definitions for NOT/ALFOSC
 """
 import numpy as np
+import os
 from os.path import dirname, abspath
 from astropy.io import fits
 from astropy.table import Table
 
+name = 'alfosc'
 
 # Define header keyword to use as object name
 # OBJECT is not always reliable, TCS target name is more robust
@@ -14,8 +17,15 @@ target_keyword = 'TCSTGT'
 # path = '/Users/krogager/coding/PyNOT'
 path = dirname(abspath(__file__))
 
+# path to classification rules:
+rulefile = os.path.join(path, 'data/alfosc.rules')
+
 # path to extinction table:
-extinction_fname = path + '/calib/lapalma.ext'
+extinction_fname = os.path.join(path, 'calib/lapalma.ext')
+
+# path to filter names:
+filter_table_fname = os.path.join(path, 'calib/alfosc_filters.dat')
+
 
 grism_translate = {'Grism_#3': 'grism3',
                    'Grism_#4': 'grism4',
@@ -44,7 +54,7 @@ slits = ['Ech_0.7', 'Ech_0.8', 'Ech_1.0', 'Ech_1.2', 'Ech_1.6',
          'VertOff_1.0', 'VertOff_1.3', 'VertOff_1.9', 'VertOff_8.8']
 
 
-filter_table = Table.read(path + '/calib/alfosc_filters.dat', format='ascii.fixed_width')
+filter_table = Table.read(filter_table_fname, format='ascii.fixed_width')
 filter_translate = {long: short for long, short in filter_table['name', 'short_name']}
 
 
@@ -57,6 +67,21 @@ def get_header(fname):
     if primhdr['INSTRUME'] != 'ALFOSC_FASU':
         print("[WARNING] - FITS file not originating from NOT/ALFOSC!")
     return primhdr
+
+
+# Function for data/io.py
+def get_header_info(fname):
+    primhdr = fits.getheader(fname)
+    imhdr = fits.getheader(fname, 1)
+    if primhdr['INSTRUME'] != 'ALFOSC_FASU':
+        raise ValueError("[WARNING] - FITS file not originating from NOT/ALFOSC!")
+    object = get_object(primhdr)
+    exptime = "%.1f" % get_exptime(primhdr)
+    grism = get_grism(primhdr)
+    slit = get_slit(primhdr)
+    filter = get_filter(primhdr)
+    shape = "%ix%i" % (imhdr['NAXIS1'], imhdr['NAXIS2'])
+    return object, exptime, grism, slit, filter, shape
 
 
 def create_pixel_array(hdr, dispaxis):
@@ -117,3 +142,18 @@ def get_slit(hdr):
 def get_airmass(hdr):
     """Return the average airmass at mid-exposure"""
     return hdr['AIRMASS']
+
+def get_exptime(hdr):
+    return hdr['EXPTIME']
+
+def get_object(hdr):
+    return hdr['OBJECT']
+
+def get_target_name(hdr):
+    return hdr['TCSTGT']
+
+def get_rotpos(hdr):
+    return hdr['ROTPOS']
+
+def get_date(hdr):
+    return hdr['DATE-OBS']

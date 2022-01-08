@@ -143,6 +143,7 @@ def initialize(path, mode, pfc_fname='dataset.pfc', pars_fname='options.yml', ve
 
 
 def main():
+
     parser = ArgumentParser(prog='pynot')
     tasks = parser.add_subparsers(dest='task')
 
@@ -476,6 +477,25 @@ def main():
     parser_findnew.add_argument('-z', "--zp", type=float,
                                 help="Magnitude zero point in case the source catalog has not been flux calibrated")
 
+    parser_setup = tasks.add_parser('setup', formatter_class=set_help_width(30),
+                                    help="Install new instrument configuration")
+    parser_setup.add_argument('module', type=str,
+                              help='Filename of the instrument configuration module (*.py)')
+    parser_setup.add_argument('-f', '--filters', type=str, default='',
+                              help='Filename of the instrument filter definitions (must have columns: name and short_name)')
+    parser_setup.add_argument('-r', '--rules', type=str, default='',
+                              help='Filename of the classification ruleset')
+    parser_setup.add_argument('--ext', type=str, default='',
+                              help='Filename of the observatory extinction data (lapalma, lasilla, paranal, or file path)')
+    parser_setup.add_argument('-u', '--use', action="store_true",
+                              help='Switch immediately to use the newly installed instrument')
+
+    parser_use = tasks.add_parser('use', formatter_class=set_help_width(30),
+                                  help="Set current instrument")
+    parser_use.add_argument('name', type=str, default='', nargs='?',
+                            help='Name of the instrument to use (see --list)')
+    parser_use.add_argument('--list', action="store_true",
+                            help='Display a list of the currently installed instruments')
 
     args = parser.parse_args()
 
@@ -775,6 +795,25 @@ def main():
                                             loc_xrt=(ra_xrt, dec_xrt, radius_xrt),
                                             mag_lim=args.limit,
                                             zp=args.zp)
+
+    elif task == 'setup':
+        print("\nInstalling new instrument settings...")
+        from pynot.insconfig import setup_instrument
+        log = setup_instrument(args)
+
+    elif task == 'use':
+        from pynot.insconfig import get_installed_instruments, change_instrument
+
+        all_instruments, inst_list = get_installed_instruments()
+        if args.list:
+            print(inst_list)
+            return
+        else:
+            log = change_instrument(args.name, all_instruments)
+
+    else:
+        import pynot
+        print("Running PyNOT for instrument: %s\n" % pynot.instrument.name)
 
     if log:
         print(log)
