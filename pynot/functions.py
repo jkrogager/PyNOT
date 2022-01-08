@@ -1,3 +1,4 @@
+import astropy.units as u
 import numpy as np
 import yaml
 import os
@@ -250,27 +251,42 @@ def get_pixtab_parameters(pixtable_fname):
     return pars, found_all
 
 
-def air2vac(air):
-    # From Donald Morton 1991, ApJS 77,119
-    if type(air) == float or type(air) == int:
-        air = np.array(air)
-    air = np.array(air)
-    ij = (np.array(air) >= 2000)
-    out = np.array(air).copy()
-    sigma2 = (1.e4/air)**2
-    # fact = 1.0 + 6.4328e-5 + 2.94981e-2/(146.0 - sigma2) + 2.5540e-4/( 41.0 - sigma2)
-    fact = 1.0 + 6.4328e-5 + 2.94981e-2/(146.0 - sigma2) + 2.5540e-4/(41.0 - sigma2)
-    out[ij] = air[ij]*fact[ij]
-    return out
+def air2vac(wavelength, unit='AA'):
+    """
+    Implements the air to vacuum wavelength conversion described in eqn 65 of
+    Griesen 2006
 
+    wavelength : array or float
+        Input wavelength in air.
 
-def vac2air(vac):
-    # From Donald Morton 1991, ApJS 77,119
-    vac = np.array(vac)
-    ij = (np.array(vac) >= 2000)
-    air = np.array(vac).copy()
-    sigma2 = (1.e4/vac)**2
-    # fact = 1.0 + 6.4328e-5 + 2.94981e-2/(146.0 - sigma2) + 2.5540e-4/( 41.0 - sigma2)
-    fact = 1.0 + 6.4328e-5 + 2.94981e-2/(146.0 - sigma2) + 2.5540e-4/(41.0 - sigma2)
-    air[ij] = vac[ij]/fact[ij]
-    return air
+    unit : string   [default='AA']
+        Units of the input wavelengths, default is Angstrom (AA).
+
+    Returns
+    -------
+    The vacuum converted array of wavelength in the same units
+    """
+    wl = wavelength*u.Unit(unit)
+    wlum = wl.to(u.um).value
+    n_a = 1. + 1e-6*(287.6155 + 1.62887/wlum**2 + 0.01360/wlum**4)
+    return n_a * wavelength
+
+def vac2air(wavelength, unit='AA'):
+    """
+    Implements the air to vacuum wavelength conversion described in eqn 65 of
+    Griesen 2006
+
+    wavelength : array or float
+        Input wavelength in vacuum.
+
+    unit : string   [default='AA']
+        Units of the input wavelengths, default is Angstrom (AA).
+
+    Returns
+    -------
+    The air converted array of wavelength in the same units
+    """
+    wl = wavelength*u.Unit(unit)
+    wlum = wl.to(u.um).value
+    n_a = 1. + 1e-6*(287.6155 + 1.62887/wlum**2 + 0.01360/wlum**4)
+    return wavelength / n_a

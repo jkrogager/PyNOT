@@ -693,7 +693,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
         self.add_bg_btn.setShortcut("ctrl+B")
         self.add_bg_btn.clicked.connect(lambda x: self.set_state('bg1'))
 
-        self.remove_btn = QtWidgets.QPushButton("Delete Object")
+        self.remove_btn = QtWidgets.QPushButton("Remove Object/Background")
         self.remove_btn.setShortcut("ctrl+D")
         self.remove_btn.clicked.connect(lambda x: self.set_state('delete'))
         QtWidgets.QShortcut(QtGui.QKeySequence("Escape"), self, activated=self.clear_state)
