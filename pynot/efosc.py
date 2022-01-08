@@ -1,4 +1,4 @@
-
+# pynot-instrument-module
 """
 Instrument definitions for NTT/EFOSC2
 """
@@ -14,6 +14,8 @@ from astropy.table import Table
 target_keyword = 'OBJECT'
 # or
 # target_keyword = 'ESO OBS TARG NAME'
+
+name = 'efosc2'
 
 # path = '/Users/krogager/coding/PyNOT'
 path = dirname(abspath(__file__))
@@ -60,6 +62,21 @@ def get_header(fname):
     if primhdr['INSTRUME'] != 'EFOSC':
         print("[WARNING] - FITS file not originating from NTT/EFOSC!")
     return primhdr
+
+
+# Function for data/io.py
+def get_header_info(fname):
+    primhdr = fits.getheader(fname)
+    imhdr = fits.getheader(fname, 1)
+    if primhdr['INSTRUME'] != 'ALFOSC_FASU':
+        raise ValueError("[WARNING] - FITS file not originating from NOT/ALFOSC!")
+    object = primhdr['OBJECT']
+    exptime = "%.1f" % primhdr['EXPTIME']
+    grism = primhdr['ALGRNM']
+    slit = primhdr['ALAPRTNM']
+    filter = get_filter(primhdr)
+    shape = "%ix%i" % (imhdr['NAXIS1'], imhdr['NAXIS2'])
+    return object, exptime, grism, slit, filter, shape
 
 
 def create_pixel_array(hdr, dispaxis):
@@ -111,6 +128,8 @@ def get_airmass(hdr):
     airmass = 0.5*(airm_start + airm_end)
     return airmass
 
+def get_date(hdr):
+    return hdr['DATE']
 
 
 #Example header:

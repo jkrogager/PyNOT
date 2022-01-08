@@ -7,7 +7,7 @@ import datetime
 from glob import glob
 from astropy.io import fits
 
-from pynot.alfosc import get_binning_from_hdr, get_filter, get_header
+from pynot.alfosc import get_binning_from_hdr, get_header
 from pynot.response import lookup_std_star
 import pynot.alfosc as instrument
 
@@ -67,8 +67,8 @@ def match_date(files, date_mjd):
     """
     matches = list()
     for fname in files:
-        hdr = fits.getheader(fname)
-        mjd = get_mjd(hdr['DATE-OBS'])
+        hdr = get_header(fname)
+        mjd = get_mjd(instrument.get_date(hdr))
         if int(mjd) == int(date_mjd):
             matches.append(fname)
 
@@ -83,8 +83,8 @@ def group_calibs_by_date(file_list, lower=0.01, upper=0.99):
     n = np.zeros(len(file_list), dtype=bool)
     N = len(file_list)
     for i, fname in enumerate(file_list):
-        hdr = fits.getheader(fname)
-        mjd[i] = get_mjd(hdr['DATE-OBS'])
+        hdr = get_header(fname)
+        mjd[i] = get_mjd(instrument.get_date(hdr))
 
     while sum(n) < N:
         m0 = mjd[~n][0]
@@ -130,7 +130,7 @@ def classify_file(fname, rules):
         return [], msg
 
     fileroot = fname.split('/')[-1]
-    if fileroot != h['FILENAME']:
+    if fileroot != h.get('FILENAME'):
         msg.append("Filename does not match FILENAME in header: %s" % fname)
         return [], msg
 
@@ -353,7 +353,7 @@ def write_report(collection, output=''):
 
 
 class RawImage(object):
-    def __init__(self, fname, filetype=None):
+    def __init__(self, fname, filetype=None, obs_mode=):
         self.filename = fname
         self.data = fits.getdata(fname)
         self.shape = self.data.shape
@@ -386,25 +386,27 @@ class RawImage(object):
             self.CD = np.array([[cd11, cd21],
                                 [cd12, cd22]])
 
-        self.filter = get_filter(self.header)
-        self.slit = self.header['ALAPRTNM']
-        self.grism = self.header['ALGRNM']
+        self.filter = instrument.get_filter(self.header)
+        self.slit = instrument.get_slit(self.header)
+        self.grism = instrument.get_grism(self.header)
         if 'Vert' in self.slit:
             self.dispaxis = 1
         elif 'Slit' in self.slit:
             self.dispaxis = 2
+        else:
+            self.dispaxis = 2
 
-        self.exptime = self.header['EXPTIME']
-        self.object = self.header['OBJECT']
-        self.target_name = self.header['TCSTGT']
+        self.exptime = instrument.get_exptime(self.header)
+        self.object = instrument.get_object(self.header)
+        self.target_name = instrument.get_target_name(self.header)
         self.ra_deg = self.header['RA']
-        self.ra_hr = self.header['OBJRA']
+        self.ra_hr = self.ra_deg / 15.
         self.dec_deg = self.header['DEC']
 
-        self.rot_angle = self.header['ROTPOS']
-        self.airmass = self.header['AIRMASS']
-        self.date = self.header['DATE-OBS']
-        self.mjd = get_mjd(self.date)
+        self.rot_angle = instrument.get_rotpos(self.header)
+        self.airmass = instrument.get_airmass(self.header)
+        self.date = instrument.get_date(self.header)
+        self.mjd = instrument.get_mjd(self.date)
 
         self.CRVAL = np.array([self.header['CRVAL1'], self.header['CRVAL2']])
         self.CRPIX = np.array([self.header['CRPIX1'], self.header['CRPIX2']])
@@ -420,7 +422,7 @@ class RawImage(object):
         for fname in filelist:
             this_hdr = fits.getheader(fname, 0)
             criteria = list()
-            this_mjd = get_mjd(this_hdr['DATE-OBS'])
+            this_mjd = get_mjd(instrument.get_date(this_hdr))
             if date:
                 # Match files from same night, midnight ± 9hr
                 dt = self.mjd - this_mjd
@@ -438,17 +440,19 @@ class RawImage(object):
 
             if grism:
                 # Match files with same grism:
-                this_grism = this_hdr['ALGRNM']
+                # this_grism = this_hdr['ALGRNM']
+                this_grism = instrument.get_grism(this_hdr)
                 criteria.append(this_grism == self.grism)
 
             if slit:
                 # Match files with the same slit-width:
-                this_slit = this_hdr['ALAPRTNM']
+                # this_slit = this_hdr['ALAPRTNM']
+                this_slit = instrument.get_slit(this_hdr)
                 criteria.append(this_slit == self.slit)
 
             if filter:
                 # Match files with the same filter:
-                this_filter = get_filter(this_hdr)
+                this_filter = instrument.get_filter(this_hdr)
                 criteria.append(this_filter == self.filter)
 
             if np.all(criteria):

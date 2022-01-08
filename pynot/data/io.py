@@ -4,26 +4,12 @@
 Input / Output functions for the DataSet class.
 """
 
-from astropy.io import fits
 import numpy as np
 
-from pynot.data.organizer import TagDatabase, get_filter
+from pynot.data.organizer import TagDatabase
+import pynot.alfosc as instrument
 
 veclen = np.vectorize(len)
-
-
-def get_header_info(fname):
-    primhdr = fits.getheader(fname)
-    imhdr = fits.getheader(fname, 1)
-    if primhdr['INSTRUME'] != 'ALFOSC_FASU':
-        raise ValueError("[WARNING] - FITS file not originating from NOT/ALFOSC!")
-    object = primhdr['OBJECT']
-    exptime = "%.1f" % primhdr['EXPTIME']
-    grism = primhdr['ALGRNM']
-    slit = primhdr['ALAPRTNM']
-    filter = get_filter(primhdr)
-    shape = "%ix%i" % (imhdr['NAXIS1'], imhdr['NAXIS2'])
-    return object, exptime, grism, slit, filter, shape
 
 
 def save_database(database, output_fname):
@@ -34,7 +20,7 @@ def save_database(database, output_fname):
             output.write("# %s:\n" % filetype)
             file_list = list()
             for fname in sorted(files):
-                object, exptime, grism, slit, filter, shape = get_header_info(fname)
+                object, exptime, grism, slit, filter, shape = instrument.get_header_info(fname)
                 file_list.append((fname, filetype, object, exptime, grism, slit, filter, shape))
             file_list = np.array(file_list, dtype=str)
             header_names = ('FILENAME', 'TYPE', 'OBJECT', 'EXPTIME', 'GRISM', 'SLIT', 'FILTER', 'SHAPE')
