@@ -9,7 +9,7 @@ import sys
 import datetime
 import numpy as np
 
-from pynot import alfosc
+from pynot import instrument
 from pynot.data import io
 from pynot.data import organizer as do
 from pynot.phot import image_combine, create_fringe_image, source_detection, flux_calibration_sdss
@@ -151,7 +151,13 @@ def run_pipeline(options_fname, verbose=False):
         log.fatal_error()
         return
     object_filelist = database['IMG_OBJECT']
-    raw_image_list = list(map(do.RawImage, object_filelist))
+    try:
+        raw_image_list = list(map(do.RawImage, object_filelist))
+    except (ValueError, do.UnknownObservingMode, OSError, FileNotFoundError, TypeError, IndexError) as e:
+        log.error(str(e))
+        log.fatal_error()
+        return
+
 
     object_images = defaultdict(lambda: defaultdict(list))
     for sci_img in raw_image_list:
@@ -170,7 +176,7 @@ def run_pipeline(options_fname, verbose=False):
 
     flat_images = database['IMG_FLAT']
     for flat_file in flat_images:
-        this_filter = do.get_filter(fits.getheader(flat_file))
+        this_filter = instrument.get_filter(fits.getheader(flat_file))
         if this_filter in filter_list:
             flat_images_for_filter[this_filter].append(flat_file)
 
@@ -208,8 +214,7 @@ def run_pipeline(options_fname, verbose=False):
     master_flat = {}
     filter_edges = {}
     log.write("Running task: Imaging Flat Combination")
-    for filter_raw, flat_frames in flat_images_for_filter.items():
-        filter_name = alfosc.filter_translate[filter_raw]
+    for filter_name, flat_frames in flat_images_for_filter.items():
         log.write("Combining images for filter: %s" % filter_name)
         comb_flat_fname = os.path.join(output_base, 'FLAT_%s.fits' % filter_name)
         try:
@@ -218,7 +223,7 @@ def run_pipeline(options_fname, verbose=False):
                                               method=options['flat']['method'],
                                               overwrite=True, mode='img')
             log.commit(flat_msg)
-            master_flat[filter_raw] = comb_flat_fname
+            master_flat[filter_name] = comb_flat_fname
         except:
             log.error("Flat field combination failed for filter: %s" % filter_name)
             log.fatal_error()
@@ -231,7 +236,7 @@ def run_pipeline(options_fname, verbose=False):
             log.write("Detected edges on X-axis: %i  ;  %i" % (x1, x2))
             log.write("Detected edges on Y-axis: %i  ;  %i" % (y1, y2))
             log.add_linebreak()
-            filter_edges[filter_raw] = (x1, x2, y1, y2)
+            filter_edges[filter_name] = (x1, x2, y1, y2)
         except:
             log.error("Automatic edge detection failed!")
             log.fatal_error()
@@ -261,9 +266,8 @@ def run_pipeline(options_fname, verbose=False):
 
         log.write("Target Name: %s" % target_name, prefix=' [TARGET] - ')
 
-        for filter_raw, image_list in images_per_filter.items():
+        for filter_name, image_list in images_per_filter.items():
             # Create working directory:
-            filter_name = alfosc.filter_translate[filter_raw]
             output_dir = os.path.join(output_obj_base, filter_name)
             if not os.path.exists(output_dir):
                 os.mkdir(output_dir)
@@ -285,7 +289,7 @@ def run_pipeline(options_fname, verbose=False):
                 flat_fname = master_flat[sci_img.filter]
                 try:
                     _ = raw_correction(sci_img.data, sci_img.header, master_bias_fname, flat_fname,
-                                       output=corrected_fname, overwrite=True, overscan=50, mode='img')
+                                       output=corrected_fname, overwrite=True, mode='img')
                     log.commit("          - bias+flat ")
                     temp_images.append(corrected_fname)
                 except:
@@ -295,7 +299,7 @@ def run_pipeline(options_fname, verbose=False):
                     raise
 
                 # Trim edges:
-                image_region = filter_edges[filter_raw]
+                image_region = filter_edges[filter_name]
                 try:
                     _ = trim_filter_edge(corrected_fname, *image_region, output=trim_fname)
                     log.commit(" trim ")
@@ -329,8 +333,8 @@ def run_pipeline(options_fname, verbose=False):
             # Create Fringe image:
             if options['skysub']['defringe'] and N_images > 3:
                 log.write("Running task: Creating Average Fringe Image")
-                fringe_fname = os.path.join(output_dir, 'fringe_image.fits')
-                fringe_pdf_fname = os.path.join(output_dir, 'fringe_image.pdf')
+                fringe_fname = os.path.join(output_dir, 'fringe_image_%s.fits' % filter_name)
+                fringe_pdf_fname = os.path.join(output_dir, 'fringe_image_%s.pdf' % filter_name)
                 try:
                     msg = create_fringe_image(corrected_images, output=fringe_fname, fig_fname=fringe_pdf_fname,
                                               threshold=3)
@@ -358,9 +362,13 @@ def run_pipeline(options_fname, verbose=False):
                                            fringe_image=fringe_fname, **options['combine'])
                 log.commit(output_msg)
                 log.add_linebreak()
-            except:
+            except (IndexError, FileNotFoundError, OSError) as e:
                 log.error("Image combination failed!")
+                log.error(str(e))
                 log.fatal_error()
+                return
+            except:
+                log.datal_error()
                 print("Unexpected error:", sys.exc_info()[0])
                 raise
 

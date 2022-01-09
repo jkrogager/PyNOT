@@ -27,23 +27,34 @@ extinction_fname = os.path.join(path, 'calib/lapalma.ext')
 # path to filter names:
 filter_table_fname = os.path.join(path, 'calib/alfosc_filters.dat')
 
+# Automatically assign arc-line list:
+def auto_linelist(hdr):
+    if hdr['CLAMP2'] == 1 or hdr['CLAMP1'] == 1:
+        # Load HeNe linelist
+        linelist_fname = os.path.join(path, 'calib/HeNe_linelist.dat')
+    elif hdr['CLAMP4'] == 1:
+        # Load ThAr linelist:
+        linelist_fname = os.path.join(path, 'calib/ThAr_linelist.dat')
+    else:
+        linelist_fname = ''
+    return linelist_fname
 
-grism_translate = {'Grism_#3': 'grism3',
-                   'Grism_#4': 'grism4',
-                   'Grism_#5': 'grism5',
-                   'Grism_#6': 'grism6',
-                   'Grism_#7': 'grism7',
-                   'Grism_#8': 'grism8',
-                   'Grism_#10': 'grism10',
-                   'Grism_#11': 'grism11',
-                   'Grism_#12': 'grism12',
-                   'Grism_#14': 'grism14',
-                   'Grism_#15': 'grism15',
-                   'Grism_#16': 'grism16',
-                   'Grism_#17': 'grism17',
-                   'Grism_#18': 'grism18',
-                   'Grism_#19': 'grism19',
-                   'Grism_#20': 'grism20'}
+grism_translate = {'Grism_#3' : 'al-gr3',
+                   'Grism_#4' : 'al-gr4',
+                   'Grism_#5' : 'al-gr5',
+                   'Grism_#6' : 'al-gr6',
+                   'Grism_#7' : 'al-gr7',
+                   'Grism_#8' : 'al-gr8',
+                   'Grism_#10': 'al-gr10',
+                   'Grism_#11': 'al-gr11',
+                   'Grism_#12': 'al-gr12',
+                   'Grism_#14': 'al-gr14',
+                   'Grism_#15': 'al-gr15',
+                   'Grism_#16': 'al-gr16',
+                   'Grism_#17': 'al-gr17',
+                   'Grism_#18': 'al-gr18',
+                   'Grism_#19': 'al-gr19',
+                   'Grism_#20': 'al-gr20'}
 
 
 slits = ['Ech_0.7', 'Ech_0.8', 'Ech_1.0', 'Ech_1.2', 'Ech_1.6',
@@ -59,6 +70,7 @@ filter_table = Table.read(filter_table_fname, format='ascii.fixed_width')
 filter_translate = {long: short for long, short in filter_table['name', 'short_name']}
 
 
+# Helper functions
 def get_header(fname):
     with fits.open(fname) as hdu:
         primhdr = hdu[0].header
@@ -69,39 +81,42 @@ def get_header(fname):
         print("[WARNING] - FITS file not originating from NOT/ALFOSC!")
     return primhdr
 
-
-# Function for data/io.py
-def get_header_info(fname):
-    primhdr = fits.getheader(fname)
-    imhdr = fits.getheader(fname, 1)
-    if primhdr['INSTRUME'] != 'ALFOSC_FASU':
-        raise ValueError("[WARNING] - FITS file not originating from NOT/ALFOSC!")
-    object = get_object(primhdr)
-    exptime = "%.1f" % get_exptime(primhdr)
-    grism = get_grism(primhdr)
-    slit = get_slit(primhdr)
-    filter = get_filter(primhdr)
-    shape = "%ix%i" % (imhdr['NAXIS1'], imhdr['NAXIS2'])
-    return object, exptime, grism, slit, filter, shape
-
-
-def create_pixel_array(hdr, dispaxis):
+def create_pixel_array(hdr, axis):
     """Load reference array from header using CRVAL, CDELT, CRPIX along dispersion axis"""
-    if dispaxis not in [1, 2]:
-        raise ValueError("Dispersion Axis must be 1 (X-axis) or 2 (Y-axis)!")
-    p = hdr['CRVAL%i' % dispaxis]
-    s = hdr['CDELT%i' % dispaxis]
-    r = hdr['CRPIX%i' % dispaxis]
-    N = hdr['NAXIS%i' % dispaxis]
+    if axis not in [1, 2]:
+        raise ValueError("Axis must be 1 (X-axis) or 2 (Y-axis)!")
+    p = hdr['CRVAL%i' % axis]
+    s = hdr['CDELT%i' % axis]
+    r = hdr['CRPIX%i' % axis]
+    N = hdr['NAXIS%i' % axis]
     # -- If data are from NOT then check for binning and rescale CRPIX:
-    binning = 1
-    if 'DETXBIN' in hdr:
-        if dispaxis == 1:
-            binning = hdr['DETXBIN']
-        else:
-            binning = hdr['DETYBIN']
+
+    if axis == 1:
+        binning = hdr['DETXBIN']
+    else:
+        binning = hdr['DETYBIN']
     pix_array = p + s*(np.arange(N) - (r/binning - 1))
     return pix_array
+
+
+def overscan():
+    prescan_x = 50
+    overscan_x = 50
+    prescan_y = 0
+    overscan_y = 50
+    return (prescan_x, overscan_x, prescan_y, overscan_y)
+
+def get_detector_arrays(hdr):
+    det_window = hdr['DETWIN1']
+    xy_ranges = det_window.replace('[', '').replace(']', '')
+    xrange, yrange = [list(map(int, minmax.split(':'))) for minmax in xy_ranges.split(',')]
+    xmin, xmax = xrange
+    ymin, ymax = yrange
+    xbin = get_binx(hdr)
+    ybin = get_biny(hdr)
+    X = np.arange(xmin, xmax+1, xbin)
+    Y = np.arange(ymin, ymax+1, ybin)
+    return X, Y
 
 
 def get_binning(fname):
@@ -121,7 +136,21 @@ def get_binning_from_hdr(hdr):
     return ccd_setup
 
 
-def get_filter(hdr):
+def get_binx(hdr):
+    return hdr.get('DETXBIN')
+
+def get_biny(hdr):
+    return hdr.get('DETYBIN')
+
+def set_binx(hdr, val):
+    hdr['DETXBIN'] = val
+    return hdr
+
+def set_biny(hdr, val):
+    hdr['DETYBIN'] = val
+    return hdr
+
+def get_filter_raw(hdr):
     filter = 'Open'
     for keyword in ['FAFLTNM', 'FBFLTNM', 'ALFLTNM']:
         if 'open' in hdr[keyword].lower():
@@ -133,25 +162,33 @@ def get_filter(hdr):
         filter = filter.replace('  ', ' ')
     return filter
 
+def get_filter(hdr):
+    raw_filter_name = get_filter_raw(hdr)
+    return filter_translate.get(raw_filter_name)
+
 def get_grism(hdr):
-    grism_name = grism_translate(hdr['ALGRNM'])
-    return grism_name
+    raw_grism = hdr['ALGRNM']
+    if raw_grism in grism_translate:
+        return grism_translate[raw_grism]
+    else:
+        return 'Open'
 
 def get_slit(hdr):
-    return hdr['ALAPRTNM']
+    return hdr['ALAPRTNM'].lower()
 
 def get_airmass(hdr):
     """Return the average airmass at mid-exposure"""
     return hdr['AIRMASS']
 
 def get_exptime(hdr):
-    return hdr['EXPTIME']
+    # if EXPTIME is in the header, this should always be used!
+    return hdr.get('EXPTIME')
 
 def get_object(hdr):
-    return hdr['OBJECT']
+    return hdr.get('OBJECT')
 
 def get_target_name(hdr):
-    return hdr['TCSTGT']
+    return hdr.get('TCSTGT')
 
 def get_rotpos(hdr):
     return hdr['ROTPOS']
@@ -167,3 +204,27 @@ def get_mjd(hdr):
     dt = date - mjd_0
     mjd = dt.days + dt.seconds/(24*3600.)
     return mjd
+
+def get_observing_mode(hdr):
+    """Determine the observing mode (either spectroscopy or imaging)"""
+    if hdr['OBS_MODE'] == 'SPECTROSCOPY':
+        return 'SPECTROSCOPY'
+    elif hdr['OBS_MODE'] == 'IMAGING ':
+        return 'IMAGING'
+    else:
+        return None
+
+def get_dispaxis(hdr):
+    slit_name = get_slit(hdr)
+    if 'vert' in slit_name:
+        return 1
+    elif 'slit' in slit_name:
+        return 2
+    else:
+        return None
+
+def get_gain(hdr):
+    return hdr.get('GAIN')
+
+def get_readnoise(hdr):
+    return hdr.get('RDNOISE')

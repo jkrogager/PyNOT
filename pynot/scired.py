@@ -47,50 +47,54 @@ import warnings
 
 from astroscrappy import detect_cosmics
 
-from pynot.alfosc import create_pixel_array, get_header
+from pynot import instrument
 from pynot.functions import mad, get_version_number
 
 
 __version__ = get_version_number()
 
 
-def trim_overscan(img, hdr, overscan=50, mode='spec'):
+def trim_overscan(img, hdr):
     """Trim the overscan regions on either side in X and on top in Y"""
-    # Trim overscan
-    if mode == 'spec':
-        X = create_pixel_array(hdr, 1)
-        Y = create_pixel_array(hdr, 2)
-    else:
-        X = np.arange(img.shape[1]) + 1
-        Y = np.arange(img.shape[0]) + 1
-    img_region_x = (X >= overscan) & (X <= 2148-overscan)
+    if 'OVERSCAN' in hdr and hdr['OVERSCAN'] == 'TRIMMED':
+        # Overscan has already been trimmed:
+        return img, hdr
+
+    # Get overscan from instrument:
+    pre_x, over_x, pre_y, over_y = instrument.overscan()
+
+    # Get detector pixel arrays from instrument:
+    X, Y = instrument.get_detector_arrays(hdr)
+
+    img_region_x = (X >= pre_x) & (X <= 2148-over_x)
     xlimits = img_region_x.nonzero()[0]
-    img_region_y = (Y <= 2102-overscan)
+    img_region_y = (Y >= pre_y) & (Y <= 2102-over_y)
     ylimits = img_region_y.nonzero()[0]
     x1 = min(xlimits)
     x2 = max(xlimits)+1
     y1 = min(ylimits)
     y2 = max(ylimits)+1
     img_trim = img[y1:y2, x1:x2]
-    if mode == 'spec':
+    x_type = hdr['CTYPE1'].strip()
+    if 'RA' in x_type or 'DEC' in x_type:
+        # Header contains WCS information!
+        # Shift the reference pixel instead of the reference value
+        hdr['CRPIX1'] -= x1
+        hdr['CRPIX2'] -= y1
+    else:
         hdr['CRVAL1'] += x1
         hdr['CRVAL2'] += y1
 
-    else:
-        hdr['CRPIX1'] -= x1
-        hdr['CRPIX2'] -= y1
     hdr['NAXIS1'] = img_trim.shape[1]
     hdr['NAXIS2'] = img_trim.shape[0]
+    hdr['OVERSCAN'] = 'TRIMMED'
     return img_trim, hdr
 
 
-def detect_filter_edge(fname, overscan=50):
+def detect_filter_edge(fname):
     """Automatically detect edges in the normalized flat field"""
     # Get median profile along slit:
     img = fits.getdata(fname)
-    hdr = get_header(fname)
-    if 'OVERSCAN' in hdr:
-        overscan = 0
 
     # Using the normalized flat field, the values are between 0 and 1.
     # Convert the image to a binary mask image:
@@ -119,7 +123,7 @@ def detect_filter_edge(fname, overscan=50):
         lower = img[y1, x1]
         upper = img[y2, x2]
 
-    return (x1-overscan, x2-overscan, y1, y2)
+    return (x1, x2, y1, y2)
 
 
 def trim_filter_edge(fname, x1, x2, y1, y2, output='', output_dir=''):
@@ -263,7 +267,7 @@ def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, kappa=
     """
     msg = list()
     data = fits.getdata(data_fname)
-    hdr = get_header(data_fname)
+    hdr = instrument.get_header(data_fname)
     if 'DISPAXIS' in hdr:
         dispaxis = hdr['DISPAXIS']
 
@@ -307,11 +311,12 @@ def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, kappa=
         sky_hdr = fits.Header()
         sky_hdr['BUNIT'] = 'count'
         copy_keywords = ['CRPIX1', 'CRVAL1', 'CDELT1', 'CTYPE1', 'CUNIT1']
-        copy_keywords += ['CRPIX2', 'CRVAL2', 'CDELT2']
+        copy_keywords += ['CRPIX2', 'CRVAL2', 'CDELT2', 'CD1_1', 'CD2_2', 'CD1_2', 'CD2_1']
         sky_hdr['CTYPE2'] = 'LINEAR'
         sky_hdr['CUNIT2'] = 'Pixel'
         for key in copy_keywords:
-            sky_hdr[key] = hdr[key]
+            if key in hdr:
+                sky_hdr[key] = hdr[key]
         sky_hdr['AUTHOR'] = 'PyNOT version %s' % __version__
         sky_hdr['ORDER'] = (order_bg, "Polynomial order along spatial rows")
         sky_ext = fits.ImageHDU(bg2D, header=sky_hdr, name='SKY')
@@ -324,7 +329,8 @@ def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, kappa=
     return output_msg
 
 
-def correct_cosmics(input_fname, output_fname, niter=4, gain=None, readnoise=None, sigclip=4.5, sigfrac=0.3, objlim=5.0, satlevel=113500.0, cleantype='meanmask'):
+def correct_cosmics(input_fname, output_fname, niter=4, gain=None, readnoise=None,
+                    sigclip=4.5, sigfrac=0.3, objlim=5.0, satlevel=113500.0, cleantype='meanmask'):
     """
     Detect and Correct Cosmic Ray Hits based on the method by van Dokkum (2001)
     The corrected frame is saved to a FITS file.
@@ -348,7 +354,7 @@ def correct_cosmics(input_fname, output_fname, niter=4, gain=None, readnoise=Non
     msg.append("          - Cosmic Ray Rejection using Astroscrappy (based on van Dokkum 2001)")
     sci = fits.getdata(input_fname)
     hdr = fits.getheader(input_fname)
-    hdr['EXTNAME'] = 'DATA'
+    # hdr['EXTNAME'] = 'DATA'
     msg.append("          - Loaded input image: %s" % input_fname)
     with fits.open(input_fname) as hdu:
         if 'SKY' in hdu:
@@ -363,15 +369,30 @@ def correct_cosmics(input_fname, output_fname, niter=4, gain=None, readnoise=Non
             mask = np.zeros_like(sci, dtype=int)
 
     if not gain:
-        gain = hdr['GAIN']
-        msg.append("          - Read GAIN from FITS header: %.2f" % gain)
+        gain = instrument.get_gain(hdr)
+        if gain:
+            msg.append("          - Read GAIN from FITS header: %.2f" % gain)
+        else:
+            user_input = input("          > Please give the detector gain:\n          > ")
+            try:
+                gain = float(user_input)
+            except ValueError:
+                msg.append(" [ERROR]  - Invalid gain! Must be a number")
+                msg.append("")
+                return "\n".join(msg)
+
     if not readnoise:
-        try:
-            readnoise = hdr['RDNOISE']
+        readnoise = instrument.get_readnoise(hdr)
+        if readnoise:
             msg.append("          - Read RDNOISE from FITS header: %.2f" % readnoise)
-        except:
-            readnoise = hdr['READNOISE']
-            msg.append("          - Read READNOISE from FITS header: %.2f" % readnoise)
+        else:
+            user_input = input("          > Please give the detector read noise:\n          > ")
+            try:
+                readnoise = float(user_input)
+            except ValueError:
+                msg.append(" [ERROR]  - Invalid read noise! Must be a number")
+                msg.append("")
+                return "\n".join(msg)
 
     crr_mask, sci = detect_cosmics(sci, gain=gain, readnoise=readnoise, niter=niter, pssl=sky_level,
                                    sigclip=sigclip, sigfrac=sigfrac, objlim=objlim, satlevel=satlevel,
@@ -410,7 +431,7 @@ def correct_cosmics(input_fname, output_fname, niter=4, gain=None, readnoise=Non
     return output_msg
 
 
-def raw_correction(sci_raw, hdr, bias_fname, flat_fname='', output='', overscan=50, overwrite=True, mode='spec'):
+def raw_correction(sci_raw, hdr, bias_fname, flat_fname='', output='', overwrite=True, mode='spec'):
     """
     Perform bias subtraction, flat field correction, and cosmic ray rejection
 
@@ -432,10 +453,6 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname='', output='', overscan=
     output : string  [default='']
         Output filename
 
-    overscan : int  [default=50]
-        Number of pixels in overscan at the edge of the CCD.
-        The overscan region will be trimmed.
-
     overwrite : boolean  [default=True]
         Overwrite existing output file if True.
 
@@ -446,14 +463,12 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname='', output='', overscan=
     """
     msg = list()
     mbias = fits.getdata(bias_fname)
-    # bias_hdr = get_header(bias_fname)
-    msg.append("          - Loaded bias image: %s" % bias_fname)
+    # bias_hdr = instrument.get_header(bias_fname)
+    msg.append("          - Loaded combined bias image: %s" % bias_fname)
     if flat_fname:
         mflat = fits.getdata(flat_fname)
         mflat[mflat == 0] = 1
-        # flat_hdr = get_header(flat_fname)
-        msg.append("          - Loaded flat field image: %s" % flat_fname)
-        # mflat, flat_hdr = trim_overscan(mflat, flat_hdr, overscan=overscan, mode=mode)
+        msg.append("          - Loaded combined flat field image: %s" % flat_fname)
     else:
         mflat = 1.
         msg.append("          - Not flat field image provided. No correction applied!")
@@ -461,17 +476,17 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname='', output='', overscan=
     # Trim overscan of raw image:
     # - Trimming again of processed images doesn't change anything,
     # - so do it just in case the input has not been trimmed
-    sci_raw, hdr = trim_overscan(sci_raw, hdr, overscan=overscan, mode=mode)
-    # mbias, bias_hdr = trim_overscan(mbias, bias_hdr, overscan=overscan, mode=mode)
+    sci_raw, hdr = trim_overscan(sci_raw, hdr)
+    # sci_raw, hdr = trim_overscan(sci_raw, hdr, overscan=overscan, mode=mode)
 
     # Correct image:
     sci = (sci_raw - mbias)/mflat
 
     # Calculate error image:
-    if hdr['CCDNAME'] == 'CCD14':
+    if 'CCDNAME' in hdr and hdr['CCDNAME'] == 'CCD14':
         hdr['GAIN'] = 0.16
-    gain = hdr['GAIN']
-    readnoise = hdr['RDNOISE']
+    gain = instrument.get_gain(hdr)
+    readnoise = instrument.get_readnoise(hdr)
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
         err = np.sqrt(gain*sci + readnoise**2) / gain
@@ -486,7 +501,6 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname='', output='', overscan=
     hdr['DATAMAX'] = np.nanmax(sci)
     hdr['EXTNAME'] = 'DATA'
     hdr['AUTHOR'] = 'PyNOT version %s' % __version__
-    hdr['OVERSCAN'] = 'TRIMMED'
 
     mask = np.zeros_like(sci, dtype=int)
     msg.append("          - Empty pixel mask created")
@@ -497,8 +511,14 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname='', output='', overscan=
         mask_hdr[key] = hdr[key]
 
     if mode == 'spec':
-        mask_hdr['CDELT1'] = hdr['CDELT1']
-        mask_hdr['CDELT2'] = hdr['CDELT2']
+        cdelt1 = hdr.get('CDELT1')
+        if cdelt1 is None:
+            cdelt1 = hdr.get('CD1_1')
+        cdelt2 = hdr.get('CDELT2')
+        if cdelt2 is None:
+            cdelt2 = hdr.get('CD2_2')
+        mask_hdr['CDELT1'] = cdelt1
+        mask_hdr['CDELT2'] = cdelt2
     else:
         mask_hdr['CD1_1'] = hdr['CD1_1']
         mask_hdr['CD1_2'] = hdr['CD1_2']
@@ -519,7 +539,7 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname='', output='', overscan=
 
 
 
-def correct_raw_file(input_fname, *, output, bias_fname, flat_fname='', overscan=50, overwrite=True, mode='spec'):
+def correct_raw_file(input_fname, *, output, bias_fname, flat_fname='', overwrite=True, mode='spec'):
     """
     Wrapper for `raw_correction` using file input instead of image input
 
@@ -528,12 +548,12 @@ def correct_raw_file(input_fname, *, output, bias_fname, flat_fname='', overscan
     output_msg : string
         Log of status messages
     """
-    hdr = get_header(input_fname)
+    hdr = instrument.get_header(input_fname)
     sci_raw = fits.getdata(input_fname)
     msg = "          - Loaded input image: %s" % input_fname
 
     output_msg = raw_correction(sci_raw, hdr, bias_fname, flat_fname, output=output,
-                                overscan=overscan, overwrite=overwrite, mode=mode)
+                                overwrite=overwrite, mode=mode)
     output_msg = msg + '\n' + output_msg
 
     return output_msg

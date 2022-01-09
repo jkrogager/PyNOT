@@ -22,7 +22,7 @@ from scipy.optimize import curve_fit
 from numpy.polynomial import Chebyshev
 from astropy.io import fits
 
-from pynot.alfosc import create_pixel_array
+from pynot import instrument
 from pynot.functions import get_version_number, NN_mod_gaussian, air2vac, vac2air, get_pixtab_parameters
 from pynot.welcome import WelcomeMessage
 
@@ -38,7 +38,7 @@ def create_pixtable(arc_image, grism_name, pixtable_name, linelist_fname, order_
         Filename of arc image
 
     grism_name : str
-        Grism name, ex: grism4
+        Grism name, ex: al-gr4  (for ALFOSC grism#4)
     """
 
     fname = os.path.basename(arc_image)
@@ -513,27 +513,17 @@ class GraphicInterface(QMainWindow):
                 if len(hdu) > 1:
                     imghdr = hdu[1].header
                     primhdr.update(imghdr)
-            if 'DISPAXIS' in primhdr.keys():
-                self.dispaxis = primhdr['DISPAXIS']
-            elif 'TELESCOP' in primhdr:
-                if primhdr['TELESCOP'] == 'NOT':
-                    if 'Vert' in primhdr['ALAPRTNM']:
-                        self.dispaxis = 1
-                    elif 'Slit' in primhdr['ALAPRTNM']:
-                        self.dispaxis = 2
-                    else:
-                        self.arc_fname = ''
-                        error_msg = 'Invalid format for slit: %s' % primhdr['ALAPRTNM']
-                        QMessageBox.critical(None, 'Invalid Aperture', error_msg)
-                        return
+            dispaxis = instrument.get_dispaxis(primhdr)
+            if dispaxis:
+                self.dispaxis = dispaxis
+            else:
+                self.arc_fname = ''
+                error_msg = 'Could not get the dispersion axis!\n Invalid format for slit: %s' % instrument.get_slit(primhdr)
+                QMessageBox.critical(None, 'Invalid Aperture', error_msg)
+                return
 
-            if primhdr['CLAMP2'] == 1 or primhdr['CLAMP1'] == 1:
-                # Load HeNe linelist
-                linelist_fname = os.path.join(calib_dir, 'HeNe_linelist.dat')
-                self.load_linelist_fname(linelist_fname)
-            elif primhdr['CLAMP4'] == 1:
-                # Load ThAr linelist:
-                linelist_fname = os.path.join(calib_dir, 'ThAr_linelist.dat')
+            linelist_fname = instrument.auto_linelist(primhdr)
+            if linelist_fname:
                 self.load_linelist_fname(linelist_fname)
 
             if self.dispaxis == 1:
@@ -555,7 +545,7 @@ class GraphicInterface(QMainWindow):
         ihigh = min(self.arc_image_data.shape[1], self.loc + 1)
 
         self.arc1d = np.nanmean(self.arc_image_data[:, ilow:ihigh], axis=1)
-        self.pix = create_pixel_array(self.primhdr, self.dispaxis)
+        self.pix = instrument.create_pixel_array(self.primhdr, self.dispaxis)
 
         self.ax.lines[0].set_data(self.pix, self.arc1d)
         self.ax.relim()
@@ -659,7 +649,7 @@ class GraphicInterface(QMainWindow):
                 else:
                     order = int(self.poly_order.text())
                     ref_type = self.airvac.currentText().lower()
-                    tab_file.write("# Pixel Table for ALFOSC grism: %s\n" % self.grism_name)
+                    tab_file.write("# Pixel Table for %s grism: %s\n" % (instrument.name.upper(), self.grism_name))
                     tab_file.write("# order = %i\n" % order)
                     tab_file.write("# ref = %s\n" % ref_type)
                     tab_file.write("# loc = %i\n" % self.loc)
@@ -1089,6 +1079,7 @@ class GraphicInterface(QMainWindow):
             self.airvac.setCurrentText('vacuum')
 
         # Update rows in self.reftable:
+        self.linelist = new_linelist
         for num, ref_wl in enumerate(new_linelist):
             ref_item = self.reftable.item(num, 0)
             ref_item.setText("%.2f" % ref_wl)

@@ -371,3 +371,22 @@ def load_fits_spectrum(fname, ext=None, iraf_obj=None):
                 else:
                     raise FormatError("Could not find Wavelength Array")
                 return wavelength, data, error, mask, data_hdr, msg
+
+
+def load_fits_image(fname):
+    """Load a FITS image with an associated error extension and an optional data quality MASK."""
+    with fits.open(fname) as hdu_list:
+        image = hdu_list[0].data
+        hdr = hdu_list[0].header
+        if 'ERR' in hdu_list:
+            error = hdu_list['ERR'].data
+        elif len(hdu_list) > 1:
+            error = hdu_list[1].data
+        else:
+            raise IndexError("No error image detected")
+
+        if 'MASK' in hdu_list:
+            mask = hdu_list['MASK'].data
+        else:
+            mask = np.zeros_like(image, dtype=bool)
+    return image, error, mask, hdr

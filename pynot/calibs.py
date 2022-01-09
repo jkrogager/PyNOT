@@ -7,14 +7,14 @@ __email__ = "krogager@iap.fr"
 __credits__ = ["Jens-Kristian Krogager"]
 
 import numpy as np
-import astropy.io.fits as pf
+from astropy.io import fits
 import matplotlib.pyplot as plt
 from matplotlib import ticker
 from scipy import ndimage, signal
 import os
 from os.path import exists, basename
 
-from pynot import alfosc
+from pynot import instrument
 from pynot.functions import mad, my_formatter, get_version_number
 from pynot.scired import trim_overscan
 
@@ -22,7 +22,7 @@ from pynot.scired import trim_overscan
 __version__ = get_version_number()
 
 
-def combine_bias_frames(bias_frames, output='', kappa=15, method='mean', overwrite=True, overscan=50, mode='spec'):
+def combine_bias_frames(bias_frames, output='', kappa=15, method='mean', overwrite=True, mode='spec'):
     """Combine individual bias frames to create a 'master bias' frame.
     The combination is performed using robust sigma-clipping and
     median combination. Bad pixels are subsequently replaced by the
@@ -59,15 +59,10 @@ def combine_bias_frames(bias_frames, output='', kappa=15, method='mean', overwri
     bias = list()
     for frame in bias_frames:
         msg.append("          - Loaded bias frame: %s" % frame)
-        raw_img = pf.getdata(frame)
-        bias_hdr = alfosc.get_header(frame)
-        trim_bias, bias_hdr = trim_overscan(raw_img, bias_hdr, overscan)
-        msg.append("          - Trimming overscan of bias images: %i!" % overscan)
-        # if mode == 'spec':
-        #     trim_bias, bias_hdr = trim_overscan(raw_img, bias_hdr, overscan)
-        #     msg.append("          - Trimming overscan of bias images: %i!" % overscan)
-        # else:
-        #     trim_bias = raw_img
+        raw_img = fits.getdata(frame)
+        bias_hdr = instrument.get_header(frame)
+        trim_bias, bias_hdr = trim_overscan(raw_img, bias_hdr)
+        msg.append("          - Trimming overscan of bias images")
         if len(bias) > 1:
             assert trim_bias.shape == bias[0].shape, "Images must have same shape!"
         bias.append(trim_bias)
@@ -93,8 +88,8 @@ def combine_bias_frames(bias_frames, output='', kappa=15, method='mean', overwri
         master_bias[Ncomb == 0] = np.mean(master_bias[Ncomb != 0])
     msg.append("          - Combined %i files" % len(bias))
 
-    hdr = pf.getheader(bias_frames[0], 0)
-    hdr1 = pf.getheader(bias_frames[0], 1)
+    hdr = fits.getheader(bias_frames[0], 0)
+    hdr1 = fits.getheader(bias_frames[0], 1)
     for key in hdr1.keys():
         hdr[key] = hdr1[key]
     hdr['NCOMBINE'] = len(bias_frames)
@@ -106,7 +101,7 @@ def combine_bias_frames(bias_frames, output='', kappa=15, method='mean', overwri
     if not output:
         output = 'MASTER_BIAS.fits'
 
-    pf.writeto(output, master_bias, header=hdr, overwrite=overwrite)
+    fits.writeto(output, master_bias, header=hdr, overwrite=overwrite)
     msg.append(" [OUTPUT] - Saving combined Bias Image: %s" % output)
     msg.append("")
     output_msg = "\n".join(msg)
@@ -115,8 +110,7 @@ def combine_bias_frames(bias_frames, output='', kappa=15, method='mean', overwri
 
 
 def combine_flat_frames(raw_frames, output, mbias='', mode='spec', dispaxis=2,
-                        kappa=5, verbose=False, overwrite=True, overscan=50,
-                        method='mean'):
+                        kappa=5, verbose=False, overwrite=True, method='mean'):
     """Combine individual spectral flat frames to create a 'master flat' frame.
     The individual frames are normalized to the mode of the 1D collapsed spectral
     shape. Individual frames are clipped using a kappa-sigma-clipping on the mode
@@ -165,8 +159,8 @@ def combine_flat_frames(raw_frames, output, mbias='', mode='spec', dispaxis=2,
     """
     msg = list()
     if mbias and exists(mbias):
-        bias = pf.getdata(mbias)
-        # bias_hdr = alfosc.get_header(mbias)
+        bias = fits.getdata(mbias)
+        # bias_hdr = instrument.get_header(mbias)
 
     else:
         msg.append("[WARNING] - No master bias frame provided!")
@@ -175,10 +169,10 @@ def combine_flat_frames(raw_frames, output, mbias='', mode='spec', dispaxis=2,
     flats = list()
     flat_peaks = list()
     for fname in raw_frames:
-        hdr = alfosc.get_header(fname)
-        flat = pf.getdata(fname)
-        flat, hdr = trim_overscan(flat, hdr, overscan, mode=mode)
-        msg.append("          - Trimming overscan of Flat images: %i!" % overscan)
+        hdr = instrument.get_header(fname)
+        flat = fits.getdata(fname)
+        flat, hdr = trim_overscan(flat, hdr)
+        msg.append("          - Trimming overscan of Flat images")
 
         if mode == 'spec':
             flat = flat - bias
@@ -225,10 +219,7 @@ def combine_flat_frames(raw_frames, output, mbias='', mode='spec', dispaxis=2,
     else:
         msg.append("          - Combined %i files" % len(flats))
 
-    hdr = pf.getheader(raw_frames[0], 0)
-    hdr1 = pf.getheader(raw_frames[0], 1)
-    for key in hdr1.keys():
-        hdr[key] = hdr1[key]
+    hdr = instrument.get_header(raw_frames[0])
     hdr['NCOMBINE'] = len(flats)
     if method.lower() == 'median':
         hdr.add_comment('Median combined Flat')
@@ -238,18 +229,15 @@ def combine_flat_frames(raw_frames, output, mbias='', mode='spec', dispaxis=2,
 
     if output == '':
         if mode == 'spec':
-            grism = alfosc.grism_translate[hdr['ALGRNM']]
-            output = 'flatcombine_%s.fits' % grism
+            grism = instrument.get_grism(hdr)
+            slit_name = instrument.get_slit(hdr)
+            output = 'flatcombine_%s_%s.fits' % (grism, slit_name)
         else:
             filter = 'white'
-            for keyword in ['FAFLTNM', 'FBFLTNM', 'ALFLTNM']:
-                if 'open' in hdr[keyword].lower():
-                    pass
-                else:
-                    filter = hdr[keyword]
+            filter = instrument.get_filter(hdr)
             output = 'flatcombine_%s.fits' % filter
 
-    pf.writeto(output, flat_combine, header=hdr, overwrite=overwrite)
+    fits.writeto(output, flat_combine, header=hdr, overwrite=overwrite)
     msg.append(" [OUTPUT] - Saving combined Flat Field Image: %s" % output)
     msg.append("")
     output_msg = "\n".join(msg)
@@ -278,7 +266,7 @@ def detect_flat_edges(img, dispaxis=2, savgol_window=21, threshold=10):
 
 
 
-def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=2, overscan=50, order=24, savgol_window=51,
+def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=2, order=24, savgol_window=51,
                             med_window=5, edge_threshold=10, edge_window=21, plot=True, overwrite=True, **kwargs):
     """
     Normalize spectral flat field for long-slit observations. Parameters are optimized
@@ -303,9 +291,6 @@ def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=2, overscan=5
 
     dispaxis : integer  [default=2]
         Dispersion axis, 1: horizontal spectra, 2: vertical spectra
-
-    overscan : integer  [default=50]
-        Overscan region, default for ALFOSC is 50 pixels on either side and on top
 
     order : integer  [default=24]
         Order for Chebyshev polynomial to fit to the spatial profile (per row/col)
@@ -338,13 +323,14 @@ def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=2, overscan=5
 
     """
     msg = list()
-    flat = pf.getdata(fname)
-    hdr = alfosc.get_header(fname)
-
+    flat = fits.getdata(fname)
+    hdr = instrument.get_header(fname)
+    grism = instrument.get_grism(hdr)
+    slit_name = instrument.get_slit(hdr)
     msg.append("          - Input file: %s" % fname)
+    msg.append("          - Grism Name: %s" % grism)
+    msg.append("          - Slit Name: %s" % slit_name)
 
-    # flat, hdr = trim_overscan(flat, hdr, overscan)
-    # msg.append("          - Trimmed overscan: %i" % overscan)
     # Get raw pixel array of spatial axis
     x = np.arange(flat.shape[dispaxis-1])
 
@@ -419,11 +405,11 @@ def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=2, overscan=5
         ax1_2d = fig2D.add_subplot(121)
         ax2_2d = fig2D.add_subplot(122)
         ax1_2d.imshow(flat, origin='lower')
-        ax1_2d.set_title("Raw Flat")
+        ax1_2d.set_title("Raw Flat (%s - %s)" % (grism, slit_name))
         v1 = data_range[2] - 3*noise
         v2 = data_range[2] + 3*noise
         ax2_2d.imshow(flat_norm, origin='lower', vmin=v1, vmax=v2)
-        ax2_2d.set_title("Normalized Flat")
+        ax2_2d.set_title("Normalized Flat (%s - %s)" % (grism, slit_name))
         ax2_2d.set_yticklabels("")
         if dispaxis == 2:
             ax1_2d.set_xlabel("Spatial Axis [pixels]", fontsize=11)
@@ -498,11 +484,9 @@ def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=2, overscan=5
         else:
             output += '.fits'
     else:
-        grism = alfosc.grism_translate[hdr['ALGRNM']]
-        slit_name = hdr['ALAPRTNM']
         output = 'NORM_FLAT_%s_%s.fits' % (grism, slit_name)
 
-    pf.writeto(output, flat_norm, header=hdr, overwrite=overwrite)
+    fits.writeto(output, flat_norm, header=hdr, overwrite=overwrite)
     msg.append(" [OUTPUT] - Saving normalized MASTER FLAT: %s" % output)
     msg.append("")
     output_msg = "\n".join(msg)

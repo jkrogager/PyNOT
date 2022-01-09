@@ -7,9 +7,21 @@ Input / Output functions for the DataSet class.
 import numpy as np
 
 from pynot.data.organizer import TagDatabase
-import pynot.alfosc as instrument
+from pynot import instrument
 
 veclen = np.vectorize(len)
+
+
+# Function to save dataset: data/io.py
+def get_header_info(fname):
+    hdr = instrument.get_header(fname)
+    object = instrument.get_object(hdr)
+    exptime = "%.1f" % instrument.get_exptime(hdr)
+    grism = instrument.get_grism(hdr)
+    slit = instrument.get_slit(hdr)
+    filter = instrument.get_filter(hdr)
+    shape = "%ix%i" % (hdr['NAXIS1'], hdr['NAXIS2'])
+    return object, exptime, grism, slit, filter, shape
 
 
 def save_database(database, output_fname):
@@ -20,7 +32,7 @@ def save_database(database, output_fname):
             output.write("# %s:\n" % filetype)
             file_list = list()
             for fname in sorted(files):
-                object, exptime, grism, slit, filter, shape = instrument.get_header_info(fname)
+                object, exptime, grism, slit, filter, shape = get_header_info(fname)
                 file_list.append((fname, filetype, object, exptime, grism, slit, filter, shape))
             file_list = np.array(file_list, dtype=str)
             header_names = ('FILENAME', 'TYPE', 'OBJECT', 'EXPTIME', 'GRISM', 'SLIT', 'FILTER', 'SHAPE')

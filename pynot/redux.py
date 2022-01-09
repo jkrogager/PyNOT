@@ -8,7 +8,7 @@ import os
 import sys
 import datetime
 
-from pynot import alfosc
+from pynot import instrument
 from pynot.data import io
 from pynot.data import organizer as do
 from pynot.calibs import combine_bias_frames, combine_flat_frames, normalize_spectral_flat
@@ -106,8 +106,9 @@ class Report(object):
             output.write(self.report)
 
     def exit(self):
-        print(" - Pipeline terminated.")
-        print(" Consult the log: %s\n" % self.fname)
+        print("          - Pipeline terminated.")
+        print("            Consult the log: %s\n" % self.fname)
+        print("")
         self.save()
 
     def fatal_error(self):
@@ -191,7 +192,13 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
         log.fatal_error()
         return
     object_filelist = database['SPEC_OBJECT']
-    object_images = list(map(do.RawImage, object_filelist))
+    try:
+        object_images = list(map(do.RawImage, object_filelist))
+    except (ValueError, do.UnknownObservingMode, OSError, FileNotFoundError, TypeError, IndexError) as e:
+        log.error(str(e))
+        log.fatal_error()
+        raise
+
 
     log.add_linebreak()
     log.write(" - The following objects were found in the dataset:", prefix='')
@@ -204,29 +211,28 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
     # get list of unique grisms in dataset:
     grism_list = list()
     for sci_img in object_images:
-        grism_name = alfosc.grism_translate[sci_img.grism]
+        grism_name = sci_img.grism
         if grism_name not in grism_list:
             grism_list.append(grism_name)
 
     # -- Check arc line files:
     arc_images = list()
     # for arc_type in ['ARC_He', 'ARC_HeNe', 'ARC_Ne', 'ARC_ThAr']:
-    for arc_type in ['ARC_HeNe', 'ARC_ThAr']:
+    for arc_type in ['ARC_HeNe', 'ARC_ThAr', 'ARC_HeAr']:
         # For now only HeNe arc lines are accepted!
-        # Implement ThAr and automatic combination of He + Ne
+        # Implement automatic combination of He + Ne
         if arc_type in database.keys():
             arc_images += database[arc_type]
 
     if len(arc_images) == 0:
         log.error("No arc line calibration data found in the dataset!")
-        log.error("Check the classification table... object type 'ARC_HeNe' or 'ARC_ThAr' missing")
+        log.error("Check the classification table... object type 'ARC_HeNe', 'ARC_ThAr', 'ARC_HeAr' missing")
         log.fatal_error()
         return
 
     arc_images_for_grism = defaultdict(list)
     for arc_img in arc_images:
-        raw_grism = fits.getheader(arc_img)['ALGRNM']
-        this_grism = alfosc.grism_translate[raw_grism]
+        this_grism = instrument.get_grism(fits.getheader(arc_img))
         arc_images_for_grism[this_grism].append(arc_img)
 
     for grism_name in grism_list:
@@ -319,7 +325,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
     for sci_img in objects_to_reduce:
         # Create working directory:
-        raw_base = os.path.basename(sci_img.filename).split('.')[0][2:]
+        raw_base = os.path.basename(sci_img.filename).split('.')[0]
         output_dir = sci_img.target_name + '_' + raw_base
         if not os.path.exists(output_dir):
             os.mkdir(output_dir)
@@ -328,54 +334,75 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
         log_fname = os.path.join(output_dir, 'pynot.log')
         log.clear()
         log.set_filename(log_fname)
+        log.write("------------------------------------------------------------", prefix='')
         log.write("Starting PyNOT Longslit Spectroscopic Reduction")
         log.add_linebreak()
         log.write("Target Name: %s" % sci_img.target_name)
         log.write("Input Filename: %s" % sci_img.filename)
         log.write("Saving output to directory: %s" % output_dir)
+        log.add_linebreak()
 
         # Prepare output filenames:
-        grism = alfosc.grism_translate[sci_img.grism]
+        grism = sci_img.grism
         master_bias_fname = os.path.join(output_dir, 'MASTER_BIAS.fits')
         comb_flat_fname = os.path.join(output_dir, 'FLAT_COMBINED_%s_%s.fits' % (grism, sci_img.slit))
         norm_flat_fname = os.path.join(output_dir, 'NORM_FLAT_%s_%s.fits' % (grism, sci_img.slit))
         rect2d_fname = os.path.join(output_dir, 'RECT2D_%s.fits' % (sci_img.target_name))
         bgsub2d_fname = os.path.join(output_dir, 'BGSUB2D_%s.fits' % (sci_img.target_name))
-        response_pdf = os.path.join(output_dir, 'RESPONSE_%s.pdf' % (grism))
+        response_pdf = os.path.join(output_dir, 'plot_response_%s.pdf' % (grism))
         corrected_2d_fname = os.path.join(output_dir, 'CORRECTED2D_%s.fits' % (sci_img.target_name))
         flux2d_fname = os.path.join(output_dir, 'FLUX2D_%s.fits' % (sci_img.target_name))
         flux1d_fname = os.path.join(output_dir, 'FLUX1D_%s.fits' % (sci_img.target_name))
-        extract_pdf_fname = os.path.join(output_dir, 'extract1D_details.pdf')
+        extract_pdf_fname = os.path.join(output_dir, 'plot_extract1D_details.pdf')
 
         # Combine Bias Frames matched for CCD setup:
         bias_frames = sci_img.match_files(database['BIAS'], date=False)
+        perform_bias_comb = True
         if options['mbias']:
             master_bias_fname = options['mbias']
             log.write("Using static master bias frame: %s" % options['mbias'])
-        elif len(bias_frames) < 3:
-            log.error("Must have at least 3 bias frames to combine, not %i" % len(bias_frames))
-            log.error("otherwise provide a static 'master bias' frame!")
-            log.fatal_error()
-            return
-        else:
-            log.write("Running task: Bias Combination")
-            try:
-                _, bias_msg = combine_bias_frames(bias_frames, output=master_bias_fname,
-                                                  kappa=options['bias']['kappa'],
-                                                  method=options['bias']['method'],
-                                                  overwrite=True)
-                log.commit(bias_msg)
-                log.add_linebreak()
-                status['master_bias'] = master_bias_fname
-            except:
-                log.error("Median combination of bias frames failed!")
+        elif os.path.exists(str(status.get('master_bias'))):
+            master_bias_fname = status['master_bias']
+            # check that image shapes match:
+            bias_hdr = fits.getheader(master_bias_fname)
+            bias_binning = instrument.get_binning_from_hdr(bias_hdr)
+            if sci_img.binning == bias_binning:
+                log.write("Using combined master frame: %s" % master_bias_fname)
+                perform_bias_comb = False
+            else:
+                perform_bias_comb = True
+
+
+        if perform_bias_comb:
+            if len(bias_frames) < 3:
+                log.error("Must have at least 3 bias frames to combine, not %i" % len(bias_frames))
+                log.error("otherwise provide a static 'master bias' frame!")
                 log.fatal_error()
-                print("Unexpected error:", sys.exc_info()[0])
-                raise
+                return
+            else:
+                log.write("Running task: Bias Combination")
+                try:
+                    _, bias_msg = combine_bias_frames(bias_frames, output=master_bias_fname,
+                                                      kappa=options['bias']['kappa'],
+                                                      method=options['bias']['method'],
+                                                      overwrite=True)
+                    log.commit(bias_msg)
+                    log.add_linebreak()
+                    status['master_bias'] = os.path.basename(master_bias_fname)
+                    copy_bias = "cp %s %s" % (master_bias_fname, os.path.basename(master_bias_fname))
+                    if not os.path.exists(os.path.basename(master_bias_fname)):
+                        os.system(copy_bias)
+                    log.write("Copied combined bias frame to base working directory")
+                except:
+                    log.error("Median combination of bias frames failed!")
+                    log.fatal_error()
+                    print("Unexpected error:", sys.exc_info()[0])
+                    raise
 
 
         # Combine Flat Frames matched for CCD setup, grism, slit and filter:
         flat_frames = sci_img.match_files(database['SPEC_FLAT'], date=False, grism=True, slit=True, filter=True)
+        perform_flat_comb = True
         if options['mflat']:
             if options['mflat'] is None:
                 norm_flat_fname = ''
@@ -384,11 +411,24 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
             else:
                 norm_flat_fname = options['mflat']
             log.write("Using static master flat frame: %s" % options['mflat'])
-        elif len(flat_frames) == 0:
+        elif os.path.exists(os.path.basename(norm_flat_fname)):
+            norm_flat_fname = os.path.basename(norm_flat_fname)
+            # check that image shapes match:
+            flat_hdr = fits.getheader(norm_flat_fname)
+            flat_img = fits.getdata(norm_flat_fname)
+            flat_binning = instrument.get_binning_from_hdr(flat_hdr)
+            # Change this to match the image shape *after* overscan correction
+            if sci_img.binning == flat_binning and sci_img.shape == flat_img.shape:
+                log.write("Using normalized flat frame: %s" % norm_flat_fname)
+                perform_flat_comb = False
+            else:
+                perform_flat_comb = True
+
+        if len(flat_frames) == 0:
             log.error("No flat frames provided!")
             log.fatal_error()
             return
-        else:
+        elif perform_flat_comb:
             try:
                 log.write("Running task: Spectral Flat Combination")
                 _, flat_msg = combine_flat_frames(flat_frames, comb_flat_fname, mbias=master_bias_fname,
@@ -398,10 +438,14 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                 log.commit(flat_msg)
                 log.add_linebreak()
                 status['flat_combined'] = comb_flat_fname
+                copy_flat = "cp %s %s" % (comb_flat_fname, os.path.basename(comb_flat_fname))
+                if not os.path.exists(os.path.basename(comb_flat_fname)):
+                    os.system(copy_flat)
+                log.write("Copied combined flat frame to base working directory")
             except ValueError as err:
                 log.commit(str(err)+'\n')
                 log.fatal_error()
-                return
+                raise
             except:
                 log.error("Combination of flat frames failed!")
                 log.fatal_error()
@@ -415,8 +459,12 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                                                       fig_dir=output_dir, dispaxis=sci_img.dispaxis,
                                                       **options['flat'])
                 log.commit(norm_msg)
-                log.add_linebreak()
                 status['master_flat'] = norm_flat_fname
+                copy_normflat = "cp %s %s" % (norm_flat_fname, os.path.basename(norm_flat_fname))
+                if not os.path.exists(os.path.basename(norm_flat_fname)):
+                    os.system(copy_normflat)
+                log.write("Copied normalized flat frame to base working directory")
+                log.add_linebreak()
             except:
                 log.error("Normalization of flat frames failed!")
                 log.fatal_error()
@@ -430,7 +478,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
         log.write("Running task: Bias and Flat Field Correction of Arc Frame")
         try:
             output_msg = correct_raw_file(arc_fname, bias_fname=master_bias_fname,
-                                          output=corrected_arc2d_fname, overwrite=True, overscan=50)
+                                          output=corrected_arc2d_fname, overwrite=True)
             log.commit(output_msg)
             log.add_linebreak()
         except:
@@ -478,16 +526,16 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
         if len(flux_std_files) == 0:
             log.warn("No spectroscopic standard star was found in the dataset!")
             log.warn("The reduced spectra will not be flux calibrated")
-            status['RESPONSE'] = None
+            status['response'] = None
 
         else:
             std_fname = flux_std_files[0]
             # response_fname = os.path.join(output_dir, 'response_%s.fits' % (grism))
             response_fname = 'response_%s.fits' % (grism)
             if os.path.exists(response_fname) and not options['response']['force']:
-                log.write("Response function already exists: %s" % response_fname)
+                log.write("Using existing response function: %s" % response_fname)
                 log.add_linebreak()
-                status['RESPONSE'] = response_fname
+                status['response'] = response_fname
             else:
                 std_fname = flux_std_files[0]
                 log.write("Running task: Calculation of Response Function")
@@ -505,13 +553,19 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                                                                       order_bg=options['skysub']['order_bg'],
                                                                       rectify_options=options['rectify'],
                                                                       app=app)
-                    status['RESPONSE'] = response_fname
+                    # copy response file to working directory
+                    copy_response = "cp %s %s" % (response_fname, os.path.basename(response_fname))
+                    if not os.path.exists(os.path.basename(response_fname)):
+                        os.system(copy_response)
+                    status['response'] = response_fname
                     log.commit(response_msg)
+                    log.write("Copied response function to base working directory")
                     log.add_linebreak()
                 except:
                     log.error("Calculation of response function failed!")
                     print("Unexpected error:", sys.exc_info()[0])
-                    status['RESPONSE'] = ''
+                    raise
+                    status['response'] = ''
                     log.warn("No flux calibration will be performed!")
                     log.add_linebreak()
 
@@ -520,7 +574,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
         log.write("Running task: Bias and Flat Field Correction")
         try:
             output_msg = raw_correction(sci_img.data, sci_img.header, master_bias_fname, norm_flat_fname,
-                                        output=corrected_2d_fname, overwrite=True, overscan=50)
+                                        output=corrected_2d_fname, overwrite=True)
             log.commit(output_msg)
             log.add_linebreak()
         except:
@@ -547,7 +601,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
         # Automatic Background Subtraction:
         if options['skysub']['auto']:
-            bgsub_pdf_name = os.path.join(output_dir, 'bgsub2D.pdf')
+            bgsub_pdf_name = os.path.join(output_dir, 'plot_skysub2D.pdf')
             log.write("Running task: Background Subtraction")
             try:
                 bg_msg = auto_fit_background(rect2d_fname, bgsub2d_fname, dispaxis=1,
@@ -585,11 +639,11 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
 
         # Flux Calibration:
-        if status['RESPONSE']:
+        if status['response']:
             log.write("Running task: Flux Calibration")
-            response_fname = status['RESPONSE']
+            response_fname = status['response']
             try:
-                flux_msg = flux_calibrate(crr_fname, output=flux2d_fname, response=response_fname)
+                flux_msg = flux_calibrate(crr_fname, output=flux2d_fname, response_fname=response_fname)
                 log.commit(flux_msg)
                 log.add_linebreak()
                 status['FLUX2D'] = flux2d_fname

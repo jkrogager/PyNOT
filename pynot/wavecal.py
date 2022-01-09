@@ -16,7 +16,7 @@ import warnings
 
 import spectres
 
-from pynot.alfosc import get_header, create_pixel_array
+from pynot import instrument
 from pynot.functions import get_version_number, NN_mod_gaussian, get_pixtab_parameters
 
 __version__ = get_version_number()
@@ -36,9 +36,11 @@ def verify_arc_frame(arc_fname, dispaxis=2):
     `dispaxis` = 2 for vertical spectra, 1 for horizontal spectra.
     """
     arc2D = fits.getdata(arc_fname)
-    hdr = get_header(arc_fname)
+    hdr = instrument.get_header(arc_fname)
     if 'DISPAXIS' in hdr:
         dispaxis = hdr['DISPAXIS']
+    elif instrument.get_dispaxis(hdr):
+        dispaxis = instrument.get_dispaxis(hdr)
 
     if dispaxis == 2:
         # Reorient image to have dispersion along x-axis:
@@ -547,8 +549,50 @@ def format_table2D_residuals(pixtab2d, fit_table2d, ref_table):
 
 # ============== MAIN ===========================================================
 
+def swap_axes_in_header(hdr):
+    cdelt1 = hdr.get('CDELT1')
+    cdelt2 = hdr.get('CDELT2')
+    cd_11 = hdr.get('CD1_1')
+    cd_22 = hdr.get('CD2_2')
+    cd_12 = hdr.get('CD1_2')
+    cd_21 = hdr.get('CD2_1')
+    crval1 = hdr.get('CRVAL1')
+    crval2 = hdr.get('CRVAL2')
+    crpix1 = hdr.get('CRPIX1')
+    crpix2 = hdr.get('CRPIX2')
+    ctype1 = hdr.get('CTYPE1')
+    ctype2 = hdr.get('CTYPE2')
+    cunit1 = hdr.get('CUNIT1')
+    cunit2 = hdr.get('CUNIT2')
+
+    if cdelt1:
+        hdr['CDELT2'] = cdelt1
+        hdr['CDELT1'] = cdelt2
+    if cd_11:
+        hdr['CD2_2'] = cd_11
+        hdr['CD1_1'] = cd_22
+    if cd_12:
+        hdr['CD1_2'] = cd_21
+        hdr['CD2_1'] = cd_12
+
+    hdr['CRVAL2'] = crval1
+    hdr['CRVAL1'] = crval2
+    hdr['CRPIX2'] = crpix1
+    hdr['CRPIX1'] = crpix2
+    hdr['CTYPE2'] = ctype1
+    hdr['CTYPE1'] = ctype2
+    hdr['CUNIT2'] = cunit1
+    hdr['CUNIT1'] = cunit2
+
+    binx = instrument.get_binx(hdr)
+    biny = instrument.get_biny(hdr)
+    hdr = instrument.set_binx(hdr, biny)
+    hdr = instrument.set_biny(hdr, binx)
+
+    return hdr
+
 def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_bg=5, order_2d=5,
-            order_wl=4, log=False, N_out=None, interpolate=True, binning=1, dispaxis=2, fit_window=20,
+            order_wl=4, log=False, N_out=None, interpolate=True, dispaxis=2, fit_window=20,
             plot=True, overwrite=True, verbose=False, overscan=50, edge_kappa=10.):
 
     msg = list()
@@ -566,7 +610,7 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
         msg.append("          - Loaded mask image")
     except KeyError:
         mask2D = np.zeros_like(img2D)
-    hdr = fits.getheader(img_fname)
+    hdr = instrument.get_header(img_fname)
 
     ref_table = np.loadtxt(pixtable_fname)
     pixtab_pars, found_all = get_pixtab_parameters(pixtable_fname)
@@ -581,6 +625,8 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
 
     if 'DISPAXIS' in hdr.keys():
         dispaxis = hdr['DISPAXIS']
+    elif instrument.get_dispaxis(hdr):
+        dispaxis = instrument.get_dispaxis(hdr)
 
     if dispaxis == 2:
         msg.append("          - Rotating frame to have dispersion along x-axis")
@@ -590,21 +636,10 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
         mask2D = mask2D.T
         if err2D is not None:
             err2D = err2D.T
-        pix_in = create_pixel_array(hdr, dispaxis=2)
-
-        if 'DETYBIN' in hdr:
-            binning = hdr['DETYBIN']
-            hdr['DETYBIN'] = hdr['DETXBIN']
-            hdr['DETXBIN'] = binning
-        hdr['CDELT2'] = hdr['CDELT1']
-        hdr['CRVAL2'] = hdr['CRVAL1']
-        hdr['CRPIX2'] = hdr['CRPIX1']
-        hdr['CTYPE2'] = 'LINEAR'
-        hdr['CUNIT2'] = hdr['CUNIT1']
+        pix_in = instrument.create_pixel_array(hdr, axis=2)
+        hdr = swap_axes_in_header(hdr)
     else:
-        pix_in = create_pixel_array(hdr, dispaxis=1)
-        if 'DETXBIN' in hdr:
-            binning = hdr['DETXBIN']
+        pix_in = instrument.create_pixel_array(hdr, axis=1)
 
     ilow, ihigh = detect_borders(arc2D, kappa=edge_kappa)
     msg.append("          - Image shape: (%i, %i)" % arc2D.shape)
@@ -662,7 +697,7 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
         if output[-5:] != '.fits':
             output += '.fits'
     else:
-        object_name = hdr['OBJECT']
+        object_name = instrument.get_object(hdr)
         output = 'RECT2D_%s.fits' % (object_name)
 
     hdr_corr['DISPAXIS'] = 1
@@ -673,28 +708,31 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
         if err2D_corr is not None:
             hdu['ERR'].data = err2D_corr
             err_hdr = hdu['ERR'].header
-            copy_keywords = ['CRPIX1', 'CRVAL1', 'CDELT1', 'CTYPE1', 'CUNIT1']
-            copy_keywords += ['CRPIX2', 'CRVAL2', 'CDELT2', 'CTYPE2', 'CUNIT2']
+            copy_keywords = ['CRPIX1', 'CRVAL1', 'CDELT1', 'CTYPE1', 'CUNIT1', 'CD1_1']
+            copy_keywords += ['CRPIX2', 'CRVAL2', 'CDELT2', 'CTYPE2', 'CUNIT2', 'CD2_2']
             for key in copy_keywords:
-                err_hdr[key] = hdr[key]
+                if key in hdr:
+                    err_hdr[key] = hdr[key]
             hdu['ERR'].header = err_hdr
         if 'MASK' in hdu:
             hdu['MASK'].data = mask2D
             mask_hdr = hdu['MASK'].header
-            copy_keywords = ['CRPIX1', 'CRVAL1', 'CDELT1', 'CTYPE1', 'CUNIT1']
-            copy_keywords += ['CRPIX2', 'CRVAL2', 'CDELT2', 'CTYPE2', 'CUNIT2']
+            copy_keywords = ['CRPIX1', 'CRVAL1', 'CDELT1', 'CTYPE1', 'CUNIT1', 'CD1_1']
+            copy_keywords += ['CRPIX2', 'CRVAL2', 'CDELT2', 'CTYPE2', 'CUNIT2', 'CD2_2']
             for key in copy_keywords:
-                mask_hdr[key] = hdr[key]
+                if key in hdr:
+                    mask_hdr[key] = hdr[key]
             hdu['MASK'].header = mask_hdr
         else:
             mask_hdr = fits.Header()
             mask_hdr.add_comment("2 = Good Pixels")
             mask_hdr.add_comment("1 = Cosmic Ray Hits")
             mask_hdr['AUTHOR'] = 'PyNOT version %s' % __version__
-            copy_keywords = ['CRPIX1', 'CRVAL1', 'CDELT1', 'CTYPE1', 'CUNIT1']
-            copy_keywords += ['CRPIX2', 'CRVAL2', 'CDELT2', 'CTYPE2', 'CUNIT2']
+            copy_keywords = ['CRPIX1', 'CRVAL1', 'CDELT1', 'CTYPE1', 'CUNIT1', 'CD1_1']
+            copy_keywords += ['CRPIX2', 'CRVAL2', 'CDELT2', 'CTYPE2', 'CUNIT2', 'CD2_2']
             for key in copy_keywords:
-                mask_hdr[key] = hdr[key]
+                if key in hdr:
+                    mask_hdr[key] = hdr[key]
             mask_ext = fits.ImageHDU(mask2D, header=mask_hdr, name='MASK')
             hdu.append(mask_ext)
         hdu.writeto(output, overwrite=overwrite)

@@ -1,6 +1,6 @@
 
 import os
-from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5 import QtWidgets
 from bs4 import BeautifulSoup
 
 code_dir = os.path.dirname(os.path.abspath(__file__))

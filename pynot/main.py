@@ -1,5 +1,6 @@
 """
-  PyNOT Data Reduction Pipeline for NOT/ALFOSC
+  PyNOT Data Reduction Pipeline
+  Originally written for NOT/ALFOSC
 
 For available tasks, run:
     %] pynot -h
@@ -97,6 +98,9 @@ def initialize(path, mode, pfc_fname='dataset.pfc', pars_fname='options.yml', ve
     # Classify files:
     # args.silent is set to "store_false", so by default it is true!
     database, message = do.classify(path, progress=verbose)
+    if database is None:
+        print(message)
+        return
 
     if pfc_fname[-4:] != '.pfc':
         pfc_fname += '.pfc'
@@ -154,7 +158,7 @@ def main():
     parser_init.add_argument("mode", type=str, choices=['spec', 'spex', 'phot'],
                              help="Create parameter file for spectroscopy or imaging?")
     parser_init.add_argument("path", type=str, nargs='+',
-                             help="Path (or paths) to raw ALFOSC data to be classified")
+                             help="Path (or paths) to raw data to be classified")
     parser_init.add_argument('-p', "--pars", type=str, default='options.yml',
                              help="Filename of parameter file, default = options.yml")
     parser_init.add_argument("-o", "--output", type=str, default='dataset.pfc',
@@ -162,6 +166,12 @@ def main():
     parser_init.add_argument("-s", "--silent", action='store_false',
                              help="Minimze the output to terminal")
 
+    parser_org = tasks.add_parser('classify', formatter_class=set_help_width(31),
+                                  help="Initiate a default parameter file")
+    parser_org.add_argument("path", type=str, nargs='+',
+                            help="Path (or paths) to raw data to be classified")
+    parser_org.add_argument("-o", "--output", type=str, default='dataset.pfc',
+                            help="Filename of file classification table (*.pfc)")
 
 
     # -- BIAS :: Bias Combination
@@ -307,9 +317,9 @@ def main():
     parser_crr.add_argument('-n', "--niter", type=int, default=4,
                             help="Number of iterations")
     parser_crr.add_argument("--gain", type=float, default=0.16,
-                            help="Detector gain, default for ALFOSC CCD14: 0.16 e-/ADU")
+                            help="Detector gain  (e-/ADU)")
     parser_crr.add_argument("--readnoise", type=float, default=4.3,
-                            help="Detector read noise, default for ALFOSC CCD14: 4.3 e-")
+                            help="Detector read noise (e-)")
     # Define parameters based on default values:
     set_default_pars(parser_crr, section='crr', default_type=int,
                      ignore_pars=['niter', 'gain', 'readnoise'])
@@ -627,12 +637,12 @@ def main():
     elif task == 'flux1d':
         from pynot.response import flux_calibrate_1d
         print("Running task: Flux Calibration of 1D Spectrum")
-        log = flux_calibrate_1d(args.input, output=args.output, response=args.response)
+        log = flux_calibrate_1d(args.input, output=args.output, response_fname=args.response)
 
     elif task == 'flux2d':
         from pynot.response import flux_calibrate
         print("Running task: Flux Calibration of 2D Image")
-        log = flux_calibrate(args.input, output=args.output, response=args.response)
+        log = flux_calibrate(args.input, output=args.output, response_fname=args.response)
 
     elif task == 'scombine':
         print("Running task: Spectral Combination")
@@ -810,6 +820,24 @@ def main():
             return
         else:
             log = change_instrument(args.name, all_instruments)
+
+    elif task == 'classify':
+        print_credits()
+        from pynot.data import organizer as do
+        from pynot.data import io
+
+        # Classify files:
+        # args.silent is set to "store_false", so by default it is true!
+        database, message = do.classify(args.path)
+        if database is None:
+            print(message)
+            return
+
+        if not args.output.endswith('.pfc'):
+            args.output += '.pfc'
+        io.save_database(database, args.output)
+        print(message)
+        print(" [OUTPUT] - Saved file classification database: %s" % args.output)
 
     else:
         import pynot

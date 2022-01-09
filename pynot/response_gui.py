@@ -19,10 +19,10 @@ from matplotlib.backends.backend_qt5agg import FigureCanvas, NavigationToolbar2Q
 from matplotlib.figure import Figure
 from scipy.interpolate import UnivariateSpline
 from astropy.io import fits
-from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5 import QtGui, QtWidgets
 import warnings
 
-from pynot import alfosc
+from pynot import instrument
 from pynot import response
 from pynot.functions import get_version_number
 from pynot.welcome import WelcomeMessage
@@ -71,7 +71,7 @@ class ResponseGUI(QtWidgets.QMainWindow):
         self.output_fname = output_fname
         self.first_time_open = True
         # Extinction table attributes:
-        self.ext_fname = alfosc.extinction_fname
+        self.ext_fname = instrument.extinction_fname
         try:
             ext_wl, ext = np.loadtxt(self.ext_fname, unpack=True)
         except:
@@ -89,9 +89,9 @@ class ResponseGUI(QtWidgets.QMainWindow):
 
         # Fitting Parameters:
         self.star_chooser = QtWidgets.QComboBox()
-        self.all_names = sorted([name.upper() for name in response.standard_stars] + [''])
+        self.all_names = sorted([name.lower() for name in response.standard_stars] + [''])
         self.star_chooser.addItems(self.all_names)
-        self.star_chooser.setCurrentText(star_name)
+        self.star_chooser.setCurrentText('')
         self.star_chooser.currentTextChanged.connect(self.set_star)
 
         self.exptime_edit = QtWidgets.QLineEdit("")
@@ -233,6 +233,10 @@ class ResponseGUI(QtWidgets.QMainWindow):
         else:
             self.show_welcome(has_file=False)
 
+        if star_name:
+            self.star_name = star_name
+            self.star_chooser.setCurrentText(star_name)
+
 
     def show_welcome(self, has_file=False, force=False):
         if self.welcome_msg is not None:
@@ -300,14 +304,15 @@ class ResponseGUI(QtWidgets.QMainWindow):
             hdu = fits.HDUList()
             prim_hdr = fits.Header()
             prim_hdr['AUTHOR'] = 'PyNOT version %s' % __version__
-            prim_hdr['OBJECT'] = self.spectrum.header['OBJECT']
-            prim_hdr['DATE-OBS'] = self.spectrum.header['DATE-OBS']
-            prim_hdr['EXPTIME'] = self.spectrum.header['EXPTIME']
-            prim_hdr['AIRMASS'] = self.spectrum.header['AIRMASS']
-            prim_hdr['ALGRNM'] = self.spectrum.header['ALGRNM']
-            prim_hdr['ALAPRTNM'] = self.spectrum.header['ALAPRTNM']
+            prim_hdr['OBJECT'] = instrument.get_object(self.spectrum.header)
+            prim_hdr['DATE-OBS'] = instrument.get_date(self.spectrum.header)
+            prim_hdr['EXPTIME'] = float(self.exptime_edit.text())
+            prim_hdr['AIRMASS'] = float(self.airmass_edit.text())
+            prim_hdr['GRISM'] = instrument.get_grism(self.spectrum.header)
+            prim_hdr['SLIT'] = instrument.get_slit(self.spectrum.header)
             prim_hdr['RA'] = self.spectrum.header['RA']
             prim_hdr['DEC'] = self.spectrum.header['DEC']
+            prim_hdr['STD-STAR'] = self.star_name
             prim_hdr['COMMENT'] = 'PyNOT response function'
             prim = fits.PrimaryHDU(header=prim_hdr)
             hdu.append(prim)
@@ -332,6 +337,10 @@ class ResponseGUI(QtWidgets.QMainWindow):
         self.response = None
         self.mask = None
         self.filename = ""
+        self.data_line = None
+        self.fit_line = None
+        self.data_points = None
+        self.response_points = None
         self.canvas_points.draw()
 
 
@@ -342,6 +351,7 @@ class ResponseGUI(QtWidgets.QMainWindow):
             fname, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Open 1D Spectrum', current_dir, filters)
             fname = str(fname)
             if self.first_time_open:
+                print("")
                 print(" [INFO] - Don't worry about the warning above. It's an OS warning that can not be suppressed.")
                 print("          Everything works as it should")
                 self.first_time_open = False
@@ -357,27 +367,25 @@ class ResponseGUI(QtWidgets.QMainWindow):
         self.spectrum = Spectrum(wl=table['WAVE'], data=table['FLUX'], header=hdr,
                                  wl_unit=table.columns['WAVE'].unit,
                                  flux_unit=table.columns['FLUX'].unit)
-        if 'EXPTIME' in hdr:
-            self.exptime_edit.setText("%.1f" % hdr['EXPTIME'])
+
+        if instrument.get_exptime(hdr):
+            self.exptime_edit.setText("%.1f" % instrument.get_exptime(hdr))
             self.exptime_edit.setEnabled(False)
         else:
             self.exptime_edit.setEnabled(True)
-        if 'AIRMASS' in hdr:
-            self.airmass_edit.setText("%.3f" % hdr['AIRMASS'])
+        if instrument.get_airmass(hdr):
+            self.airmass_edit.setText("%.3f" % instrument.get_airmass(hdr))
             self.airmass_edit.setEnabled(False)
         else:
             self.airmass_edit.setEnabled(True)
 
-        if 'TCSTGT' in hdr:
-            TCSname = hdr['TCSTGT']
-            TCSname = response.lookup_std_star(TCSname)
-            if TCSname:
-                star_name = response.standard_star_names[TCSname]
-                self.star_chooser.setCurrentText(star_name.upper())
-        elif 'OBJECT' in hdr:
-            object_name = hdr['OBJECT']
-            if object_name.upper() in self.all_names:
-                self.star_chooser.setCurrentText(object_name.upper())
+        star_name = response.lookup_std_star(hdr)
+        if star_name:
+            self.star_name = star_name
+            self.star_chooser.setCurrentText(self.star_name)
+        else:
+            warn_msg = "Could not load the name of the star.\nPlease select it from the dropdown menu."
+            WarningDialog(self, "No star name!", warn_msg)
 
         if self.ref_tab is not None:
             self.calculate_flux_in_bins()
@@ -386,11 +394,12 @@ class ResponseGUI(QtWidgets.QMainWindow):
 
 
     def set_star(self, text):
-        star_name = str(text).lower()
-        self.ref_tab = np.loadtxt(response.path+'/calib/std/%s.dat' % star_name)
+        self.star_name = str(text)
+        self.ref_tab = np.loadtxt(response.path+'/calib/std/%s.dat' % self.star_name.lower())
         self.calculate_flux_in_bins()
         self.calculate_response_bins()
         self.update_plot()
+
 
     def calculate_flux_in_bins(self):
         if self.spectrum is None:
@@ -440,10 +449,9 @@ class ResponseGUI(QtWidgets.QMainWindow):
         if self.spectrum is None:
             WarningDialog(self, "No spectrum loaded!", "No spectral data has been loaded.")
             return
-        if 'OBJECT' in self.spectrum.header:
-            object_name = self.spectrum.header['OBJECT']
-        else:
-            object_name = ''
+        object_name = instrument.get_object(self.spectrum.header)
+        if not object_name:
+            object_name = 'None'
 
         if self.data_line is None:
             self.data_line, = self.axes[0].plot(self.spectrum.wl, self.spectrum.data,

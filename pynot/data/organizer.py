@@ -3,27 +3,17 @@
 import numpy as np
 import os
 import sys
-import datetime
 from glob import glob
 from astropy.io import fits
 
 from pynot.response import lookup_std_star
 from pynot import instrument
 
-# Shortcuts:
-get_binning_from_hdr = instrument.get_binning_from_hdr
-get_header = instrument.get_header
-
 # -- use os.path
 code_dir = os.path.dirname(os.path.abspath(__file__))
 v_file = os.path.join(os.path.split(code_dir)[0], 'VERSION')
 with open(v_file) as version_file:
     __version__ = version_file.read().strip()
-
-# List of Flux Calibrators:
-std_fname = os.path.join(os.path.split(code_dir)[0], 'calib/std/namelist.txt')
-calib_namelist = np.loadtxt(std_fname, dtype=str)
-calib_names = calib_namelist[:, 1]
 
 
 def occurence(inlist):
@@ -61,7 +51,7 @@ def match_date(files, date_mjd):
     """
     matches = list()
     for fname in files:
-        hdr = get_header(fname)
+        hdr = instrument.get_header(fname)
         mjd = instrument.get_mjd(hdr)
         if int(mjd) == int(date_mjd):
             matches.append(fname)
@@ -77,7 +67,7 @@ def group_calibs_by_date(file_list, lower=0.01, upper=0.99):
     n = np.zeros(len(file_list), dtype=bool)
     N = len(file_list)
     for i, fname in enumerate(file_list):
-        hdr = get_header(fname)
+        hdr = instrument.get_header(fname)
         mjd[i] = instrument.get_mjd(hdr)
 
     while sum(n) < N:
@@ -122,23 +112,18 @@ def classify_file(fname, rules):
 
     Returns
     -------
-    matches : list[string]
-        A list of filetypes that match the given input file
+    ftype : string
+        Filetype that matches the given input file
 
-    msg : list[string]
-        A list of logging messages
+    Raises
+    ------
+    MultipleFileTypeError : if more than one filetype matches the given file
+    NoFileTypeError : if no filetype matches the given file
+    RuleFormatError : if one or more criteria in a rule cannot be parsed correctly
+    raised by fits.getheader : TypeError, IndexError, OSError, FileNotFoundError
+
     """
-    msg = list()
-    try:
-        h = fits.getheader(fname)
-    except OSError:
-        msg.append("File could not be opened: %s" % fname)
-        return [], msg
-
-    fileroot = fname.split('/')[-1]
-    if fileroot != h.get('FILENAME'):
-        msg.append("Filename does not match FILENAME in header: %s" % fname)
-        return [], msg
+    h = fits.getheader(fname)
 
     matches = list()
     for linenum, rule in enumerate(rules):
@@ -153,7 +138,7 @@ def classify_file(fname, rules):
             if '==' in cond:
                 key, val = cond.split('==')
                 if key not in h:
-                    return [], msg
+                    raise RuleCriterionError(key, cond)
                 if 'open' in val.lower():
                     criteria.append('open' in h[key].lower())
                 elif 'closed' in val.lower():
@@ -165,7 +150,7 @@ def classify_file(fname, rules):
             elif '!=' in cond:
                 key, val = cond.split('!=')
                 if key not in h:
-                    return [], msg
+                    raise RuleCriterionError(key, cond)
                 if 'open' in val.lower():
                     criteria.append('open' not in h[key].lower())
                 elif 'closed' in val.lower():
@@ -177,33 +162,33 @@ def classify_file(fname, rules):
             elif '>' in cond:
                 key, val = cond.split('>')
                 if key not in h:
-                    return [], msg
+                    raise RuleCriterionError(key, cond)
                 val = parse_value(val)
                 criteria.append(h[key] > val)
 
             elif '<' in cond:
                 key, val = cond.split('<')
                 if key not in h:
-                    return [], msg
+                    raise RuleCriterionError(key, cond)
                 val = parse_value(val)
                 criteria.append(h[key] < val)
 
             elif ' contains ' in cond:
                 key, val = cond.split('contains')
                 if key not in h:
-                    return [], msg
+                    raise RuleCriterionError(key, cond)
                 val = parse_value(val)
                 criteria.append(val in h[key])
 
             elif ' !contains ' in cond:
                 key, val = cond.split('!contains')
                 if key not in h:
-                    return [], msg
+                    raise RuleCriterionError(key, cond)
                 val = parse_value(val)
                 criteria.append(val not in h[key])
 
             else:
-                raise ValueError("Invalid condition in rule at line %i:  %s" % (linenum, rule))
+                raise RuleFormatError("Invalid condition in rule at line %i:  %s" % (linenum, rule))
 
         if np.all(criteria):
             matches.append(ftype)
@@ -215,29 +200,53 @@ def classify_file(fname, rules):
             pass
 
         elif ftype == 'SPEC_OBJECT':
-            if instrument.target_keyword in h:
-                star_target = h[instrument.target_keyword]
-                star_name = lookup_std_star(star_target)
-                if star_name:
-                    matches = ['SPEC_FLUX-STD']
+            star_name = lookup_std_star(h)
+            if star_name:
+                ftype = 'SPEC_FLUX-STD'
+        return ftype
 
     elif len(matches) == 0:
-        msg.append("No classification matched the file: %s" % fname)
-    else:
-        msg.append("More than one classification was found for file: %s" % fname)
-        msg.append(", ".join(matches))
+        raise NoFileTypeError("No classification matched the file: %s" % fname)
 
-    return matches, msg
+    else:
+        err_msg = "More than one classification was found for file: %s" % fname
+        raise MultipleFileTypeError(err_msg, matches)
+
+
+class RuleCriterionError(Exception):
+    def __init__(self, key, condition):
+        self.key = key
+        self.condition = condition
+        self.message = "Error in condition: %s. No FITS header key: %s" % (self.condition, self.key)
+        super().__init__(self.message)
+
+class RuleFormatError(Exception):
+    pass
+
+class NoFileTypeError(Exception):
+    pass
+
+class MultipleFileTypeError(Exception):
+    def __init__(self, message, matches):
+        self.message = message
+        self.matches = matches
+        self.matches_str = ", ".join(matches)
+        super().__init__(self.message)
 
 
 def classify(data_in, rule_file=instrument.rulefile, progress=True):
     """
     The input can be a single .fits file, a string given the path to a directory,
     a list of .fits files, or a list of directories.
-    Classify given input 'files' using the rules defined in 'alfosc.rules'.
+    Classify given input files using the rules defined in `rule_file`.
+
     Returns
-    'Data_Type' containing the classification for the pipeline
-                recipes.
+    -------
+    database : TagDatabase or None
+        An instance of TagDatabase containing the file classifications
+
+    output_msg : string
+        A string of logging messages
     """
     msg = list()
 
@@ -245,6 +254,8 @@ def classify(data_in, rule_file=instrument.rulefile, progress=True):
     if isinstance(data_in, str):
         if os.path.isfile(data_in):
             files = [data_in]
+        elif '*' in data_in or '?' in data_in:
+            files = glob(data_in)
         elif os.path.isdir(data_in):
             files = glob(data_in+'/*.fits')
 
@@ -272,19 +283,25 @@ def classify(data_in, rule_file=instrument.rulefile, progress=True):
         print(" Classifying files: ")
 
     for num, fname in enumerate(files):
-        matches, classify_msg = classify_file(fname, rules)
-
-        if len(matches) == 1:
-            ftype = matches[0]
+        try:
+            # if it passes then there's only one filetype
+            ftype = classify_file(fname, rules)
             data_types[fname] = ftype
 
-        elif len(matches) == 0:
-            # msg.append("[WARNING] - " + classify_msg[0])
+        except NoFileTypeError as e:
+            msg.append("[WARNING] - " + str(e))
             not_classified_files.append(fname)
 
-        else:
-            msg.append("[WARNING] - " + classify_msg[0])
-            msg.append("            " + classify_msg[1])
+        except MultipleFileTypeError as e:
+            msg.append("[WARNING] - " + str(e))
+            msg.append("[WARNING] - " + e.matches_str)
+            not_classified_files.append(fname)
+
+        except (RuleFormatError, TypeError, IndexError, OSError, FileNotFoundError) as e:
+            # error! either in file handling from astropy.io.fits or in rulebook
+            msg.append(" [ERROR]  - " + str(e))
+            msg.append("")
+            return None, "\n".join(msg)
 
         if progress:
             sys.stdout.write("\r  %6.2f%%" % (100.*(num+1)/len(files)))
@@ -295,6 +312,7 @@ def classify(data_in, rule_file=instrument.rulefile, progress=True):
     msg.append("  [DONE]  - Successfully classified %i out of %i files." % (len(data_types.keys()), len(files)))
     msg.append("")
     if len(files) != len(data_types.keys()):
+        msg.append("[WARNING] - %s warnings were raised!" % len(not_classified_files))
         msg.append("[WARNING] - No classification matched the files:")
         for item in not_classified_files:
             msg.append("          - %s" % item)
@@ -311,6 +329,8 @@ def reclassify(data_in, database, **kwargs):
     if isinstance(data_in, str):
         if os.path.isfile(data_in):
             files = [data_in]
+        elif '*' in data_in or '?' in data_in:
+            files = glob(data_in)
         elif os.path.isdir(data_in):
             files = glob(data_in+'/*.fits')
 
@@ -358,32 +378,44 @@ def write_report(collection, output=''):
             output.write(report)
 
 
+class UnknownObservingMode(Exception):
+    pass
+
+
 class RawImage(object):
-    def __init__(self, fname, filetype=None, obs_mode=):
+    """
+    Create a raw image instance from a FITS image.
+
+    Raises:
+    ValueError, UnknownObservingMode, OSError, FileNotFoundError, TypeError, IndexError
+    """
+    def __init__(self, fname, filetype=None):
         self.filename = fname
         self.data = fits.getdata(fname)
         self.shape = self.data.shape
         self.filetype = filetype
-        # Merge Primary and Image headers:
-        self.header = get_header(fname)
-        # primhdr = fits.getheader(fname, 0)
-        # imghdr = fits.getheader(fname, 1)
-        # primhdr.update(imghdr)
-        # self.header = primhdr
-        self.binning = get_binning_from_hdr(self.header)
+        self.header = instrument.get_header(fname)
+        self.binning = instrument.get_binning_from_hdr(self.header)
         file_root = fname.split('/')[-1]
         self.dispaxis = None
         if file_root != self.header['FILENAME']:
-            raise ValueError("The file doesn't seem to be a raw FITS image.")
+            raise ValueError("The file doesn't seem to be a raw FITS image: %s" % fname)
 
-        if self.header['OBS_MODE'] == 'SPECTROSCOPY':
-            self.mode = 'SPEC'
-            cd1 = self.header['CDELT1']
-            cd2 = self.header['CDELT2']
+        self.mode = instrument.get_observing_mode(self.header)
+        if self.mode.lower().startswith('spec'):
+            cd1 = self.header.get('CDELT1')
+            cd2 = self.header.get('CDELT2')
+            if cd1 is None:
+                cd1 = self.header.get('CD1_1')
+            if cd2 is None:
+                cd2 = self.header.get('CD2_2')
             self.CD = np.array([[cd1, 0.],
                                 [0., cd2]])
-        else:
-            self.mode = 'IMG'
+            self.dispaxis = instrument.get_dispaxis(self.header)
+            if self.dispaxis is None:
+                raise ValueError("Invalid dispersion axis of image: %s" % fname)
+
+        elif self.mode.lower().startswith('im'):
             # Image Coordinates and Reference System
             cd11 = self.header['CD1_1']
             cd12 = self.header['CD1_2']
@@ -391,16 +423,13 @@ class RawImage(object):
             cd22 = self.header['CD2_2']
             self.CD = np.array([[cd11, cd21],
                                 [cd12, cd22]])
+            self.dispaxis = None
+        else:
+            raise UnknownObservingMode("Unknown observing mode: %r of file: %s" % (self.mode, fname))
 
         self.filter = instrument.get_filter(self.header)
         self.slit = instrument.get_slit(self.header)
         self.grism = instrument.get_grism(self.header)
-        if 'Vert' in self.slit:
-            self.dispaxis = 1
-        elif 'Slit' in self.slit:
-            self.dispaxis = 2
-        else:
-            self.dispaxis = 2
 
         self.exptime = instrument.get_exptime(self.header)
         self.object = instrument.get_object(self.header)
@@ -412,13 +441,18 @@ class RawImage(object):
         self.rot_angle = instrument.get_rotpos(self.header)
         self.airmass = instrument.get_airmass(self.header)
         self.date = instrument.get_date(self.header)
-        self.mjd = instrument.get_mjd(self.date)
+        self.mjd = instrument.get_mjd(self.header)
 
         self.CRVAL = np.array([self.header['CRVAL1'], self.header['CRVAL2']])
         self.CRPIX = np.array([self.header['CRPIX1'], self.header['CRPIX2']])
         self.data_unit = self.header['BUNIT']
         self.x_unit = self.header['CUNIT1']
         self.y_unit = self.header['CUNIT2']
+        self.x_type = self.header['CTYPE1']
+        self.y_type = self.header['CTYPE2']
+
+    def set_filetype(self, filetype):
+        self.filetype = filetype
 
     def match_files(self, filelist, date=True, binning=True, shape=True, grism=False, slit=False, filter=False, get_closest_time=False):
         """Return list of filenames that match the given criteria"""
@@ -436,7 +470,7 @@ class RawImage(object):
 
             if binning:
                 # Match files with same binning and readout speed:
-                this_binning = get_binning_from_hdr(this_hdr)
+                this_binning = instrument.get_binning_from_hdr(this_hdr)
                 criteria.append(this_binning == self.binning)
 
             if shape:

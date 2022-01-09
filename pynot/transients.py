@@ -10,7 +10,7 @@ import warnings
 
 from pynot.wcs import get_gaia_catalog
 from pynot.functions import decimal_to_string
-from pynot import alfosc
+from pynot import instrument
 
 
 def mad(x):
@@ -107,7 +107,7 @@ def find_new_sources(img_fname, sep_fname, loc_bat=(0., 0., 1.), loc_xrt=(0., 0.
                 return [], "\n".join(msg)
 
     # Find sources with r < 20, with no match in Gaia:
-    filter = alfosc.filter_translate[alfosc.get_filter(hdr)]
+    filter = instrument.get_filter(hdr)
     if '_' in filter:
         band = filter.split('_')[0]
 

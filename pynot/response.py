@@ -18,7 +18,7 @@ from os.path import basename, dirname, abspath
 import sys
 import glob
 
-from pynot import alfosc
+from pynot import instrument
 from pynot.extraction import auto_extract
 from pynot import extract_gui
 from pynot.functions import get_version_number, my_formatter, mad
@@ -30,33 +30,39 @@ from pynot.wavecal import rectify
 __version__ = get_version_number()
 
 
-# --- Data taken from: ftp://ftp.stsci.edu/cdbs/current_calspec/
 path = dirname(abspath(__file__))
-standard_star_files = glob.glob(path + '/calib/std/*.dat')
-standard_star_files = [basename(fname) for fname in standard_star_files]
+# --- Data taken from: ftp://ftp.stsci.edu/cdbs/current_calspec/
+_standard_star_files = glob.glob(path + '/calib/std/*.dat')
+_standard_star_files = [basename(fname) for fname in _standard_star_files]
 # List of star names in lowercase:
-standard_stars = [fname.strip('.dat') for fname in standard_star_files]
+standard_stars = [fname.strip('.dat') for fname in _standard_star_files]
 
-# Look-up table from TCS targetnames -> star names
-standard_star_names = {'SP0305+261': 'HD19445',
-                       'SP0644+375': 'He3',
-                       'SP0946+139': 'HD84937',
-                       'SP1036+433': 'Feige34',
-                       'SP1045+378': 'HD93521',
-                       'SP1446+259': 'BD262606',
-                       'SP1550+330': 'BD332642',
-                       'SP2032+248': 'Wolf1346',
-                       'SP2209+178': 'BD174708',
-                       'SP2317-054': 'Feige110',
-                       'SP0642+021': 'Hiltner600',
-                       'GD71': 'GD71',
-                       'GD153': 'GD153'}
+# Look-up table from target-names -> star names
+# (mostly used for ALFOSC where TCSTGT is different)
+std_fname = os.path.join(path, 'calib/std/tcs_namelist.txt')
+calib_names = np.loadtxt(std_fname, dtype=str)
+tcs_standard_stars = {row[1]: row[0] for row in calib_names}
 
-def lookup_std_star(input_name):
-    for name in standard_star_names:
-        if input_name.upper() in name:
-            return name
-    return None
+
+def lookup_std_star(hdr):
+    """
+    Check if the given header contains an object or target name
+    which matches one of the defined standard calibration stars.
+
+    Returns `None` if no match is found.
+    """
+    object_name = instrument.get_object(hdr)
+    target_name = instrument.get_target_name(hdr)
+    if object_name in standard_stars:
+        return object_name.lower()
+    elif object_name.upper() in tcs_standard_stars:
+        return tcs_standard_stars[object_name.upper()]
+    elif target_name in standard_stars:
+        return target_name.lower()
+    elif target_name.upper() in tcs_standard_stars:
+        return tcs_standard_stars[target_name.upper()]
+    else:
+        return None
 
 
 def load_spectrum1d(fname):
@@ -66,7 +72,7 @@ def load_spectrum1d(fname):
     return wl, flux
 
 
-def flux_calibrate(input_fname, *, output, response):
+def flux_calibrate(input_fname, *, output, response_fname):
     """Apply response function to flux calibrate the input spectrum"""
     msg = list()
     # Load input data:
@@ -80,15 +86,17 @@ def flux_calibrate(input_fname, *, output, response):
     wl = (np.arange(hdr['NAXIS1']) - (crpix - 1))*cdelt + crval
 
     # Load Extinction Table:
-    wl_ext, A0 = np.loadtxt(alfosc.extinction_fname, unpack=True)
+    wl_ext, A0 = np.loadtxt(instrument.extinction_fname, unpack=True)
     ext = np.interp(wl, wl_ext, A0)
     msg.append("          - Loaded average extinction table:")
-    msg.append("            %s" % alfosc.extinction_fname)
+    msg.append("            %s" % instrument.extinction_fname)
 
     # Load Sensitivity Function:
-    resp_tab = fits.getdata(response)
-    resp_hdr = fits.getheader(response)
-    if resp_hdr['ALGRNM'] != hdr['ALGRNM']:
+    resp_tab = fits.getdata(response_fname)
+    resp_hdr = fits.getheader(response_fname)
+    if 'ALGRNM' in resp_hdr:
+        resp_hdr['GRISM'] = resp_hdr['ALGRNM']
+    if resp_hdr['GRISM'] != instrument.get_grism(hdr):
         msg.append(" [ERROR]  - Grisms of input spectrum and response function do not match!")
         msg.append("")
         output_msg = "\n".join(msg)
@@ -97,13 +105,34 @@ def flux_calibrate(input_fname, *, output, response):
     resp_int = np.interp(wl, resp_tab['WAVE'], resp_tab['RESPONSE'])
     # Truncate values less than 20:
     resp_int[resp_int < 20] = 20.
-    msg.append("          - Loaded response function: %s" % response)
+    msg.append("          - Loaded response function: %s" % response_fname)
 
-    airm = hdr['AIRMASS']
-    t = hdr['EXPTIME']
+    airmass = instrument.get_airmass(hdr)
+    if airmass is None:
+        user_input = input("          > Please give the airmass:\n          > ")
+        try:
+            airmass = float(user_input)
+        except (ValueError) as e:
+            msg.append(" [ERROR]  - Invalid airmass!")
+            msg.append(" [ERROR]  - " + str(e))
+            msg.append("")
+            return "\n".join(msg)
+
+    t = instrument.get_exptime(hdr)
+    if t is None:
+        user_input = input("          > Please give the exposure time:\n          > ")
+        try:
+            t = float(user_input)
+        except ValueError:
+            msg.append(" [ERROR]  - Invalid exposure time: %r" % user_input)
+            msg.append("")
+            return "\n".join(msg)
+
+    msg.append("          - exposure time: %.1f" % t)
+    msg.append("          - airmass: %.3f" % airmass)
     # ext_correction = 10**(0.4*airm * ext)
     # flux_calibration = ext_correction / 10**(0.4*resp_int)
-    flux_calibration = 10**(0.4*(airm*ext - resp_int))
+    flux_calibration = 10**(0.4*(airmass*ext - resp_int))
     flux_calib2D = np.resize(flux_calibration, img2D.shape)
     flux2D = img2D / (t * cdelt) * flux_calib2D
     err2D = err2D / (t * cdelt) * flux_calib2D
@@ -111,7 +140,7 @@ def flux_calibrate(input_fname, *, output, response):
     with fits.open(input_fname) as hdu:
         hdu[0].data = flux2D
         hdu[0].header['BUNIT'] = 'erg/s/cm2/A'
-        hdu[0].header['RESPONSE'] = response
+        hdu[0].header['RESPONSE'] = response_fname
 
         hdu['ERR'].data = err2D
         hdu['ERR'].header['BUNIT'] = 'erg/s/cm2/A'
@@ -123,19 +152,19 @@ def flux_calibrate(input_fname, *, output, response):
     return output_msg
 
 
-def flux_calibrate_1d(input_fname, *, output, response):
+def flux_calibrate_1d(input_fname, *, output, response_fname):
     """Apply response function to flux calibrate the input 1D spectrum"""
     msg = list()
 
     # Load Extinction Table:
-    wl_ext, A0 = np.loadtxt(alfosc.extinction_fname, unpack=True)
+    wl_ext, A0 = np.loadtxt(instrument.extinction_fname, unpack=True)
     msg.append("          - Loaded average extinction table:")
-    msg.append("            %s" % alfosc.extinction_fname)
+    msg.append("            %s" % instrument.extinction_fname)
 
     # Load Sensitivity Function:
-    resp_tab = fits.getdata(response)
-    resp_hdr = fits.getheader(response)
-    msg.append("          - Loaded response function: %s" % response)
+    resp_tab = fits.getdata(response_fname)
+    resp_hdr = fits.getheader(response_fname)
+    msg.append("          - Loaded response function: %s" % response_fname)
 
     # Load input data:
     hdu_list = fits.open(input_fname)
@@ -148,7 +177,9 @@ def flux_calibrate_1d(input_fname, *, output, response):
         spec1d = tab['FLUX']
         err1d = tab['ERR']
 
-        if resp_hdr['ALGRNM'] != hdr['ALGRNM']:
+        if 'ALGRNM' in resp_hdr:
+            resp_hdr['GRISM'] = resp_hdr['ALGRNM']
+        if resp_hdr['GRISM'] != instrument.get_grism(hdr):
             msg.append(" [ERROR]  - Grisms of input spectrum and response function do not match!")
             msg.append("")
             output_msg = "\n".join(msg)
@@ -160,15 +191,36 @@ def flux_calibrate_1d(input_fname, *, output, response):
         # Truncate values less than 20:
         resp_int[resp_int < 20] = 20.
 
-        airm = hdr['AIRMASS']
-        t = hdr['EXPTIME']
+        airmass = instrument.get_airmass(hdr)
+        if airmass is None:
+            user_input = input("          > Please give the airmass:\n          > ")
+            try:
+                airmass = float(user_input)
+            except (ValueError) as e:
+                msg.append(" [ERROR]  - Invalid airmass!")
+                msg.append(" [ERROR]  - " + str(e))
+                msg.append("")
+                return "\n".join(msg)
+
+        t = instrument.get_exptime(hdr)
+        if t is None:
+            user_input = input("          > Please give the exposure time:\n          > ")
+            try:
+                t = float(user_input)
+            except ValueError:
+                msg.append(" [ERROR]  - Invalid exposure time: %r" % user_input)
+                msg.append("")
+                return "\n".join(msg)
+        msg.append("          - exposure time: %.1f" % t)
+        msg.append("          - airmass: %.3f" % airmass)
+
         cdelt = np.mean(np.diff(wl))
-        flux_calibration = 10**(0.4*(airm*ext - resp_int))
+        flux_calibration = 10**(0.4*(airmass*ext - resp_int))
         flux1d = spec1d / (t * cdelt) * flux_calibration
         err1d = err1d / (t * cdelt) * flux_calibration
 
         hdr['BUNIT'] = 'erg/s/cm2/A'
-        hdr['RESPONSE'] = response
+        hdr['RESPONSE'] = response_fname
         msg.append("          - Applied flux calibration to object ID: %r" % hdu.name)
 
         col_wl = fits.Column(name='WAVE', array=wl, format='D', unit=hdu.columns['WAVE'].unit)
@@ -252,22 +304,20 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
     """
     msg = list()
 
-    hdr = alfosc.get_header(raw_fname)
+    hdr = instrument.get_header(raw_fname)
     raw2D = fits.getdata(raw_fname)
     msg.append("          - Loaded flux standard image: %s" % raw_fname)
 
     # Setup the filenames:
-    grism = alfosc.grism_translate[hdr['ALGRNM']]
-    star = hdr['TCSTGT']
-    # Check if the star name is in the header:
-    star = lookup_std_star(star)
+    grism = instrument.get_grism(hdr)
+    star = lookup_std_star(hdr)
     if star is None:
-        msg.append("[WARNING] - No reference data found for the star %s (TCS Target Name)" % hdr['TCSTGT'])
+        msg.append("[WARNING] - No reference data found for target: %s" % instrument.get_object(hdr))
         msg.append("[WARNING] - The reduced spectra will not be flux calibrated")
         output_msg = "\n".join(msg)
         return None, output_msg
 
-    response_output = 'response_%s_%s.fits' % (star, grism)
+    response_output = 'response_%s.fits' % grism
     std_tmp_fname = 'std_corr2D_%s.fits' % star
     rect2d_fname = 'std_rect2D_%s.fits' % star
     bgsub2d_fname = 'std_bgsub2D_%s.fits' % star
@@ -283,10 +333,10 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
 
     try:
         output_msg = raw_correction(raw2D, hdr, bias_fname, flat_fname,
-                                    output=std_tmp_fname, overwrite=True, overscan=50)
+                                    output=std_tmp_fname, overwrite=True)
         msg.append(output_msg)
     except:
-        msg.append("Unexpected error: %r" % sys.exc_info()[0])
+        msg.append("Unexpected error in raw correction: %r" % sys.exc_info()[0])
         output_msg = "\n".join(msg)
         raise Exception(output_msg)
 
@@ -297,7 +347,7 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
                            dispaxis=dispaxis, order_wl=order_wl, **rectify_options)
         msg.append(rect_msg)
     except:
-        msg.append("Unexpected error: %r" % sys.exc_info()[0])
+        msg.append("Unexpected error in rectify: %r" % sys.exc_info()[0])
         output_msg = "\n".join(msg)
         raise Exception(output_msg)
     # After RECTIFY all images are oriented with the dispersion axis horizontally
@@ -309,7 +359,7 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
                                      kappa=100, fwhm_scale=5)
         msg.append(bg_msg)
     except:
-        msg.append("Unexpected error: %r" % sys.exc_info()[0])
+        msg.append("Unexpected error in auto sky sub: %r" % sys.exc_info()[0])
         output_msg = "\n".join(msg)
         raise Exception(output_msg)
 
@@ -322,7 +372,7 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
                                 app=app, order_center=5, order_width=5, smoothing=smoothing, dx=20)
             msg.append(" [OUTPUT] - Writing fits table: %s" % ext1d_output)
         except:
-            msg.append("Unexpected error: %r" % sys.exc_info()[0])
+            msg.append("Unexpected error in extract GUI: %r" % sys.exc_info()[0])
             output_msg = "\n".join(msg)
             raise Exception(output_msg)
     else:
@@ -332,7 +382,7 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
                                    kappa_cen=5., w_cen=15)
             msg.append(ext_msg)
         except:
-            msg.append("Unexpected error: %r" % sys.exc_info()[0])
+            msg.append("Unexpected error in auto extract: %r" % sys.exc_info()[0])
             output_msg = "\n".join(msg)
             raise Exception(output_msg)
 
@@ -342,9 +392,8 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
 
     # Load the spectroscopic standard table:
     # The files are located in 'calib/std/'
-    star_name = standard_star_names[star]
-    std_tab = np.loadtxt(path+'/calib/std/%s.dat' % star_name.lower())
-    msg.append("          - Loaded reference data for object: %s" % star_name)
+    std_tab = np.loadtxt(path+'/calib/std/%s.dat' % star.lower())
+    msg.append("          - Loaded reference data for object: %s" % star)
 
     # Calculate the flux in the pass bands:
     msg.append("          - Calculating flux in reference band passes")
@@ -375,12 +424,32 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
     good[-3:] = True
 
     # Load Extinction Table:
-    wl_ext, A0 = np.loadtxt(alfosc.extinction_fname, unpack=True)
+    wl_ext, A0 = np.loadtxt(instrument.extinction_fname, unpack=True)
     msg.append("          - Loaded average extinction table:")
-    msg.append("            %s" % alfosc.extinction_fname)
+    msg.append("            %s" % instrument.extinction_fname)
     ext = np.interp(wl0, wl_ext, A0)
-    exptime = hdr['EXPTIME']
-    airmass = hdr['AIRMASS']
+
+    # Load Airmass and Exposure time:
+    airmass = instrument.get_airmass(hdr)
+    if airmass is None:
+        user_input = input("          > Please give the airmass:\n          > ")
+        try:
+            airmass = float(user_input)
+        except (ValueError) as e:
+            msg.append(" [ERROR]  - Invalid airmass!")
+            msg.append(" [ERROR]  - " + str(e))
+            msg.append("")
+            return "\n".join(msg)
+
+    exptime = instrument.get_exptime(hdr)
+    if exptime is None:
+        user_input = input("          > Please give the exposure time:\n          > ")
+        try:
+            exptime = float(user_input)
+        except ValueError:
+            msg.append(" [ERROR]  - Invalid exposure time: %r" % user_input)
+            msg.append("")
+            return "\n".join(msg)
     msg.append("          - AIRMASS: %.2f" % airmass)
     msg.append("          - EXPTIME: %.1f" % exptime)
 
@@ -398,7 +467,7 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
                                             order=3, smoothing=0.02, app=app)
             msg.append(" [OUTPUT] - Saving the response function as FITS table: %s" % response_output)
         except:
-            msg.append("Unexpected error: %r" % sys.exc_info()[0])
+            msg.append("Unexpected error in response GUI: %r" % sys.exc_info()[0])
             output_msg = "\n".join(msg)
             raise Exception(output_msg)
     else:
@@ -413,7 +482,8 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
 
     # -- Prepare PDF figure:
     if not pdf_fname:
-        pdf_fname = 'response_diagnostic_' + hdr['OBJECT'] + '.pdf'
+        object_name = instrument.get_object(hdr)
+        pdf_fname = 'response_diagnostic_%s.pdf' % object_name
         pdf_fname = os.path.join(output_dir, pdf_fname)
     pdf = backend_pdf.PdfPages(pdf_fname)
 
@@ -437,7 +507,7 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
     ax2.plot(wl0[~good], C[~good], color='r', marker='o', ls='')
     ax2.set_ylabel(u"Response  ($F_{\\lambda}$)", fontsize=14)
     ax2.set_xlabel(u"Wavelength  (Å)", fontsize=14)
-    ax2.set_title(u"Response function, grism: "+hdr['ALGRNM'])
+    ax2.set_title(u"Response function, grism: "+grism)
     ax2.plot(wl, response, color='crimson', lw=1)
     pdf.savefig(fig2)
     pdf.close()
@@ -449,17 +519,17 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
     else:
         # --- Prepare FITS output:
         resp_hdr = fits.Header()
+        resp_hdr['AUTHOR'] = 'PyNOT version %s' % __version__
+        resp_hdr['OBJECT'] = instrument.get_object(hdr)
+        resp_hdr['DATE-OBS'] = instrument.get_date(hdr)
+        resp_hdr['EXPTIME'] = exptime
+        resp_hdr['AIRMASS'] = airmass
         resp_hdr['GRISM'] = grism
-        resp_hdr['OBJECT'] = hdr['OBJECT']
-        resp_hdr['DATE-OBS'] = hdr['DATE-OBS']
-        resp_hdr['EXPTIME'] = hdr['EXPTIME']
-        resp_hdr['AIRMASS'] = hdr['AIRMASS']
-        resp_hdr['ALGRNM'] = hdr['ALGRNM']
-        resp_hdr['ALAPRTNM'] = hdr['ALAPRTNM']
+        resp_hdr['SLIT'] = instrument.get_slit(hdr)
         resp_hdr['RA'] = hdr['RA']
         resp_hdr['DEC'] = hdr['DEC']
+        resp_hdr['STD-STAR'] = star
         resp_hdr['COMMENT'] = 'PyNOT response function'
-        resp_hdr['AUTHOR'] = 'PyNOT version %s' % __version__
         prim = fits.PrimaryHDU(header=resp_hdr)
         col_wl = fits.Column(name='WAVE', array=wl, format='D', unit='Angstrom')
         col_resp = fits.Column(name='RESPONSE', array=response, format='D', unit='-2.5*log(erg/s/cm2/A)')

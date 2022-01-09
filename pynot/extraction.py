@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 from scipy.ndimage import median_filter
 from scipy.signal import find_peaks
 from numpy.polynomial import Chebyshev
-import warnings
 
 from lmfit import Parameters, minimize
 
@@ -325,8 +324,8 @@ def create_2d_profile(img2D, model_name='moffat', dx=25, width_scale=2,
             mask_a &= (x_binned > xmin) & (x_binned < xmax)
             mask_b &= (x_binned > xmin) & (x_binned < xmax)
 
-            a_fit = Chebyshev.fit(x_binned[mask_a], a[mask_a], deg=order_width, domain=domain, w=w_a[mask_a])
-            b_fit = Chebyshev.fit(x_binned[mask_b], b[mask_b], deg=order_width, domain=domain, w=w_b[mask_b])
+            a_fit = Chebyshev.fit(x_binned[mask_a], a[mask_a], deg=order_width, domain=domain)#, w=w_a[mask_a])
+            b_fit = Chebyshev.fit(x_binned[mask_b], b[mask_b], deg=order_width, domain=domain)#, w=w_b[mask_b])
             info_dict['a'] = a
             info_dict['a_err'] = a_err
             info_dict['mask_a'] = mask_a
@@ -414,7 +413,9 @@ def plot_diagnostics(pdf, spec1D, err1D, info_dict, width_scale=2):
 
 
 
-def auto_extract_img(img2D, err2D, *, N=None, pdf_fname=None, mask=None, model_name='moffat', dx=50, width_scale=2, xmin=None, xmax=None, ymin=None, ymax=None, order_center=3, order_width=0, w_cen=15, kappa_cen=3., w_width=21, kappa_width=3.):
+def auto_extract_img(img2D, err2D, *, N=None, pdf_fname=None, mask=None, model_name='moffat',
+                     dx=50, width_scale=2, xmin=None, xmax=None, ymin=None, ymax=None,
+                     order_center=3, order_width=0, w_cen=15, kappa_cen=3., w_width=21, kappa_width=3.):
     assert err2D.shape == img2D.shape, "input image and error image do not match in shape"
     if N == 0:
         raise ValueError("Invalid input: N must be an integer larger than or equal to 1, not %r" % N)
@@ -472,7 +473,9 @@ def auto_extract_img(img2D, err2D, *, N=None, pdf_fname=None, mask=None, model_n
     return spectra, output_msg
 
 
-def auto_extract(fname, output, dispaxis=1, *, N=None, pdf_fname=None, mask=None, model_name='moffat', dx=50, width_scale=2, xmin=None, xmax=None, ymin=None, ymax=None, order_center=3, order_width=1, w_cen=15, kappa_cen=3., w_width=21, kappa_width=3., **kwargs):
+def auto_extract(fname, output, dispaxis=1, *, N=None, pdf_fname=None, mask=None, model_name='moffat',
+                 dx=50, width_scale=2, xmin=None, xmax=None, ymin=None, ymax=None,
+                 order_center=3, order_width=1, w_cen=15, kappa_cen=3., w_width=21, kappa_width=3., **kwargs):
     """Automatically extract object spectra in the given file. Dispersion along the x-axis is assumed!"""
     msg = list()
     img2D = fits.getdata(fname)
@@ -516,14 +519,16 @@ def auto_extract(fname, output, dispaxis=1, *, N=None, pdf_fname=None, mask=None
         wl = np.arange(len(spectra[0][0]))
 
 
+    wl_unit = hdr['CUNIT1']
+    flux_unit = hdr['BUNIT']
     keywords_base = ['CDELT%i', 'CRPIX%i', 'CRVAL%i', 'CTYPE%i', 'CUNIT%i']
     keywords_to_remove = sum([[key % num for key in keywords_base] for num in [1, 2]], [])
     keywords_to_remove += ['CD1_1', 'CD2_1', 'CD1_2', 'CD2_2']
     keywords_to_remove += ['BUNIT', 'DATAMIN', 'DATAMAX']
     for num, (flux, err) in enumerate(spectra):
-        col_wl = fits.Column(name='WAVE', array=wl, format='D', unit=hdr['CUNIT1'])
-        col_flux = fits.Column(name='FLUX', array=flux, format='D', unit=hdr['BUNIT'])
-        col_err = fits.Column(name='ERR', array=err, format='D', unit=hdr['BUNIT'])
+        col_wl = fits.Column(name='WAVE', array=wl, format='D', unit=wl_unit)
+        col_flux = fits.Column(name='FLUX', array=flux, format='D', unit=flux_unit)
+        col_err = fits.Column(name='ERR', array=err, format='D', unit=flux_unit)
         for key in keywords_to_remove:
             hdr.remove(key, ignore_missing=True)
         tab = fits.BinTableHDU.from_columns([col_wl, col_flux, col_err], header=hdr)
