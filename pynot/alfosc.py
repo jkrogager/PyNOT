@@ -4,6 +4,7 @@ Instrument definitions for NOT/ALFOSC
 """
 import numpy as np
 import os
+import datetime
 from os.path import dirname, abspath
 from astropy.io import fits
 from astropy.table import Table
@@ -157,3 +158,12 @@ def get_rotpos(hdr):
 
 def get_date(hdr):
     return hdr['DATE-OBS']
+
+def get_mjd(hdr):
+    """Input Date String in ISO format as in ALFOSC header: '2016-08-01T16:03:57.796'"""
+    date_str = get_date(hdr)
+    date = datetime.datetime.fromisoformat(date_str)
+    mjd_0 = datetime.datetime(1858, 11, 17)
+    dt = date - mjd_0
+    mjd = dt.days + dt.seconds/(24*3600.)
+    return mjd
