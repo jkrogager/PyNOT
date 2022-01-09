@@ -7,9 +7,12 @@ import datetime
 from glob import glob
 from astropy.io import fits
 
-from pynot.alfosc import get_binning_from_hdr, get_header
 from pynot.response import lookup_std_star
-import pynot.alfosc as instrument
+from pynot import instrument
+
+# Shortcuts:
+get_binning_from_hdr = instrument.get_binning_from_hdr
+get_header = instrument.get_header
 
 # -- use os.path
 code_dir = os.path.dirname(os.path.abspath(__file__))
@@ -17,11 +20,11 @@ v_file = os.path.join(os.path.split(code_dir)[0], 'VERSION')
 with open(v_file) as version_file:
     __version__ = version_file.read().strip()
 
+# List of Flux Calibrators:
 std_fname = os.path.join(os.path.split(code_dir)[0], 'calib/std/namelist.txt')
 calib_namelist = np.loadtxt(std_fname, dtype=str)
 calib_names = calib_namelist[:, 1]
 
-alfosc_rulefile = os.path.join(code_dir, 'alfosc.rules')
 
 def occurence(inlist):
     """
@@ -44,15 +47,6 @@ def occurence(inlist):
     return single_values
 
 
-def get_mjd(date_str):
-    """Input Date String in ISO format as in ALFOSC header: '2016-08-01T16:03:57.796'"""
-    date = datetime.datetime.fromisoformat(date_str)
-    mjd_0 = datetime.datetime(1858, 11, 17)
-    dt = date - mjd_0
-    mjd = dt.days + dt.seconds/(24*3600.)
-    return mjd
-
-
 def match_date(files, date_mjd):
     """
     Return subset of files which were observed at the given date.
@@ -68,7 +62,7 @@ def match_date(files, date_mjd):
     matches = list()
     for fname in files:
         hdr = get_header(fname)
-        mjd = get_mjd(instrument.get_date(hdr))
+        mjd = instrument.get_mjd(hdr)
         if int(mjd) == int(date_mjd):
             matches.append(fname)
 
@@ -84,7 +78,7 @@ def group_calibs_by_date(file_list, lower=0.01, upper=0.99):
     N = len(file_list)
     for i, fname in enumerate(file_list):
         hdr = get_header(fname)
-        mjd[i] = get_mjd(instrument.get_date(hdr))
+        mjd[i] = instrument.get_mjd(hdr)
 
     while sum(n) < N:
         m0 = mjd[~n][0]
@@ -118,9 +112,21 @@ def get_unclassified_files(file_list, database):
 
 def classify_file(fname, rules):
     """
-    Classify input FITS file according to the set of `rules`, a list of string conditions
-    for header keywords. Each rule correspond to one filetype, e.g. BIAS, OBJECT
-    Returns a list of rules that
+    Classify input FITS file according to the set of `rules`
+
+    fname : string
+
+    rules : list[string]
+        A list of string conditions for header keywords. Each rule corresponds to one filetype:
+        e.g. BIAS, SPEC_FLAT, SPEC_OBJECT.
+
+    Returns
+    -------
+    matches : list[string]
+        A list of filetypes that match the given input file
+
+    msg : list[string]
+        A list of logging messages
     """
     msg = list()
     try:
@@ -224,7 +230,7 @@ def classify_file(fname, rules):
     return matches, msg
 
 
-def classify(data_in, rule_file=alfosc_rulefile, progress=True):
+def classify(data_in, rule_file=instrument.rulefile, progress=True):
     """
     The input can be a single .fits file, a string given the path to a directory,
     a list of .fits files, or a list of directories.
@@ -250,13 +256,13 @@ def classify(data_in, rule_file=alfosc_rulefile, progress=True):
             for path in data_in:
                 files += glob(path+'/*.fits')
     else:
-        raise ValueError("Input must be a string or a list of strings")
+        raise ValueError("Input must be a string or a list of strings [data.organizer.classify]")
 
     data_types = dict()
     not_classified_files = list()
 
     if not os.path.exists(rule_file):
-        raise FileNotFoundError("ALFOSC ruleset could not be found: %s" % rule_file)
+        raise FileNotFoundError("Instrument ruleset could not be found: %s" % rule_file)
 
     with open(rule_file) as rulebook:
         rules = rulebook.readlines()
@@ -266,19 +272,19 @@ def classify(data_in, rule_file=alfosc_rulefile, progress=True):
         print(" Classifying files: ")
 
     for num, fname in enumerate(files):
-        matches, output_msg = classify_file(fname, rules)
+        matches, classify_msg = classify_file(fname, rules)
 
         if len(matches) == 1:
             ftype = matches[0]
             data_types[fname] = ftype
 
         elif len(matches) == 0:
-            msg.append(" [ERROR]  - " + output_msg[0])
+            # msg.append("[WARNING] - " + classify_msg[0])
             not_classified_files.append(fname)
 
         else:
-            msg.append(" [ERROR]  - " + output_msg[0])
-            msg.append("            " + output_msg[1])
+            msg.append("[WARNING] - " + classify_msg[0])
+            msg.append("            " + classify_msg[1])
 
         if progress:
             sys.stdout.write("\r  %6.2f%%" % (100.*(num+1)/len(files)))
@@ -286,10 +292,10 @@ def classify(data_in, rule_file=alfosc_rulefile, progress=True):
 
     msg.append("")
     msg.append("          - Classification finished.")
-    msg.append("          - Successfully classified %i out of %i files." % (len(data_types.keys()), len(files)))
+    msg.append("  [DONE]  - Successfully classified %i out of %i files." % (len(data_types.keys()), len(files)))
     msg.append("")
     if len(files) != len(data_types.keys()):
-        msg.append("[WARNING] - Files not classified:")
+        msg.append("[WARNING] - No classification matched the files:")
         for item in not_classified_files:
             msg.append("          - %s" % item)
     msg.append("")
@@ -422,7 +428,7 @@ class RawImage(object):
         for fname in filelist:
             this_hdr = fits.getheader(fname, 0)
             criteria = list()
-            this_mjd = get_mjd(instrument.get_date(this_hdr))
+            this_mjd = instrument.get_mjd(this_hdr)
             if date:
                 # Match files from same night, midnight ± 9hr
                 dt = self.mjd - this_mjd
