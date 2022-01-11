@@ -11,11 +11,7 @@ from astropy.table import Table
 
 name = 'alfosc'
 
-# Define header keyword to use as object name
-# OBJECT is not always reliable, TCS target name is more robust
-target_keyword = 'TCSTGT'
-
-# path = '/Users/krogager/coding/PyNOT'
+# absolute path from code directory [DO NOT CHANGE]
 path = dirname(abspath(__file__))
 
 # path to classification rules:
@@ -57,13 +53,13 @@ grism_translate = {'Grism_#3' : 'al-gr3',
                    'Grism_#20': 'al-gr20'}
 
 
-slits = ['Ech_0.7', 'Ech_0.8', 'Ech_1.0', 'Ech_1.2', 'Ech_1.6',
-         'Ech_1.8', 'Ech_2.2', 'Pol_1.0', 'Pol_1.4', 'Pol_1.8',
-         'Slit_0.4', 'Slit_0.5', 'Slit_0.75', 'Slit_1.0',
-         'Slit_1.3', 'Slit_1.8', 'Slit_2.5', 'Slit_10.0',
-         'Vert_0.5', 'Vert_0.75', 'Vert_0.9', 'Vert_1.3',
-         'Vert_1.8', 'Vert_10.0', 'VertOff_0.5', 'VertOff_0.8',
-         'VertOff_1.0', 'VertOff_1.3', 'VertOff_1.9', 'VertOff_8.8']
+slits = ['ech_0.7', 'ech_0.8', 'ech_1.0', 'ech_1.2', 'ech_1.6',
+         'ech_1.8', 'ech_2.2', 'pol_1.0', 'pol_1.4', 'pol_1.8',
+         'slit_0.4', 'slit_0.5', 'slit_0.75', 'slit_1.0',
+         'slit_1.3', 'slit_1.8', 'slit_2.5', 'slit_10.0',
+         'vert_0.5', 'vert_0.75', 'vert_0.9', 'vert_1.3',
+         'vert_1.8', 'vert_10.0', 'vertoff_0.5', 'vertoff_0.8',
+         'vertoff_1.0', 'vertoff_1.3', 'vertoff_1.9', 'vertoff_8.8']
 
 
 filter_table = Table.read(filter_table_fname, format='ascii.fixed_width')
@@ -80,6 +76,7 @@ def get_header(fname):
     if primhdr['INSTRUME'] != 'ALFOSC_FASU':
         print("[WARNING] - FITS file not originating from NOT/ALFOSC!")
     return primhdr
+
 
 def create_pixel_array(hdr, axis):
     """Load reference array from header using CRVAL, CDELT, CRPIX along dispersion axis"""
@@ -178,7 +175,7 @@ def get_slit(hdr):
 
 def get_airmass(hdr):
     """Return the average airmass at mid-exposure"""
-    return hdr['AIRMASS']
+    return hdr.get('AIRMASS')
 
 def get_exptime(hdr):
     # if EXPTIME is in the header, this should always be used!
@@ -191,7 +188,7 @@ def get_target_name(hdr):
     return hdr.get('TCSTGT')
 
 def get_rotpos(hdr):
-    return hdr['ROTPOS']
+    return hdr.get('ROTPOS', 0)
 
 def get_date(hdr):
     return hdr['DATE-OBS']

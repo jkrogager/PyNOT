@@ -38,7 +38,6 @@ mandatory_attributes = [
     'name',
     'rulefile',
     'slits',
-    'target_keyword',
 ]
 
 mandatory_filetags = ['BIAS', 'DARK', 'SPEC_FLAT', 'SPEC_OBJECT', 'ACQ_IMG', 'IMG_OBJECT', 'IMG_FLAT']

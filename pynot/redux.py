@@ -361,6 +361,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
         if options['mbias']:
             master_bias_fname = options['mbias']
             log.write("Using static master bias frame: %s" % options['mbias'])
+            log.add_linebreak()
         elif os.path.exists(str(status.get('master_bias'))):
             master_bias_fname = status['master_bias']
             # check that image shapes match:
@@ -368,6 +369,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
             bias_binning = instrument.get_binning_from_hdr(bias_hdr)
             if sci_img.binning == bias_binning:
                 log.write("Using combined master frame: %s" % master_bias_fname)
+                log.add_linebreak()
                 perform_bias_comb = False
             else:
                 perform_bias_comb = True
@@ -387,12 +389,12 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                                                       method=options['bias']['method'],
                                                       overwrite=True)
                     log.commit(bias_msg)
-                    log.add_linebreak()
                     status['master_bias'] = os.path.basename(master_bias_fname)
                     copy_bias = "cp %s %s" % (master_bias_fname, os.path.basename(master_bias_fname))
                     if not os.path.exists(os.path.basename(master_bias_fname)):
                         os.system(copy_bias)
-                    log.write("Copied combined bias frame to base working directory")
+                    log.write("Copied combined Bias Image to base working directory")
+                    log.add_linebreak()
                 except:
                     log.error("Median combination of bias frames failed!")
                     log.fatal_error()
@@ -436,12 +438,12 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                                                   method=options['flat']['method'], overwrite=True,
                                                   mode='spec', dispaxis=sci_img.dispaxis)
                 log.commit(flat_msg)
-                log.add_linebreak()
                 status['flat_combined'] = comb_flat_fname
                 copy_flat = "cp %s %s" % (comb_flat_fname, os.path.basename(comb_flat_fname))
                 if not os.path.exists(os.path.basename(comb_flat_fname)):
                     os.system(copy_flat)
-                log.write("Copied combined flat frame to base working directory")
+                log.write("Copied combined Flat Image to base working directory")
+                log.add_linebreak()
             except ValueError as err:
                 log.commit(str(err)+'\n')
                 log.fatal_error()
@@ -463,7 +465,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                 copy_normflat = "cp %s %s" % (norm_flat_fname, os.path.basename(norm_flat_fname))
                 if not os.path.exists(os.path.basename(norm_flat_fname)):
                     os.system(copy_normflat)
-                log.write("Copied normalized flat frame to base working directory")
+                log.write("Copied normalized Flat Image to base working directory")
                 log.add_linebreak()
             except:
                 log.error("Normalization of flat frames failed!")
