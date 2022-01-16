@@ -413,6 +413,8 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
             else:
                 norm_flat_fname = options['mflat']
             log.write("Using static master flat frame: %s" % options['mflat'])
+            log.add_linebreak()
+
         elif os.path.exists(os.path.basename(norm_flat_fname)):
             norm_flat_fname = os.path.basename(norm_flat_fname)
             # check that image shapes match:
@@ -422,6 +424,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
             # Change this to match the image shape *after* overscan correction
             if sci_img.binning == flat_binning and sci_img.shape == flat_img.shape:
                 log.write("Using normalized flat frame: %s" % norm_flat_fname)
+                log.add_linebreak()
                 perform_flat_comb = False
             else:
                 perform_flat_comb = True
@@ -556,9 +559,10 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                                                                       rectify_options=options['rectify'],
                                                                       app=app)
                     # copy response file to working directory
-                    copy_response = "cp %s %s" % (response_fname, os.path.basename(response_fname))
-                    if not os.path.exists(os.path.basename(response_fname)):
-                        os.system(copy_response)
+                    if response_fname:
+                        copy_response = "cp %s %s" % (response_fname, os.path.basename(response_fname))
+                        if not os.path.exists(os.path.basename(response_fname)):
+                            os.system(copy_response)
                     status['response'] = response_fname
                     log.commit(response_msg)
                     log.write("Copied response function to base working directory")

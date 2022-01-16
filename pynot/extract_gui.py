@@ -532,13 +532,13 @@ class ImageData(object):
             self.data = self.data.T
             self.error = self.error.T
             self.shape = self.data.shape
-            self.wl_unit = self.header['CUNIT2']
+            self.wl_unit = self.header.get('CUNIT2')
         else:
             self.wl = get_wavelength_from_header(self.header, 1)
-            self.wl_unit = self.header['CUNIT1']
+            self.wl_unit = self.header.get('CUNIT1')
         self.x = np.arange(self.data.shape[1], dtype=np.float64)
         self.y = np.arange(self.data.shape[0], dtype=np.float64)
-        self.flux_unit = self.header['BUNIT']
+        self.flux_unit = self.header.get('BUNIT')
 
 
 

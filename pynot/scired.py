@@ -508,7 +508,10 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname='', output='', overwrite
     mask_hdr.add_comment("0 = Good Pixels")
     mask_hdr.add_comment("1 = Cosmic Ray Hits")
     for key in ['CRPIX1', 'CRPIX2', 'CRVAL1', 'CRVAL2', 'CTYPE1', 'CTYPE2', 'CUNIT1', 'CUNIT2']:
-        mask_hdr[key] = hdr[key]
+        if key in hdr:
+            mask_hdr[key] = hdr[key]
+        else:
+            mask_hdr[key] = ''
 
     if mode == 'spec':
         cdelt1 = hdr.get('CDELT1')
@@ -520,10 +523,14 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname='', output='', overwrite
         mask_hdr['CDELT1'] = cdelt1
         mask_hdr['CDELT2'] = cdelt2
     else:
-        mask_hdr['CD1_1'] = hdr['CD1_1']
-        mask_hdr['CD1_2'] = hdr['CD1_2']
-        mask_hdr['CD2_1'] = hdr['CD2_1']
-        mask_hdr['CD2_2'] = hdr['CD2_2']
+        if 'CD1_1' in hdr:
+            mask_hdr['CD1_1'] = hdr['CD1_1']
+            mask_hdr['CD1_2'] = hdr['CD1_2']
+            mask_hdr['CD2_1'] = hdr['CD2_1']
+            mask_hdr['CD2_2'] = hdr['CD2_2']
+        else:
+            mask_hdr['CDELT1'] = hdr['CDELT1']
+            mask_hdr['CDELT2'] = hdr['CDELT2']
 
     sci_ext = fits.PrimaryHDU(sci, header=hdr)
     err_ext = fits.ImageHDU(err, header=hdr, name='ERR')

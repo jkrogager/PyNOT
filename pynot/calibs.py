@@ -88,10 +88,7 @@ def combine_bias_frames(bias_frames, output='', kappa=15, method='mean', overwri
         master_bias[Ncomb == 0] = np.mean(master_bias[Ncomb != 0])
     msg.append("          - Combined %i files" % len(bias))
 
-    hdr = fits.getheader(bias_frames[0], 0)
-    hdr1 = fits.getheader(bias_frames[0], 1)
-    for key in hdr1.keys():
-        hdr[key] = hdr1[key]
+    hdr = instrument.get_header(bias_frames[0])
     hdr['NCOMBINE'] = len(bias_frames)
     if method.lower() == 'median':
         hdr.add_comment('Median combined Master Bias')
@@ -386,8 +383,8 @@ def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=2, order=24, 
         model = model.T
 
     flat_norm = flat / model
-    hdr['DATAMIN'] = np.min(flat_norm)
-    hdr['DATAMAX'] = np.max(flat_norm)
+    hdr.remove('DATAMIN', ignore_missing=True)
+    hdr.remove('DATAMAX', ignore_missing=True)
     if dispaxis == 1:
         stat_region = flat_norm[x1:x2, :]
     else:

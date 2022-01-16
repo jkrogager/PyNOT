@@ -1,0 +1,16 @@
+| short_name |  name   | efosc_name  |  id       
+| U          | U#640   | U Bessel    |  #640  
+| B          | B#639   | B Bessel    |  #639  
+| V          | V#641   | V Bessel    |  #641  
+| R          | R#642   | R Bessel    |  #642  
+| g_SDSS     | g#782   | Gunn g      |  #782  
+| r_SDSS     | r#784   | Gunn r      |  #784  
+| i_SDSS     | i#705   | Gunn i      |  #705  
+| z_SDSS     | z#623   | Gunn z      |  #623  
+| Halpha     | Ha#692  | H Alpha     |  #692  
+| Halpha_cont| Ha#709  | H Alpha Red |  #709  
+| Hbeta      | Hb#742  | H Beta      |  #742  
+| Hbeta_cont | Hb#743  | Hbe Cont    |  #743  
+| OIII_5004  | O3#687  | [OIII]      |  #687  
+| SII_6730   | S2#700  | [SII]       |  #700  
+

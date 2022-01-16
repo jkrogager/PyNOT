@@ -161,7 +161,10 @@ def get_filter_raw(hdr):
 
 def get_filter(hdr):
     raw_filter_name = get_filter_raw(hdr)
-    return filter_translate.get(raw_filter_name)
+    if raw_filter_name in filter_translate:
+        return filter_translate.get(raw_filter_name)
+    else:
+        return 'Open'
 
 def get_grism(hdr):
     raw_grism = hdr['ALGRNM']

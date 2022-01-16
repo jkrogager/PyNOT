@@ -5,6 +5,8 @@ import os
 import sys
 from glob import glob
 from astropy.io import fits
+from astropy.io.fits.file import AstropyUserWarning
+import warnings
 
 from pynot.response import lookup_std_star
 from pynot import instrument
@@ -15,6 +17,7 @@ v_file = os.path.join(os.path.split(code_dir)[0], 'VERSION')
 with open(v_file) as version_file:
     __version__ = version_file.read().strip()
 
+warnings.simplefilter('ignore', category=AstropyUserWarning)
 
 def occurence(inlist):
     """
@@ -100,6 +103,24 @@ def get_unclassified_files(file_list, database):
     return missing_files
 
 
+def verify_header_key(key):
+    """If given a string with spaces or dots convert to HIERARCH ESO format"""
+    check_ESO = False
+    key = key.strip()
+    if '.' in key:
+        key = key.replace('.', ' ')
+        check_ESO = True
+
+    if ' ' in key:
+        check_ESO = True
+
+    if check_ESO:
+        if not key.startswith('ESO'):
+            key = 'ESO %s' % key
+
+    return key
+
+
 def classify_file(fname, rules):
     """
     Classify input FITS file according to the set of `rules`
@@ -137,6 +158,7 @@ def classify_file(fname, rules):
         for cond in all_conditions:
             if '==' in cond:
                 key, val = cond.split('==')
+                key = verify_header_key(key)
                 if key not in h:
                     raise RuleCriterionError(key, cond)
                 if 'open' in val.lower():
@@ -149,6 +171,7 @@ def classify_file(fname, rules):
 
             elif '!=' in cond:
                 key, val = cond.split('!=')
+                key = verify_header_key(key)
                 if key not in h:
                     raise RuleCriterionError(key, cond)
                 if 'open' in val.lower():
@@ -161,6 +184,7 @@ def classify_file(fname, rules):
 
             elif '>' in cond:
                 key, val = cond.split('>')
+                key = verify_header_key(key)
                 if key not in h:
                     raise RuleCriterionError(key, cond)
                 val = parse_value(val)
@@ -168,6 +192,7 @@ def classify_file(fname, rules):
 
             elif '<' in cond:
                 key, val = cond.split('<')
+                key = verify_header_key(key)
                 if key not in h:
                     raise RuleCriterionError(key, cond)
                 val = parse_value(val)
@@ -175,6 +200,7 @@ def classify_file(fname, rules):
 
             elif ' contains ' in cond:
                 key, val = cond.split('contains')
+                key = verify_header_key(key)
                 if key not in h:
                     raise RuleCriterionError(key, cond)
                 val = parse_value(val)
@@ -182,6 +208,7 @@ def classify_file(fname, rules):
 
             elif ' !contains ' in cond:
                 key, val = cond.split('!contains')
+                key = verify_header_key(key)
                 if key not in h:
                     raise RuleCriterionError(key, cond)
                 val = parse_value(val)
@@ -396,10 +423,10 @@ class RawImage(object):
         self.filetype = filetype
         self.header = instrument.get_header(fname)
         self.binning = instrument.get_binning_from_hdr(self.header)
-        file_root = fname.split('/')[-1]
+        # file_root = fname.split('/')[-1]
         self.dispaxis = None
-        if file_root != self.header['FILENAME']:
-            raise ValueError("The file doesn't seem to be a raw FITS image: %s" % fname)
+        # if file_root != self.header['FILENAME']:
+        #     raise ValueError("The file doesn't seem to be a raw FITS image: %s" % fname)
 
         self.mode = instrument.get_observing_mode(self.header)
         if self.mode.lower().startswith('spec'):
@@ -417,10 +444,16 @@ class RawImage(object):
 
         elif self.mode.lower().startswith('im'):
             # Image Coordinates and Reference System
-            cd11 = self.header['CD1_1']
-            cd12 = self.header['CD1_2']
-            cd21 = self.header['CD2_1']
-            cd22 = self.header['CD2_2']
+            if 'CD1_1' in self.header:
+                cd11 = self.header['CD1_1']
+                cd12 = self.header['CD1_2']
+                cd21 = self.header['CD2_1']
+                cd22 = self.header['CD2_2']
+            else:
+                cd11 = self.header['CDELT1']
+                cd22 = self.header['CDELT2']
+                cd12 = 0.
+                cd21 = 0.
             self.CD = np.array([[cd11, cd21],
                                 [cd12, cd22]])
             self.dispaxis = None
@@ -445,7 +478,13 @@ class RawImage(object):
 
         self.CRVAL = np.array([self.header['CRVAL1'], self.header['CRVAL2']])
         self.CRPIX = np.array([self.header['CRPIX1'], self.header['CRPIX2']])
+        if 'BUNIT' not in self.header:
+            self.header['BUNIT'] = ""
         self.data_unit = self.header['BUNIT']
+        if 'CUNIT1' not in self.header:
+            self.header['CUNIT1'] = ""
+        if 'CUNIT2' not in self.header:
+            self.header['CUNIT2'] = ""
         self.x_unit = self.header['CUNIT1']
         self.y_unit = self.header['CUNIT2']
         self.x_type = self.header['CTYPE1']

@@ -600,11 +600,9 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
     img2D = fits.getdata(img_fname)
     msg.append("          - Loaded image: %s" % img_fname)
     msg.append("          - Loaded reference arc image: %s" % arc_fname)
-    try:
-        err2D = fits.getdata(img_fname, 'ERR')
-        msg.append("          - Loaded error image")
-    except KeyError:
-        err2D = None
+    err2D = fits.getdata(img_fname, 'ERR')
+    msg.append("          - Loaded error image")
+
     try:
         mask2D = fits.getdata(img_fname, 'MASK')
         msg.append("          - Loaded mask image")
@@ -634,8 +632,7 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
         arc2D = arc2D.T
         img2D = img2D.T
         mask2D = mask2D.T
-        if err2D is not None:
-            err2D = err2D.T
+        err2D = err2D.T
         pix_in = instrument.create_pixel_array(hdr, axis=2)
         hdr = swap_axes_in_header(hdr)
     else:

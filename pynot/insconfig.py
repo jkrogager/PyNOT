@@ -291,6 +291,7 @@ def setup_instrument(args):
     # -- Test instrument filter table
     try:
         test_filter_table(filter_path)
+        print("          - successfully imported filter table: %s" % filter_path)
     except (FileNotFoundError, TableColumnError, OSError) as e:
         print(" [ERROR]  - error in filter definition table: %s" % filter_path)
         print(" [ERROR]  - " + str(e))
@@ -298,7 +299,9 @@ def setup_instrument(args):
         return ""
 
     # -- Test if the observatory extinction file exists
-    if not os.path.exists(ext_path):
+    if os.path.exists(ext_path):
+        print("          - successfully imported extinction data: %s" % ext_path)
+    else:
         print(" [ERROR]  - The file does not exist: %s" % ext_path)
         print("")
         return ""
@@ -311,12 +314,14 @@ def setup_instrument(args):
 
         test_instrument_module(instrument, ins_path)
         print("          - successfully imported module: %s" % ins_path)
-    except (AttributeError, FileNotFoundError) as e:
+    except AttributeError as e:
         print(" [ERROR]  - " + str(e))
         if "object has no attribute 'loader'" in str(e):
             print(" [ERROR]  - The given file does not seem to be a proper python module!")
         print("")
-        return ""
+    except FileNotFoundError:
+        pass
+        # return ""
 
 
     # -- Copy files:

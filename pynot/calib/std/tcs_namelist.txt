@@ -10,3 +10,4 @@
  bd174708    SP2209+178
  feige110    SP2317-054
  hiltner600  SP0642+021
+ ltt3864     LTT3864

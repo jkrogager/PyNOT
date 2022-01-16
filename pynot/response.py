@@ -53,11 +53,11 @@ def lookup_std_star(hdr):
     """
     object_name = instrument.get_object(hdr)
     target_name = instrument.get_target_name(hdr)
-    if object_name in standard_stars:
+    if object_name.lower() in standard_stars:
         return object_name.lower()
     elif object_name.upper() in tcs_standard_stars:
         return tcs_standard_stars[object_name.upper()]
-    elif target_name in standard_stars:
+    elif target_name.lower() in standard_stars:
         return target_name.lower()
     elif target_name.upper() in tcs_standard_stars:
         return tcs_standard_stars[target_name.upper()]
