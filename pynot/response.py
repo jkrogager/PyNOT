@@ -1,6 +1,10 @@
 # PyNOT/response
 """
 Calculate the instrumental response function
+
+Tabulated data can be found here:
+https://ftp.eso.org/pub/usg/standards/
+
 """
 __author__ = 'Jens-Kristian Krogager'
 __email__ = "krogager.jk@gmail.com"
