@@ -62,6 +62,7 @@ slit_translate = {'slit#1.0': 'slit_1.0',
                   'slit#5.0': 'slit_5.0',
                   'slit#10': 'slit_10',
                   'free': 'free',
+                  'holes_mask': 'holes_mask',
                   }
 
 # Automatically assign arc-line list:
@@ -163,7 +164,10 @@ def get_grism(hdr):
 
 def get_slit(hdr):
     raw_slit_name = hdr['ESO INS SLIT1 NAME'].lower()
-    return slit_translate[raw_slit_name]
+    if raw_slit_name in slit_translate:
+        return slit_translate[raw_slit_name]
+    else:
+        return raw_slit_name
 
 def get_airmass(hdr):
     """Return the average airmass at mid-exposure"""
