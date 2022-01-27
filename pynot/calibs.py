@@ -6,6 +6,7 @@ __author__ = 'Jens-Kristian Krogager'
 __email__ = "krogager@iap.fr"
 __credits__ = ["Jens-Kristian Krogager"]
 
+from copy import copy
 import numpy as np
 from astropy.io import fits
 import matplotlib.pyplot as plt
@@ -17,6 +18,7 @@ from os.path import exists, basename
 from pynot import instrument
 from pynot.functions import mad, my_formatter, get_version_number
 from pynot.scired import trim_overscan
+from pynot.data.organizer import sort_spec_flat
 
 
 __version__ = get_version_number()
@@ -244,7 +246,7 @@ def combine_flat_frames(raw_frames, output, mbias='', mode='spec', dispaxis=2,
     return output, output_msg
 
 
-def detect_flat_edges(img, dispaxis=2, savgol_window=21, threshold=10):
+def detect_flat_edges(img, dispaxis=2, savgol_window=21, threshold=10, width=10):
     """Use filtered derivative to detect the edges of the frame."""
     # Get median profile along slit:
     med_row = np.nanmedian(img, 2-dispaxis)
@@ -257,14 +259,14 @@ def detect_flat_edges(img, dispaxis=2, savgol_window=21, threshold=10):
     if noise == 0:
         sig_tmp = np.std(deriv)
         noise = np.std(deriv[deriv < 3*sig_tmp])
-    edges, props = signal.find_peaks(deriv, height=threshold*noise)
+    edges, props = signal.find_peaks(deriv, height=threshold*noise, width=width)
 
     return edges
 
 
 
 def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=2, order=24, savgol_window=51,
-                            med_window=5, edge_threshold=10, edge_window=21, plot=True, overwrite=True, **kwargs):
+                            med_window=5, edge_threshold=10, edge_window=21, edge_width=10, plot=True, overwrite=True, **kwargs):
     """
     Normalize spectral flat field for long-slit observations. Parameters are optimized
     for NOT/ALFOSC spectra with horizontal slits, i.e., vertical spectra [axis=2],
@@ -281,7 +283,8 @@ def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=2, order=24, 
         Input FITS file with raw lamp flat data
 
     output : string  [default='']
-        Filename of normalized flat frame, if not given the output is not saved to file
+        Filename of normalized flat frame.
+        If not given, the output is constructed from the grism and slit IDs
 
     fig_dir : string  [default='']
         Directory where the diagnostic plot is saved (if `plot=True`)
@@ -303,6 +306,10 @@ def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=2, order=24, 
 
     edge_window : integer  [default=21]
         The Savitzky--Golay window used for automatic edge detection
+
+    edge_width : integer  [default=10]
+        The minimum width of a peak in the 1st derivative of the filtered
+        illumination profile along the slit in units of pixels.
 
     plot : boolean [default=True]
         Plot the 1d and 2d data for inspection?
@@ -459,7 +466,7 @@ def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=2, order=24, 
         if not exists(fig_dir) and fig_dir != '':
             os.mkdir(fig_dir)
         file_base = basename(fname)
-        fname_root = file_base.strip('.fits')
+        fname_root = os.path.splitext(file_base)[0]
         fig1d_fname = os.path.join(fig_dir, "specflat_1d_%s.pdf" % fname_root)
         fig2d_fname = os.path.join(fig_dir, "specflat_2d_%s.pdf" % fname_root)
         fig1D.tight_layout()
@@ -489,3 +496,38 @@ def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=2, order=24, 
     output_msg = "\n".join(msg)
 
     return output, output_msg
+
+
+
+def task_sflat(args):
+    """
+    Define the entry point for the main task of sflat, to be called by pynot.main
+
+    args : command line arguments from argparse of pynot.main
+    """
+    from pynot.data import io
+
+    print("Running task: Spectral flat field combination and normalization")
+    if args.input.endswith('.pfc'):
+        database = io.load_database(args.input)
+        flat_files = sort_spec_flat(database['SPEC_FLAT'])
+
+    else:
+        input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
+        flat_files = sort_spec_flat(input_list)
+
+    for file_id, input_list in flat_files.items():
+        print("Working on files taken with:")
+        grism, _, slit, filt, size = file_id.split('_')
+        print("  GRISM = %s    SLIT = %s    FILTER = %s    %s pixels" % (grism, slit, filt, size))
+        flatcombine, log = combine_flat_frames(input_list, output='', mbias=args.bias, mode='spec',
+                                               dispaxis=args.axis, kappa=args.kappa, method=args.method)
+        print(log)
+
+        options = copy(vars(args))
+        vars_to_remove = ['task', 'input', 'output', 'axis', 'bias', 'kappa']
+        for varname in vars_to_remove:
+            options.pop(varname)
+        _, log = normalize_spectral_flat(flatcombine, output=args.output, dispaxis=args.axis, **options)
+        print(log)
+        print("")

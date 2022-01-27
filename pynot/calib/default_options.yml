@@ -21,6 +21,7 @@ flat:
   med_window:     5          # Window width of median filter along spectral axis before fitting the spatial profile
   edge_threshold: 10         # The detection threshold for automatic edge detection
   edge_window:    21         # The Savitzky--Golay window used for automatic edge detection
+  edge_width :    10         # The minimum width of peaks in the derivative for edge detection
 
 identify:
   interactive: True          # Identify lines interactively using a graphical interface

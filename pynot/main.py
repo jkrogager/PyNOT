@@ -193,8 +193,8 @@ def main():
                               help="Input file containing list of image filenames to combine")
     parser_sflat.add_argument("--bias", type=str, required=True,
                               help="Filename of combined bias frame  [REQUIRED]")
-    parser_sflat.add_argument("-o", "--output", type=str, required=True,
-                              help="Output filename of combined bias frame  [REQUIRED]")
+    parser_sflat.add_argument("-o", "--output", type=str, default='',
+                              help="Output filename of combined and normalized flat frame. Constructed from GRISM and SLIT by default")
     parser_sflat.add_argument("--axis", type=int, default=2,
                               help="Dispersion axis: 1 horizontal, 2: vertical")
     # Define parameters based on default values:
@@ -533,17 +533,19 @@ def main():
         _, log = combine_bias_frames(input_list, args.output, kappa=args.kappa, method=args.method)
 
     elif task == 'sflat':
-        from pynot.calibs import combine_flat_frames, normalize_spectral_flat
-        print("Running task: Spectral flat field combination and normalization")
-        input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
-        flatcombine, log = combine_flat_frames(input_list, output='', mbias=args.bias, mode='spec',
-                                               dispaxis=args.axis, kappa=args.kappa, method=args.method)
-
-        options = copy(vars(args))
-        vars_to_remove = ['task', 'input', 'output', 'axis', 'bias', 'kappa']
-        for varname in vars_to_remove:
-            options.pop(varname)
-        _, log = normalize_spectral_flat(flatcombine, args.output, dispaxis=args.axis, **options)
+        # from pynot.calibs import combine_flat_frames, normalize_spectral_flat
+        # print("Running task: Spectral flat field combination and normalization")
+        # input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
+        # flatcombine, log = combine_flat_frames(input_list, output='', mbias=args.bias, mode='spec',
+        #                                        dispaxis=args.axis, kappa=args.kappa, method=args.method)
+        #
+        # options = copy(vars(args))
+        # vars_to_remove = ['task', 'input', 'output', 'axis', 'bias', 'kappa']
+        # for varname in vars_to_remove:
+        #     options.pop(varname)
+        # _, log = normalize_spectral_flat(flatcombine, args.output, dispaxis=args.axis, **options)
+        from pynot.calibs import task_sflat
+        task_sflat(args)
 
     elif task == 'corr':
         from pynot.scired import correct_raw_file

@@ -1,5 +1,6 @@
 # -*- coding: UTF-8 -*-
 
+from collections import defaultdict
 import numpy as np
 import os
 import sys
@@ -60,6 +61,22 @@ def match_date(files, date_mjd):
             matches.append(fname)
 
     return matches
+
+
+def sort_spec_flat(file_list):
+    """
+    Sort spectroscopic flat fields by grism, slit, filter and image size
+    """
+    sorted_files = defaultdict(list)
+    for fname in file_list:
+        hdr = fits.getheader(fname)
+        grism = instrument.get_grism(hdr)
+        slit = instrument.get_slit(hdr)
+        filter = instrument.get_filter(hdr)
+        size = "%ix%i" % (hdr['NAXIS1'], hdr['NAXIS2'])
+        file_id = "%s_%s_%s_%s" % (grism, slit, filter, size)
+        sorted_files[file_id].append(fname)
+    return sorted_files
 
 
 def group_calibs_by_date(file_list, lower=0.01, upper=0.99):
