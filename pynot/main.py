@@ -380,6 +380,7 @@ def main():
     set_default_pars(parser_ext, section='extract', default_type=int,
                      ignore_pars=['interactive'])
 
+
     # Spectral Redux:
     parser_redux = tasks.add_parser('spex', formatter_class=set_help_width(30),
                                     help="Run the full spectroscopic pipeline")

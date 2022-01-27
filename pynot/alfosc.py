@@ -214,6 +214,16 @@ def get_observing_mode(hdr):
     else:
         return None
 
+def get_ob_name(hdr):
+    ob_id = hdr.get('FILENAME')
+    if not ob_id:
+        date = hdr['DATE-OBS']
+        date = date.split('.')[0]
+        ob_id = date.replace(':', '_')
+    else:
+        ob_id = ob_id.split('.')[0]
+    return ob_id
+
 def get_dispaxis(hdr):
     slit_name = get_slit(hdr)
     if 'vert' in slit_name:

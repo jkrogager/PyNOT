@@ -487,6 +487,7 @@ class RawImage(object):
         self.ra_deg = self.header['RA']
         self.ra_hr = self.ra_deg / 15.
         self.dec_deg = self.header['DEC']
+        self.ob_name = instrument.get_ob_name(self.header)
 
         self.rot_angle = instrument.get_rotpos(self.header)
         self.airmass = instrument.get_airmass(self.header)

@@ -44,7 +44,7 @@ standard_stars = [fname.strip('.dat') for fname in _standard_star_files]
 # Look-up table from target-names -> star names
 # (mostly used for ALFOSC where TCSTGT is different)
 std_fname = os.path.join(path, 'calib/std/tcs_namelist.txt')
-calib_names = np.loadtxt(std_fname, dtype=str)
+calib_names = np.loadtxt(std_fname, dtype=str, delimiter=':')
 tcs_standard_stars = {row[1]: row[0] for row in calib_names}
 
 
@@ -55,8 +55,8 @@ def lookup_std_star(hdr):
 
     Returns `None` if no match is found.
     """
-    object_name = instrument.get_object(hdr)
-    target_name = instrument.get_target_name(hdr)
+    object_name = instrument.get_object(hdr).replace(' ', '')
+    target_name = instrument.get_target_name(hdr).replace(' ', '')
     if object_name.lower() in standard_stars:
         return object_name.lower()
     elif object_name.upper() in tcs_standard_stars:

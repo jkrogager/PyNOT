@@ -1,0 +1,13 @@
+# Pixel Table for EFOSC2 grism: ef-gr3
+# order = 4
+# ref = air
+# loc = 515
+# fname = raw/EFOSC.2022-01-26T19:37:39.560.fits
+#
+# Pixel    Wavelength [Å]
+   647.30    3888.65
+   831.17    4158.59
+  1038.59    4471.48
+  1330.38    4921.93
+  1390.29    5015.68
+  1932.34    5875.62

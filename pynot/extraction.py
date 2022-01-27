@@ -10,6 +10,7 @@ from numpy.polynomial import Chebyshev
 from lmfit import Parameters, minimize
 
 from pynot.functions import mad, NN_moffat, NN_gaussian, fix_nans, get_version_number
+from pynot import instrument
 
 __version__ = get_version_number()
 
@@ -324,8 +325,8 @@ def create_2d_profile(img2D, model_name='moffat', dx=25, width_scale=2,
             mask_a &= (x_binned > xmin) & (x_binned < xmax)
             mask_b &= (x_binned > xmin) & (x_binned < xmax)
 
-            a_fit = Chebyshev.fit(x_binned[mask_a], a[mask_a], deg=order_width, domain=domain)#, w=w_a[mask_a])
-            b_fit = Chebyshev.fit(x_binned[mask_b], b[mask_b], deg=order_width, domain=domain)#, w=w_b[mask_b])
+            a_fit = Chebyshev.fit(x_binned[mask_a], a[mask_a], deg=order_width, domain=domain)  # , w=w_a[mask_a])
+            b_fit = Chebyshev.fit(x_binned[mask_b], b[mask_b], deg=order_width, domain=domain)  # , w=w_b[mask_b])
             info_dict['a'] = a
             info_dict['a_err'] = a_err
             info_dict['mask_a'] = mask_a
@@ -399,11 +400,16 @@ def plot_diagnostics(pdf, spec1D, err1D, info_dict, width_scale=2):
 
     axes[-1].plot(spec1D, color='k', lw=1.0, alpha=0.9, label='Flux')
     axes[-1].plot(err1D, color='crimson', lw=0.7, alpha=0.8, label='Error')
-    ymin = 0.
+    # ymin = 0.
     good = spec1D > 5*err1D
     if np.sum(good) == 0:
-        good = spec1D[100:-100] > 0
-    ymax = np.nanmax(spec1D[good])
+        good = np.ones_like(spec1D, dtype=bool)
+    good[:100] = False
+    good[-100:] = False
+    noise = mad(spec1D[good])*1.48
+    ymax = np.nanmax(median_filter(spec1D[good], 25)) + 5*noise
+    ymin = -2*noise
+    axes[-1].axhline(0., ls=':', color='0.5', lw=0.5)
     axes[-1].set_ylim(ymin, ymax)
     axes[-1].set_ylabel("Flux")
     axes[-1].set_xlabel("Dispersion Axis  [pixels]")
@@ -534,6 +540,10 @@ def auto_extract(fname, output, dispaxis=1, *, N=None, pdf_fname=None, mask=None
         tab = fits.BinTableHDU.from_columns([col_wl, col_flux, col_err], header=hdr)
         tab.name = 'OBJ%i' % (num+1)
         hdu.append(tab)
+
+    if not output:
+        target_name = instrument.get_target_name(hdr)
+        output = 'FLUX1D_%s.fits' % target_name
 
     hdu.writeto(output, overwrite=True, output_verify='silentfix')
     msg.append(" [OUTPUT] - Writing fits table: %s" % output)

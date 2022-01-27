@@ -237,6 +237,19 @@ def get_observing_mode(hdr):
     else:
         return None
 
+def get_ob_name(hdr):
+    # ob_id = hdr.get('ESO OBS ID')
+    # if not ob_id:
+    #     date = hdr['DATE-OBS']
+    #     date = date.split('.')[0]
+    #     ob_id = date.replace(':', '_')
+    # else:
+    #     ob_id = str(ob_id)
+    date = hdr['DATE-OBS']
+    date = date.split('.')[0]
+    ob_id = date.replace(':', '_')
+    return ob_id
+
 def get_dispaxis(hdr):
     return 2
 

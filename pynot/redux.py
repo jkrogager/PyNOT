@@ -4,6 +4,7 @@ Automatically Classify and Reduce a given Data Set
 
 from astropy.io import fits
 from collections import defaultdict
+import numpy as np
 import os
 import sys
 import datetime
@@ -325,8 +326,8 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
     for sci_img in objects_to_reduce:
         # Create working directory:
-        raw_base = os.path.basename(sci_img.filename).split('.')[0]
-        output_dir = sci_img.target_name + '_' + raw_base
+        ob_name = sci_img.ob_name
+        output_dir = sci_img.target_name + '_' + ob_name
         if not os.path.exists(output_dir):
             os.mkdir(output_dir)
 
@@ -510,7 +511,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                 status[grism+'_pixtab'] = pixtable
                 log.commit(msg)
                 log.add_linebreak()
-            except:
+            except Exception:
                 log.error("Identification of arc lines failed!")
                 log.fatal_error()
                 print("Unexpected error:", sys.exc_info()[0])
@@ -567,7 +568,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                     log.commit(response_msg)
                     log.write("Copied response function to base working directory")
                     log.add_linebreak()
-                except:
+                except Exception:
                     log.error("Calculation of response function failed!")
                     print("Unexpected error:", sys.exc_info()[0])
                     raise
@@ -583,7 +584,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                                         output=corrected_2d_fname, overwrite=True)
             log.commit(output_msg)
             log.add_linebreak()
-        except:
+        except Exception:
             log.error("Bias and flat field correction failed!")
             log.fatal_error()
             print("Unexpected error:", sys.exc_info()[0])
@@ -615,7 +616,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                 log.commit(bg_msg)
                 log.write("2D sky model is saved in extension 'SKY' of the file: %s" % bgsub2d_fname)
                 log.add_linebreak()
-            except:
+            except Exception:
                 log.error("Automatic background subtraction failed!")
                 log.fatal_error()
                 print("Unexpected error:", sys.exc_info()[0])
@@ -635,7 +636,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                 crr_msg = correct_cosmics(bgsub2d_fname, crr_fname, **options['crr'])
                 log.commit(crr_msg)
                 log.add_linebreak()
-            except:
+            except Exception:
                 log.error("Cosmic ray correction failed!")
                 log.fatal_error()
                 print("Unexpected error:", sys.exc_info()[0])
@@ -653,7 +654,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                 log.commit(flux_msg)
                 log.add_linebreak()
                 status['FLUX2D'] = flux2d_fname
-            except:
+            except Exception:
                 log.error("Flux calibration failed!")
                 log.fatal_error()
                 print("Unexpected error:", sys.exc_info()[0])
@@ -682,7 +683,9 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                                        **options['extract'])
                 log.commit(ext_msg)
                 log.add_linebreak()
-            except:
+            except np.linalg.LinAlgError:
+                log.warn("Automatic extraction failed. Try manual extraction...")
+            except Exception:
                 log.error("Spectral 1D extraction failed!")
                 log.fatal_error()
                 print("Unexpected error:", sys.exc_info()[0])
