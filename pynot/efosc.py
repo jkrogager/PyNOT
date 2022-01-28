@@ -232,7 +232,7 @@ def get_observing_mode(hdr):
     """Determine the observing mode (either spectroscopy or imaging)"""
     if hdr['ESO DPR TECH'] == 'SPECTRUM':
         return 'SPECTROSCOPY'
-    elif hdr['ESO DPR TECH'] == 'IMAGE ':
+    elif hdr['ESO DPR TECH'] == 'IMAGE':
         return 'IMAGING'
     else:
         return None

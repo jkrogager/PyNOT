@@ -345,14 +345,16 @@ def run_pipeline(options_fname, verbose=False):
                     log.fatal_error()
                     print("Unexpected error:", sys.exc_info()[0])
                     raise
+            elif options['skysub']['defringe'] and N_images <= 3:
+                log.warn("No fringe image can be created. Need at least 3 images.")
             else:
                 fringe_fname = ''
 
 
             # Combine individual images for a given filter:
             if len(image_list) > 50:
-                log.warning("Large amounts of memory needed for image combination!", force=True)
-                log.warning("A total of %i images will be combined." % len(image_list), force=True)
+                log.warn("Large amounts of memory needed for image combination!", force=True)
+                log.warn("A total of %i images will be combined." % len(image_list), force=True)
 
             log.write("Running task: Image Combination")
             comb_log_name = os.path.join(output_dir, 'filelist_%s.txt' % target_name)
