@@ -111,7 +111,7 @@ def median_filter_data(x, kappa=5., window=21):
     return (med_x, mask)
 
 
-def fit_trace(img2D, x, y, model_name='moffat', dx=50, ymin=5, ymax=-5, xmin=None, xmax=None):
+def fit_trace(img2D, x, y, model_name='moffat', dx=50, kappa=10., ymin=5, ymax=-5, xmin=None, xmax=None):
     """
     Perform automatic localization of the trace if possible, otherwise use fixed
     aperture to extract the 1D spectrum.
@@ -138,7 +138,6 @@ def fit_trace(img2D, x, y, model_name='moffat', dx=50, ymin=5, ymax=-5, xmin=Non
     spsf[ymax:] = 0.
 
     # Detect peaks:
-    kappa = 10.
     noise = mad(spsf)*1.48
     peaks, properties = find_peaks(spsf, prominence=kappa*noise, width=3)
     prominences = properties['prominences']
@@ -182,7 +181,7 @@ def fit_trace(img2D, x, y, model_name='moffat', dx=50, ymin=5, ymax=-5, xmin=Non
     return (x_binned, N_obj, trace_parameters, fwhm, output_msg)
 
 
-def create_2d_profile(img2D, model_name='moffat', dx=25, width_scale=2,
+def create_2d_profile(img2D, model_name='moffat', dx=25, width_scale=2, kappa_det=10.,
                       xmin=None, xmax=None, ymin=None, ymax=None, order_center=3, order_width=0,
                       w_cen=15, kappa_cen=3., w_width=21, kappa_width=3.):
     """
@@ -259,7 +258,7 @@ def create_2d_profile(img2D, model_name='moffat', dx=25, width_scale=2,
         if fwhm is None:
             raise ValueError("FWHM of the spectral trace could not be determined! Maybe more than one object in slit...")
     else:
-        fit_values = fit_trace(img2D, x, y, model_name=model_name, dx=dx, ymin=ymin, ymax=ymax, xmin=xmin, xmax=xmax)
+        fit_values = fit_trace(img2D, x, y, model_name=model_name, dx=dx, ymin=ymin, ymax=ymax, xmin=xmin, xmax=xmax, kappa=kappa_det)
     x_binned, N_obj, trace_parameters, fwhm, fit_msg = fit_values
     msg.append(fit_msg)
 
@@ -271,7 +270,6 @@ def create_2d_profile(img2D, model_name='moffat', dx=25, width_scale=2,
     trace_info = list()
     domain = [0, img2D.shape[1]]
     for n in range(N_obj):
-        msg.append("          - Working on profile number %i" % (n+1))
         info_dict = dict()
         info_dict['x_binned'] = x_binned
         # Median filter
@@ -279,6 +277,7 @@ def create_2d_profile(img2D, model_name='moffat', dx=25, width_scale=2,
         mu_err = np.array([p['mu_%i' % n].stderr for p in trace_parameters])
         mu_err[mu_err == 0] = 100.
         w_mu = 1./mu_err**2
+        w_mu[np.isnan(w_mu)] = 0.
         mu_med, mask_mu = median_filter_data(mu, kappa_cen, w_cen)
         mask_mu &= (x_binned > xmin) & (x_binned < xmax)
         mu_fit = Chebyshev.fit(x_binned[mask_mu], mu[mask_mu], deg=order_center, domain=domain, w=w_mu[mask_mu])
@@ -400,14 +399,11 @@ def plot_diagnostics(pdf, spec1D, err1D, info_dict, width_scale=2):
 
     axes[-1].plot(spec1D, color='k', lw=1.0, alpha=0.9, label='Flux')
     axes[-1].plot(err1D, color='crimson', lw=0.7, alpha=0.8, label='Error')
-    # ymin = 0.
-    good = spec1D > 5*err1D
-    if np.sum(good) == 0:
-        good = np.ones_like(spec1D, dtype=bool)
-    good[:100] = False
-    good[-100:] = False
+    good = np.ones_like(spec1D, dtype=bool)
+    good[:50] = False
+    good[-50:] = False
     noise = mad(spec1D[good])*1.48
-    ymax = np.nanmax(median_filter(spec1D[good], 25)) + 5*noise
+    ymax = np.nanmax(median_filter(spec1D[good], 15)) + 5*noise
     ymin = -2*noise
     axes[-1].axhline(0., ls=':', color='0.5', lw=0.5)
     axes[-1].set_ylim(ymin, ymax)
@@ -421,7 +417,8 @@ def plot_diagnostics(pdf, spec1D, err1D, info_dict, width_scale=2):
 
 def auto_extract_img(img2D, err2D, *, N=None, pdf_fname=None, mask=None, model_name='moffat',
                      dx=50, width_scale=2, xmin=None, xmax=None, ymin=None, ymax=None,
-                     order_center=3, order_width=0, w_cen=15, kappa_cen=3., w_width=21, kappa_width=3.):
+                     order_center=3, order_width=0, w_cen=15, kappa_cen=3., w_width=21, kappa_width=3.,
+                     kappa_det=10.):
     assert err2D.shape == img2D.shape, "input image and error image do not match in shape"
     if N == 0:
         raise ValueError("Invalid input: N must be an integer larger than or equal to 1, not %r" % N)
@@ -442,7 +439,8 @@ def auto_extract_img(img2D, err2D, *, N=None, pdf_fname=None, mask=None, model_n
     profile_values = create_2d_profile(img2D, model_name=model_name, dx=dx, width_scale=width_scale,
                                        xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax,
                                        order_center=order_center, order_width=order_width,
-                                       w_cen=w_cen, kappa_cen=kappa_cen, w_width=w_width, kappa_width=kappa_width)
+                                       w_cen=w_cen, kappa_cen=kappa_cen, w_width=w_width, kappa_width=kappa_width,
+                                       kappa_det=kappa_det)
     trace_models_2d, trace_info, profile_msg = profile_values
     msg.append(profile_msg)
 
@@ -481,7 +479,7 @@ def auto_extract_img(img2D, err2D, *, N=None, pdf_fname=None, mask=None, model_n
 
 def auto_extract(fname, output, dispaxis=1, *, N=None, pdf_fname=None, mask=None, model_name='moffat',
                  dx=50, width_scale=2, xmin=None, xmax=None, ymin=None, ymax=None,
-                 order_center=3, order_width=1, w_cen=15, kappa_cen=3., w_width=21, kappa_width=3., **kwargs):
+                 order_center=3, order_width=1, w_cen=15, kappa_cen=3., w_width=21, kappa_width=3., kappa_det=10., **kwargs):
     """Automatically extract object spectra in the given file. Dispersion along the x-axis is assumed!"""
     msg = list()
     img2D = fits.getdata(fname)
@@ -509,7 +507,8 @@ def auto_extract(fname, output, dispaxis=1, *, N=None, pdf_fname=None, mask=None
                                         model_name=model_name, dx=dx, width_scale=width_scale,
                                         xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax,
                                         order_center=order_center, order_width=order_width,
-                                        w_cen=w_cen, kappa_cen=kappa_cen, w_width=w_width, kappa_width=kappa_width)
+                                        w_cen=w_cen, kappa_cen=kappa_cen, w_width=w_width, kappa_width=kappa_width,
+                                        kappa_det=kappa_det)
     msg.append(ext_msg)
 
     hdu = fits.HDUList()

@@ -71,6 +71,7 @@ extract:
   kappa_cen:    3.0          # Threshold for median filtering. Reject outliers above: ±`kappa` * sigma
   w_width:      21           # Kernel width of median filter for trace width parameters
   kappa_width:  3.0          # Threshold for median filtering. Reject outliers above: ±`kappa` * sigma
+  kappa_det:    10.          # Threshold for automatic object detection
 
 response:
   order:        3            # Spline degree for smoothing the response function [1 ≤ order ≤ 5]
