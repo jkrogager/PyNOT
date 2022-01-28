@@ -31,6 +31,76 @@ defaults_fname = os.path.join(calib_dir, 'default_options.yml')
 __version__ = get_version_number()
 
 
+class OBDatabase:
+    def __init__(self, fname):
+        if os.path.exists(fname):
+            data = np.loadtxt(fname, dtype=str, delimiter=':')
+            self.data = {obid.strip(): status.strip() for obid, status in data}
+        else:
+            self.data = {}
+        self.fname = fname
+
+    def update_from_science_files(self, scifile_dict):
+        """Expects a nested dictionary: {target1: {setup1: [], setup2: []}, ...}"""
+        for target_name, frames_per_setup in scifile_dict.items():
+            for insID, frames in frames_per_setup.items():
+                for obnum, sci_img in enumerate(frames, 1):
+                    # Create working directory:
+                    obID = 'ob%i' % obnum
+                    ob_path = os.path.join(sci_img.target_name, insID, obID)
+                    if ob_path not in self.data:
+                        self.data[ob_path] = ''
+        self.save()
+
+    def save(self):
+        with open(self.fname, 'w') as output:
+            output.write("# PyNOT OB Database\n#\n")
+            for obid, status in self.data.items():
+                output.write("%s : %s\n" % (obid, status))
+
+    def update(self, ob_path, status):
+        self.data[ob_path] = status
+        self.save()
+
+
+def update_ob_database(dataset_fname):
+    print(" - Don't mind me... I'm just doing some bookkeeping.")
+    obd_fname = os.path.splitext(dataset_fname)[0] + '.obd'
+    database = io.load_database(dataset_fname)
+    obdb = OBDatabase(obd_fname)
+    print(" - Updating OB database: %s" % obd_fname)
+
+    object_filelist = database['SPEC_OBJECT']
+    object_images = list(map(do.RawImage, object_filelist))
+
+    # Organize the science files according to target and instrument setup (insID)
+    science_frames = defaultdict(lambda: defaultdict(list))
+    for sci_img in object_images:
+        filt_name = sci_img.filter
+        insID = "%s_%s" % (sci_img.grism, sci_img.slit.replace('_', ''))
+        if filt_name.lower() not in ['free', 'open', 'none']:
+            insID = "%s_%s" % (insID, filt_name)
+        science_frames[sci_img.target_name][insID].append(sci_img)
+
+    for target_name, frames_per_setup in science_frames.items():
+        for insID, frames in frames_per_setup.items():
+            for obnum, sci_img in enumerate(frames, 1):
+                # Create working directory:
+                obID = 'ob%i' % obnum
+                output_dir = os.path.join(sci_img.target_name, insID, obID)
+                flux1d = os.path.join(output_dir, 'FLUX1D_%s.fits' % sci_img.target_name)
+                if os.path.exists(flux1d):
+                    if output_dir in obdb.data and obdb.data[output_dir] not in ['DONE', 'SKIP']:
+                        obdb.data[output_dir] = 'DONE'
+                    else:
+                        pass
+                else:
+                    obdb.data[output_dir] = ''
+    obdb.save()
+
+    print(" - Done!")
+
+
 class Report(object):
     def __init__(self, verbose=False):
         self.verbose = verbose
@@ -142,7 +212,7 @@ class ArgumentDict(dict):
 
 
 
-def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False):
+def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False, force_restart=False):
     log = Report(verbose)
     status = State()
 
@@ -353,12 +423,28 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
             insID = "%s_%s" % (insID, filt_name)
         science_frames[sci_img.target_name][insID].append(sci_img)
 
+    obd_fname = os.path.splitext(dataset_fname)[0] + '.obd'
+    obdb = OBDatabase(obd_fname)
+    if os.path.exists(obd_fname):
+        log.write("Loaded OB database: %s" % obd_fname)
+    else:
+        log.write("Initiated OB database: %s" % obd_fname)
+    obdb.update_from_science_files(science_frames)
+    log.write("Updating OB database")
+    log.add_linebreak()
+
     for target_name, frames_per_setup in science_frames.items():
         for insID, frames in frames_per_setup.items():
             for obnum, sci_img in enumerate(frames, 1):
                 # Create working directory:
                 obID = 'ob%i' % obnum
                 output_dir = os.path.join(sci_img.target_name, insID, obID)
+                if obdb.data[output_dir] in ['DONE', 'SKIP'] and not force_restart:
+                    log.write("Skipping OB: %s  (status=%s)" % (output_dir, obdb.data[output_dir]))
+                    log.write("Change OB status to blank in the .obd file if you want to redo the reduction")
+                    log.write("or run the pipeline with the '-f' option to force re-reduction of all OBs")
+                    log.add_linebreak()
+                    continue
                 if not os.path.exists(output_dir):
                     os.makedirs(output_dir)
 
@@ -722,13 +808,16 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                         print("Unexpected error:", sys.exc_info()[0])
                         raise
 
+                obdb.update(output_dir, 'DONE')
                 log.exit()
 
-            if len(frames) > 1:
+            # Check whether to combine or link OB files:
+            pattern = os.path.join(target_name, insID, '*', 'FLUX2D*.fits')
+            files_to_combine = glob.glob(pattern)
+            files_to_combine = [filter(lambda x: obdb.data[os.path.dirname(x)] == 'DONE', files_to_combine)]
+            if len(files_to_combine) > 1:
                 # Combine individual OBs
                 log.write("Running task: Spectral Combination")
-                pattern = os.path.join(target_name, insID, '*', 'FLUX2D*.fits')
-                files_to_combine = glob.glob(pattern)
                 comb_basename = '%s_%s_flux2d.fits' % (target_name, insID)
                 comb2d_fname = os.path.join(target_name, comb_basename)
                 try:
@@ -741,6 +830,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
                 pattern = os.path.join(target_name, insID, '*', 'FLUX1D*.fits')
                 files_to_combine = glob.glob(pattern)
+                files_to_combine = [filter(lambda x: obdb.data[os.path.dirname(x)] == 'DONE', files_to_combine)]
                 comb_basename = '%s_%s_flux1d.fits' % (target_name, insID)
                 comb1d_fname = os.path.join(target_name, comb_basename)
                 try:
@@ -769,10 +859,12 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                 # Create a hard link to the individual file instead
                 comb_basename = '%s_%s_flux2d.fits' % (target_name, insID)
                 comb2d_fname = os.path.join(target_name, comb_basename)
-                os.link(status['FLUX2D'], comb2d_fname)
-                log.write("Created file link: %s -> %s" % (status['FLUX2D'], comb2d_fname), prefix=" [OUTPUT] - ")
+                if not os.path.exists(comb2d_fname):
+                    os.link(status['FLUX2D'], comb2d_fname)
+                    log.write("Created file link: %s -> %s" % (status['FLUX2D'], comb2d_fname), prefix=" [OUTPUT] - ")
 
                 comb_basename = '%s_%s_flux1d.fits' % (target_name, insID)
                 comb1d_fname = os.path.join(target_name, comb_basename)
-                os.link(flux1d_fname, comb1d_fname)
-                log.write("Created file link: %s -> %s" % (flux1d_fname, comb1d_fname), prefix=" [OUTPUT] - ")
+                if not os.path.exists(comb1d_fname):
+                    os.link(flux1d_fname, comb1d_fname)
+                    log.write("Created file link: %s -> %s" % (flux1d_fname, comb1d_fname), prefix=" [OUTPUT] - ")

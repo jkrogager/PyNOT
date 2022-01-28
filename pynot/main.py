@@ -167,12 +167,16 @@ def main():
                              help="Minimze the output to terminal")
 
     parser_org = tasks.add_parser('classify', formatter_class=set_help_width(31),
-                                  help="Initiate a default parameter file")
+                                  help="Classify the files in `path`")
     parser_org.add_argument("path", type=str, nargs='+',
                             help="Path (or paths) to raw data to be classified")
     parser_org.add_argument("-o", "--output", type=str, default='dataset.pfc',
                             help="Filename of file classification table (*.pfc)")
 
+    parser_obd = tasks.add_parser('update-obs', formatter_class=set_help_width(31),
+                                  help="Update the OB database based on a classification table")
+    parser_obd.add_argument("pfc", type=str,
+                            help="File classification table (*.pfc)")
 
     # -- BIAS :: Bias Combination
     parser_bias = tasks.add_parser('bias', formatter_class=set_help_width(31),
@@ -392,6 +396,8 @@ def main():
                               help="Minimze the output to terminal")
     parser_redux.add_argument("-i", "--interactive", action="store_true",
                               help="Use interactive interface throughout")
+    parser_redux.add_argument("-f", "--force", action="store_true",
+                              help="Force restart of all OBs!")
 
     parser_break = tasks.add_parser('', help="")
 
@@ -519,13 +525,18 @@ def main():
     if task == 'init':
         initialize(args.path, args.mode, pfc_fname=args.output, pars_fname=args.pars, verbose=args.silent)
 
+    elif task == 'update-obs':
+        from pynot.redux import update_ob_database
+        update_ob_database(args.pfc)
+
     elif task == 'spex':
         from pynot.redux import run_pipeline
         # print_credits()
         run_pipeline(options_fname=args.params,
                      object_id=args.object,
                      verbose=args.silent,
-                     interactive=args.interactive)
+                     interactive=args.interactive,
+                     force_restart=args.force)
 
     elif task == 'bias':
         from pynot.calibs import combine_bias_frames
