@@ -524,8 +524,8 @@ def auto_extract(fname, output, dispaxis=1, *, N=None, pdf_fname=None, mask=None
         wl = np.arange(len(spectra[0][0]))
 
 
-    wl_unit = hdr['CUNIT1']
-    flux_unit = hdr['BUNIT']
+    wl_unit = hdr.get('CUNIT1')
+    flux_unit = hdr.get('BUNIT')
     keywords_base = ['CDELT%i', 'CRPIX%i', 'CRVAL%i', 'CTYPE%i', 'CUNIT%i']
     keywords_to_remove = sum([[key % num for key in keywords_base] for num in [1, 2]], [])
     keywords_to_remove += ['CD1_1', 'CD2_1', 'CD1_2', 'CD2_2']
