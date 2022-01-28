@@ -18,7 +18,7 @@ from os.path import exists, basename
 from pynot import instrument
 from pynot.functions import mad, my_formatter, get_version_number
 from pynot.scired import trim_overscan
-from pynot.data.organizer import sort_spec_flat
+from pynot.data import organizer as organizer
 
 
 __version__ = get_version_number()
@@ -498,8 +498,41 @@ def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=2, order=24, 
     return output, output_msg
 
 
+def task_bias(args, database=None, log=None, verbose=True):
+    """
+    Define the entry point for the task pynot:bias. This will automatcally
+    """
+    from pynot.data import io
+    from pynot.redux import Report
 
-def task_sflat(args):
+    if log is None:
+        log = Report(verbose)
+    log.write("Running task: Spectral flat field combination and normalization")
+
+    if database:
+        bias_files = organizer.sort_bias(database['BIAS'])
+
+    elif args.input.endswith('.pfc'):
+        database = io.load_database(args.input)
+        bias_files = organizer.sort_bias(database['BIAS'])
+
+    else:
+        input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
+        bias_files = organizer.sort_bias(input_list)
+
+    task_output = {}
+    for file_id, input_list in bias_files.items():
+        output_fname = 'MBIAS_%s.fits' % file_id
+        tag = 'MBIAS_%s' % file_id
+        _, output_msg = combine_bias_frames(input_list, output_fname, kappa=args.kappa, method=args.method)
+        task_output[tag] = output_fname
+        log.commit(output_msg)
+        log.add_linebreak()
+    log.add_linebreak()
+    return task_output, log
+
+
+def task_sflat(args, log=None):
     """
     Define the entry point for the main task of sflat, to be called by pynot.main
 
@@ -510,11 +543,11 @@ def task_sflat(args):
     print("Running task: Spectral flat field combination and normalization")
     if args.input.endswith('.pfc'):
         database = io.load_database(args.input)
-        flat_files = sort_spec_flat(database['SPEC_FLAT'])
+        flat_files = organizer.sort_spec_flat(database['SPEC_FLAT'])
 
     else:
         input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
-        flat_files = sort_spec_flat(input_list)
+        flat_files = organizer.sort_spec_flat(input_list)
 
     for file_id, input_list in flat_files.items():
         print("Working on files taken with:")

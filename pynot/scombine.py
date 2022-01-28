@@ -2,6 +2,7 @@ import numpy as np
 from scipy.interpolate import interp2d
 from astropy.io import fits
 from functools import reduce
+import warnings
 
 from pynot.functions import get_version_number
 from pynot.fitsio import load_fits_spectrum, save_fitstable_spectrum
@@ -252,23 +253,25 @@ def combine_2d(files, output=None, method='mean', scale=False, extended=False, d
             weight.append(w_i(final_wl, final_space))
 
     # Combine spectra:
-    if method == 'median':
-        msg.append("          - Combination method: median")
-        hdr['COMBINE'] = "Median"
-        final_flux = np.nanmedian(int_flux, 0)
-        final_var = np.nansum(int_var, 0)/len(int_flux)
-        final_err = np.sqrt(final_var)
-        final_mask = np.nansum(int_mask, 0) > 0
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        if method == 'median':
+            msg.append("          - Combination method: median")
+            hdr['COMBINE'] = "Median"
+            final_flux = np.nanmedian(int_flux, 0)
+            final_var = np.nansum(int_var, 0)/len(int_flux)
+            final_err = np.sqrt(final_var)
+            final_mask = np.nansum(int_mask, 0) > 0
 
-    elif method == 'mean':
-        msg.append("          - Combination method: inverse variance weighting")
-        hdr['COMBINE'] = "Inverse Variance Weighted"
-        int_flux = np.array(int_flux)
-        weight = np.array(weight)
-        final_flux = np.nansum(int_flux*weight, 0) / np.nansum(weight, 0)
-        final_var = 1. / np.nansum(weight, 0)
-        final_err = np.sqrt(final_var)
-        final_mask = np.nansum(int_mask, 0) > 0
+        elif method == 'mean':
+            msg.append("          - Combination method: inverse variance weighting")
+            hdr['COMBINE'] = "Inverse Variance Weighted"
+            int_flux = np.array(int_flux)
+            weight = np.array(weight)
+            final_flux = np.nansum(int_flux*weight, 0) / np.nansum(weight, 0)
+            final_var = 1. / np.nansum(weight, 0)
+            final_err = np.sqrt(final_var)
+            final_mask = np.nansum(int_mask, 0) > 0
 
 
     if dispaxis == 1:
@@ -435,22 +438,24 @@ def combine_1d(files, output=None, method='mean', scale=False):
             weight.append(w_i)
 
     # Combine spectra:
-    if method == 'median':
-        msg.append("          - Combination method: median")
-        final_flux = np.median(int_flux, axis=0)
-        final_var = np.sum(int_var, axis=0)/len(int_flux)
-        final_err = np.sqrt(final_var)
-        final_mask = np.sum(int_mask, axis=0) > 0
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        if method == 'median':
+            msg.append("          - Combination method: median")
+            final_flux = np.median(int_flux, axis=0)
+            final_var = np.sum(int_var, axis=0)/len(int_flux)
+            final_err = np.sqrt(final_var)
+            final_mask = np.sum(int_mask, axis=0) > 0
 
-    else:
-        msg.append("          - Combination method: inverse variance weighting")
-        int_flux = np.array(int_flux)
-        M = ~np.array(int_mask, dtype=bool)
-        weight = np.array(weight)
-        final_flux = np.sum(M*int_flux*weight, 0) / np.sum(M*weight, 0)
-        final_var = 1. / np.sum(M*weight, 0)
-        final_err = np.sqrt(final_var)
-        final_mask = np.sum(int_mask, axis=0) > 0
+        else:
+            msg.append("          - Combination method: inverse variance weighting")
+            int_flux = np.array(int_flux)
+            M = ~np.array(int_mask, dtype=bool)
+            weight = np.array(weight)
+            final_flux = np.sum(M*int_flux*weight, 0) / np.sum(M*weight, 0)
+            final_var = 1. / np.sum(M*weight, 0)
+            final_err = np.sqrt(final_var)
+            final_mask = np.sum(int_mask, axis=0) > 0
 
     if output is None:
         obj_name = hdr.get('OBJECT')

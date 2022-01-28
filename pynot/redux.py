@@ -4,6 +4,7 @@ Automatically Classify and Reduce a given Data Set
 
 from astropy.io import fits
 from collections import defaultdict
+import glob
 import numpy as np
 import os
 import sys
@@ -19,6 +20,7 @@ from pynot.functions import get_options, get_version_number
 from pynot.wavecal import rectify, WavelengthError
 from pynot.identify_gui import create_pixtable
 from pynot.scired import raw_correction, auto_fit_background, correct_cosmics, correct_raw_file
+from pynot.scombine import combine_2d, combine_1d
 from pynot.response import calculate_response, flux_calibrate
 
 from PyQt5.QtWidgets import QApplication
@@ -132,6 +134,14 @@ class State(dict):
 
 
 
+class ArgumentDict(dict):
+    """Access dictionary keys as attributes"""
+    __getattr__ = dict.get
+    __setattr__ = dict.__setitem__
+    __delattr__ = dict.__delitem__
+
+
+
 def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False):
     log = Report(verbose)
     status = State()
@@ -200,7 +210,6 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
         log.fatal_error()
         raise
 
-
     log.add_linebreak()
     log.write(" - The following objects were found in the dataset:", prefix='')
     log.write("      OBJECT           GRISM        SLIT      EXPTIME       FILENAME", prefix='')
@@ -209,6 +218,16 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
         log.write("%20s  %9s  %11s   %5.0f  %s" % output_variables, prefix='')
     log.add_linebreak()
 
+
+    # Start Calibration Tasks:
+
+    # -- bias
+    # task_args = ArgumentDict(options['bias'])
+    # task_bias(task_args, database, log, verbose)
+
+    # -- sflat
+
+    # -- identify
     # get list of unique grisms in dataset:
     grism_list = list()
     for sci_img in object_images:
@@ -218,7 +237,6 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
     # -- Check arc line files:
     arc_images = list()
-    # for arc_type in ['ARC_He', 'ARC_HeNe', 'ARC_Ne', 'ARC_ThAr']:
     for arc_type in ['ARC_HeNe', 'ARC_ThAr', 'ARC_HeAr']:
         # For now only HeNe arc lines are accepted!
         # Implement automatic combination of He + Ne
@@ -301,6 +319,8 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
             raise
 
 
+    # -- response
+
     # Save overview log:
     print("")
     print(" - Pipeline setup ended successfully.")
@@ -324,371 +344,435 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
             log.fatal_error()
             return
 
+    # Organize the science files according to target and instrument setup (insID)
+    science_frames = defaultdict(lambda: defaultdict(list))
     for sci_img in objects_to_reduce:
-        # Create working directory:
-        ob_name = sci_img.ob_name
-        output_dir = sci_img.target_name + '_' + ob_name
-        if not os.path.exists(output_dir):
-            os.mkdir(output_dir)
+        filt_name = sci_img.filter
+        insID = "%s_%s" % (sci_img.grism, sci_img.slit.replace('_', ''))
+        if filt_name.lower() not in ['free', 'open', 'none']:
+            insID = "%s_%s" % (insID, filt_name)
+        science_frames[sci_img.target_name][insID].append(sci_img)
 
-        # Start new log in working directory:
-        log_fname = os.path.join(output_dir, 'pynot.log')
-        log.clear()
-        log.set_filename(log_fname)
-        log.write("------------------------------------------------------------", prefix='')
-        log.write("Starting PyNOT Longslit Spectroscopic Reduction")
-        log.add_linebreak()
-        log.write("Target Name: %s" % sci_img.target_name)
-        log.write("Input Filename: %s" % sci_img.filename)
-        log.write("Saving output to directory: %s" % output_dir)
-        log.add_linebreak()
+    for target_name, frames_per_setup in science_frames.items():
+        for insID, frames in frames_per_setup.items():
+            for obnum, sci_img in enumerate(frames, 1):
+                # Create working directory:
+                obID = 'ob%i' % obnum
+                output_dir = os.path.join(sci_img.target_name, insID, obID)
+                if not os.path.exists(output_dir):
+                    os.makedirs(output_dir)
 
-        # Prepare output filenames:
-        grism = sci_img.grism
-        master_bias_fname = os.path.join(output_dir, 'MASTER_BIAS.fits')
-        comb_flat_fname = os.path.join(output_dir, 'FLAT_COMBINED_%s_%s.fits' % (grism, sci_img.slit))
-        norm_flat_fname = os.path.join(output_dir, 'NORM_FLAT_%s_%s.fits' % (grism, sci_img.slit))
-        rect2d_fname = os.path.join(output_dir, 'RECT2D_%s.fits' % (sci_img.target_name))
-        bgsub2d_fname = os.path.join(output_dir, 'BGSUB2D_%s.fits' % (sci_img.target_name))
-        response_pdf = os.path.join(output_dir, 'plot_response_%s.pdf' % (grism))
-        corrected_2d_fname = os.path.join(output_dir, 'CORRECTED2D_%s.fits' % (sci_img.target_name))
-        flux2d_fname = os.path.join(output_dir, 'FLUX2D_%s.fits' % (sci_img.target_name))
-        flux1d_fname = os.path.join(output_dir, 'FLUX1D_%s.fits' % (sci_img.target_name))
-        extract_pdf_fname = os.path.join(output_dir, 'plot_extract1D_details.pdf')
-
-        # Combine Bias Frames matched for CCD setup:
-        bias_frames = sci_img.match_files(database['BIAS'], date=False)
-        perform_bias_comb = True
-        if options['mbias']:
-            master_bias_fname = options['mbias']
-            log.write("Using static master bias frame: %s" % options['mbias'])
-            log.add_linebreak()
-        elif os.path.exists(str(status.get('master_bias'))):
-            master_bias_fname = status['master_bias']
-            # check that image shapes match:
-            bias_hdr = fits.getheader(master_bias_fname)
-            bias_binning = instrument.get_binning_from_hdr(bias_hdr)
-            if sci_img.binning == bias_binning:
-                log.write("Using combined master frame: %s" % master_bias_fname)
+                # Start new log in working directory:
+                log_fname = os.path.join(output_dir, 'pynot.log')
+                log.clear()
+                log.set_filename(log_fname)
+                log.write("------------------------------------------------------------", prefix='')
+                log.write("Starting PyNOT Longslit Spectroscopic Reduction")
                 log.add_linebreak()
-                perform_bias_comb = False
-            else:
+                log.write("Target Name: %s" % sci_img.target_name)
+                log.write("Input Filename: %s" % sci_img.filename)
+                log.write("Saving output to directory: %s" % output_dir)
+                log.add_linebreak()
+
+                # Prepare output filenames:
+                grism = sci_img.grism
+                master_bias_fname = os.path.join(output_dir, 'MASTER_BIAS.fits')
+                comb_flat_fname = os.path.join(output_dir, 'FLAT_COMBINED_%s_%s.fits' % (grism, sci_img.slit))
+                norm_flat_fname = os.path.join(output_dir, 'NORM_FLAT_%s_%s.fits' % (grism, sci_img.slit))
+                rect2d_fname = os.path.join(output_dir, 'RECT2D_%s.fits' % (sci_img.target_name))
+                bgsub2d_fname = os.path.join(output_dir, 'BGSUB2D_%s.fits' % (sci_img.target_name))
+                response_pdf = os.path.join(output_dir, 'plot_response_%s.pdf' % (grism))
+                corrected_2d_fname = os.path.join(output_dir, 'CORRECTED2D_%s.fits' % (sci_img.target_name))
+                flux2d_fname = os.path.join(output_dir, 'FLUX2D_%s.fits' % (sci_img.target_name))
+                flux1d_fname = os.path.join(output_dir, 'FLUX1D_%s.fits' % (sci_img.target_name))
+                extract_pdf_fname = os.path.join(output_dir, 'plot_extract1D_details.pdf')
+
+                # Combine Bias Frames matched for CCD setup:
+                bias_frames = sci_img.match_files(database['BIAS'], date=False)
                 perform_bias_comb = True
+                if options['mbias']:
+                    master_bias_fname = options['mbias']
+                    log.write("Using static master bias frame: %s" % options['mbias'])
+                    log.add_linebreak()
+                elif os.path.exists(str(status.get('master_bias'))):
+                    master_bias_fname = status['master_bias']
+                    # check that image shapes match:
+                    bias_hdr = fits.getheader(master_bias_fname)
+                    bias_binning = instrument.get_binning_from_hdr(bias_hdr)
+                    if sci_img.binning == bias_binning:
+                        log.write("Using combined master frame: %s" % master_bias_fname)
+                        log.add_linebreak()
+                        perform_bias_comb = False
+                    else:
+                        perform_bias_comb = True
 
 
-        if perform_bias_comb:
-            if len(bias_frames) < 3:
-                log.error("Must have at least 3 bias frames to combine, not %i" % len(bias_frames))
-                log.error("otherwise provide a static 'master bias' frame!")
-                log.fatal_error()
-                return
-            else:
-                log.write("Running task: Bias Combination")
+                if perform_bias_comb:
+                    if len(bias_frames) < 3:
+                        log.error("Must have at least 3 bias frames to combine, not %i" % len(bias_frames))
+                        log.error("otherwise provide a static 'master bias' frame!")
+                        log.fatal_error()
+                        return
+                    else:
+                        log.write("Running task: Bias Combination")
+                        try:
+                            _, bias_msg = combine_bias_frames(bias_frames, output=master_bias_fname,
+                                                              kappa=options['bias']['kappa'],
+                                                              method=options['bias']['method'],
+                                                              overwrite=True)
+                            log.commit(bias_msg)
+                            status['master_bias'] = os.path.basename(master_bias_fname)
+                            copy_bias = "cp %s %s" % (master_bias_fname, os.path.basename(master_bias_fname))
+                            if not os.path.exists(os.path.basename(master_bias_fname)):
+                                os.system(copy_bias)
+                            log.write("Copied combined Bias Image to base working directory")
+                            log.add_linebreak()
+                        except:
+                            log.error("Median combination of bias frames failed!")
+                            log.fatal_error()
+                            print("Unexpected error:", sys.exc_info()[0])
+                            raise
+
+
+                # Combine Flat Frames matched for CCD setup, grism, slit and filter:
+                flat_frames = sci_img.match_files(database['SPEC_FLAT'], date=False, grism=True, slit=True, filter=True)
+                perform_flat_comb = True
+                if options['mflat']:
+                    if options['mflat'] is None:
+                        norm_flat_fname = ''
+                    elif options['mflat'].lower() in ['none', 'null']:
+                        norm_flat_fname = ''
+                    else:
+                        norm_flat_fname = options['mflat']
+                    log.write("Using static master flat frame: %s" % options['mflat'])
+                    log.add_linebreak()
+
+                elif os.path.exists(os.path.basename(norm_flat_fname)):
+                    norm_flat_fname = os.path.basename(norm_flat_fname)
+                    # check that image shapes match:
+                    flat_hdr = fits.getheader(norm_flat_fname)
+                    flat_img = fits.getdata(norm_flat_fname)
+                    flat_binning = instrument.get_binning_from_hdr(flat_hdr)
+                    # Change this to match the image shape *after* overscan correction
+                    if sci_img.binning == flat_binning and sci_img.shape == flat_img.shape:
+                        log.write("Using normalized flat frame: %s" % norm_flat_fname)
+                        log.add_linebreak()
+                        perform_flat_comb = False
+                    else:
+                        perform_flat_comb = True
+
+                if len(flat_frames) == 0:
+                    log.error("No flat frames provided!")
+                    log.fatal_error()
+                    return
+                elif perform_flat_comb:
+                    try:
+                        log.write("Running task: Spectral Flat Combination")
+                        _, flat_msg = combine_flat_frames(flat_frames, comb_flat_fname, mbias=master_bias_fname,
+                                                          kappa=options['flat']['kappa'],
+                                                          method=options['flat']['method'], overwrite=True,
+                                                          mode='spec', dispaxis=sci_img.dispaxis)
+                        log.commit(flat_msg)
+                        status['flat_combined'] = comb_flat_fname
+                        copy_flat = "cp %s %s" % (comb_flat_fname, os.path.basename(comb_flat_fname))
+                        if not os.path.exists(os.path.basename(comb_flat_fname)):
+                            os.system(copy_flat)
+                        log.write("Copied combined Flat Image to base working directory")
+                        log.add_linebreak()
+                    except ValueError as err:
+                        log.commit(str(err)+'\n')
+                        log.fatal_error()
+                        raise
+                    except:
+                        log.error("Combination of flat frames failed!")
+                        log.fatal_error()
+                        print("Unexpected error:", sys.exc_info()[0])
+                        raise
+
+                    # Normalize the spectral flat field:
+                    try:
+                        log.write("Running task: Spectral Flat Normalization")
+                        _, norm_msg = normalize_spectral_flat(comb_flat_fname, output=norm_flat_fname,
+                                                              fig_dir=output_dir, dispaxis=sci_img.dispaxis,
+                                                              **options['flat'])
+                        log.commit(norm_msg)
+                        status['master_flat'] = norm_flat_fname
+                        copy_normflat = "cp %s %s" % (norm_flat_fname, os.path.basename(norm_flat_fname))
+                        if not os.path.exists(os.path.basename(norm_flat_fname)):
+                            os.system(copy_normflat)
+                        log.write("Copied normalized Flat Image to base working directory")
+                        log.add_linebreak()
+                    except:
+                        log.error("Normalization of flat frames failed!")
+                        log.fatal_error()
+                        print("Unexpected error:", sys.exc_info()[0])
+                        raise
+
+
+                # Identify lines in arc frame:
+                arc_fname, = sci_img.match_files(arc_images, date=False, grism=True, slit=True, filter=True, get_closest_time=True)
+                corrected_arc2d_fname = os.path.join(output_dir, 'corr_arc2d.fits')
+                log.write("Running task: Bias and Flat Field Correction of Arc Frame")
                 try:
-                    _, bias_msg = combine_bias_frames(bias_frames, output=master_bias_fname,
-                                                      kappa=options['bias']['kappa'],
-                                                      method=options['bias']['method'],
-                                                      overwrite=True)
-                    log.commit(bias_msg)
-                    status['master_bias'] = os.path.basename(master_bias_fname)
-                    copy_bias = "cp %s %s" % (master_bias_fname, os.path.basename(master_bias_fname))
-                    if not os.path.exists(os.path.basename(master_bias_fname)):
-                        os.system(copy_bias)
-                    log.write("Copied combined Bias Image to base working directory")
+                    output_msg = correct_raw_file(arc_fname, bias_fname=master_bias_fname,
+                                                  output=corrected_arc2d_fname, overwrite=True)
+                    log.commit(output_msg)
                     log.add_linebreak()
                 except:
-                    log.error("Median combination of bias frames failed!")
+                    log.error("Bias and flat field correction of Arc frame failed!")
                     log.fatal_error()
                     print("Unexpected error:", sys.exc_info()[0])
                     raise
 
 
-        # Combine Flat Frames matched for CCD setup, grism, slit and filter:
-        flat_frames = sci_img.match_files(database['SPEC_FLAT'], date=False, grism=True, slit=True, filter=True)
-        perform_flat_comb = True
-        if options['mflat']:
-            if options['mflat'] is None:
-                norm_flat_fname = ''
-            elif options['mflat'].lower() in ['none', 'null']:
-                norm_flat_fname = ''
-            else:
-                norm_flat_fname = options['mflat']
-            log.write("Using static master flat frame: %s" % options['mflat'])
-            log.add_linebreak()
+                if grism+'_pixtab' in options:
+                    pixtab_fname = options[grism_name+'_pixtab']
+                else:
+                    pixtab_fname = os.path.join(calib_dir, '%s_pixeltable.dat' % grism)
 
-        elif os.path.exists(os.path.basename(norm_flat_fname)):
-            norm_flat_fname = os.path.basename(norm_flat_fname)
-            # check that image shapes match:
-            flat_hdr = fits.getheader(norm_flat_fname)
-            flat_img = fits.getdata(norm_flat_fname)
-            flat_binning = instrument.get_binning_from_hdr(flat_hdr)
-            # Change this to match the image shape *after* overscan correction
-            if sci_img.binning == flat_binning and sci_img.shape == flat_img.shape:
-                log.write("Using normalized flat frame: %s" % norm_flat_fname)
-                log.add_linebreak()
-                perform_flat_comb = False
-            else:
-                perform_flat_comb = True
-
-        if len(flat_frames) == 0:
-            log.error("No flat frames provided!")
-            log.fatal_error()
-            return
-        elif perform_flat_comb:
-            try:
-                log.write("Running task: Spectral Flat Combination")
-                _, flat_msg = combine_flat_frames(flat_frames, comb_flat_fname, mbias=master_bias_fname,
-                                                  kappa=options['flat']['kappa'],
-                                                  method=options['flat']['method'], overwrite=True,
-                                                  mode='spec', dispaxis=sci_img.dispaxis)
-                log.commit(flat_msg)
-                status['flat_combined'] = comb_flat_fname
-                copy_flat = "cp %s %s" % (comb_flat_fname, os.path.basename(comb_flat_fname))
-                if not os.path.exists(os.path.basename(comb_flat_fname)):
-                    os.system(copy_flat)
-                log.write("Copied combined Flat Image to base working directory")
-                log.add_linebreak()
-            except ValueError as err:
-                log.commit(str(err)+'\n')
-                log.fatal_error()
-                raise
-            except:
-                log.error("Combination of flat frames failed!")
-                log.fatal_error()
-                print("Unexpected error:", sys.exc_info()[0])
-                raise
-
-            # Normalize the spectral flat field:
-            try:
-                log.write("Running task: Spectral Flat Normalization")
-                _, norm_msg = normalize_spectral_flat(comb_flat_fname, output=norm_flat_fname,
-                                                      fig_dir=output_dir, dispaxis=sci_img.dispaxis,
-                                                      **options['flat'])
-                log.commit(norm_msg)
-                status['master_flat'] = norm_flat_fname
-                copy_normflat = "cp %s %s" % (norm_flat_fname, os.path.basename(norm_flat_fname))
-                if not os.path.exists(os.path.basename(norm_flat_fname)):
-                    os.system(copy_normflat)
-                log.write("Copied normalized Flat Image to base working directory")
-                log.add_linebreak()
-            except:
-                log.error("Normalization of flat frames failed!")
-                log.fatal_error()
-                print("Unexpected error:", sys.exc_info()[0])
-                raise
+                if identify_interactive and identify_all:
+                    log.write("Running task: Arc Line Identification")
+                    try:
+                        linelist_fname = ''
+                        order_wl, pixtable, msg = create_pixtable(corrected_arc2d_fname, grism,
+                                                                  pixtab_fname, linelist_fname,
+                                                                  order_wl=options['identify']['order_wl'],
+                                                                  app=app)
+                        status[pixtable] = order_wl
+                        status[grism+'_pixtab'] = pixtable
+                        log.commit(msg)
+                        log.add_linebreak()
+                    except Exception:
+                        log.error("Identification of arc lines failed!")
+                        log.fatal_error()
+                        print("Unexpected error:", sys.exc_info()[0])
+                        raise
+                else:
+                    # -- or use previous line identifications
+                    pixtable = status[grism+'_pixtab']
+                    order_wl = status[pixtable]
 
 
-        # Identify lines in arc frame:
-        arc_fname, = sci_img.match_files(arc_images, date=False, grism=True, slit=True, filter=True, get_closest_time=True)
-        corrected_arc2d_fname = os.path.join(output_dir, 'corr_arc2d.fits')
-        log.write("Running task: Bias and Flat Field Correction of Arc Frame")
-        try:
-            output_msg = correct_raw_file(arc_fname, bias_fname=master_bias_fname,
-                                          output=corrected_arc2d_fname, overwrite=True)
-            log.commit(output_msg)
-            log.add_linebreak()
-        except:
-            log.error("Bias and flat field correction of Arc frame failed!")
-            log.fatal_error()
-            print("Unexpected error:", sys.exc_info()[0])
-            raise
+                # Response Function:
+                if 'SPEC_FLUX-STD' in database:
+                    flux_std_files = sci_img.match_files(database['SPEC_FLUX-STD'],
+                                                         date=False, grism=True, slit=True, filter=True, get_closest_time=True)
+                else:
+                    flux_std_files = []
+
+                if len(flux_std_files) == 0:
+                    log.warn("No spectroscopic standard star was found in the dataset!")
+                    log.warn("The reduced spectra will not be flux calibrated")
+                    status['response'] = None
+
+                else:
+                    std_fname = flux_std_files[0]
+                    # response_fname = os.path.join(output_dir, 'response_%s.fits' % (grism))
+                    response_fname = 'response_%s.fits' % (grism)
+                    if os.path.exists(response_fname) and not options['response']['force']:
+                        log.write("Using existing response function: %s" % response_fname)
+                        log.add_linebreak()
+                        status['response'] = response_fname
+                    else:
+                        std_fname = flux_std_files[0]
+                        log.write("Running task: Calculation of Response Function")
+                        log.write("Spectroscopic Flux Standard: %s" % std_fname)
+                        try:
+                            response_fname, response_msg = calculate_response(std_fname, arc_fname=corrected_arc2d_fname,
+                                                                              pixtable_fname=pixtable,
+                                                                              bias_fname=master_bias_fname,
+                                                                              flat_fname=norm_flat_fname,
+                                                                              output=response_fname,
+                                                                              output_dir=output_dir, pdf_fname=response_pdf,
+                                                                              order=options['response']['order'],
+                                                                              interactive=options['response']['interactive'],
+                                                                              dispaxis=sci_img.dispaxis, order_wl=order_wl,
+                                                                              order_bg=options['skysub']['order_bg'],
+                                                                              rectify_options=options['rectify'],
+                                                                              app=app)
+                            # copy response file to working directory
+                            if response_fname:
+                                copy_response = "cp %s %s" % (response_fname, os.path.basename(response_fname))
+                                if not os.path.exists(os.path.basename(response_fname)):
+                                    os.system(copy_response)
+                            status['response'] = response_fname
+                            log.commit(response_msg)
+                            log.write("Copied response function to base working directory")
+                            log.add_linebreak()
+                        except Exception:
+                            log.error("Calculation of response function failed!")
+                            print("Unexpected error:", sys.exc_info()[0])
+                            raise
+                            status['response'] = ''
+                            log.warn("No flux calibration will be performed!")
+                            log.add_linebreak()
 
 
-        if grism+'_pixtab' in options:
-            pixtab_fname = options[grism_name+'_pixtab']
-        else:
-            pixtab_fname = os.path.join(calib_dir, '%s_pixeltable.dat' % grism)
-
-        if identify_interactive and identify_all:
-            log.write("Running task: Arc Line Identification")
-            try:
-                linelist_fname = ''
-                order_wl, pixtable, msg = create_pixtable(corrected_arc2d_fname, grism,
-                                                          pixtab_fname, linelist_fname,
-                                                          order_wl=options['identify']['order_wl'],
-                                                          app=app)
-                status[pixtable] = order_wl
-                status[grism+'_pixtab'] = pixtable
-                log.commit(msg)
-                log.add_linebreak()
-            except Exception:
-                log.error("Identification of arc lines failed!")
-                log.fatal_error()
-                print("Unexpected error:", sys.exc_info()[0])
-                raise
-        else:
-            # -- or use previous line identifications
-            pixtable = status[grism+'_pixtab']
-            order_wl = status[pixtable]
-
-
-        # Response Function:
-        if 'SPEC_FLUX-STD' in database:
-            flux_std_files = sci_img.match_files(database['SPEC_FLUX-STD'],
-                                                 date=False, grism=True, slit=True, filter=True, get_closest_time=True)
-        else:
-            flux_std_files = []
-
-        if len(flux_std_files) == 0:
-            log.warn("No spectroscopic standard star was found in the dataset!")
-            log.warn("The reduced spectra will not be flux calibrated")
-            status['response'] = None
-
-        else:
-            std_fname = flux_std_files[0]
-            # response_fname = os.path.join(output_dir, 'response_%s.fits' % (grism))
-            response_fname = 'response_%s.fits' % (grism)
-            if os.path.exists(response_fname) and not options['response']['force']:
-                log.write("Using existing response function: %s" % response_fname)
-                log.add_linebreak()
-                status['response'] = response_fname
-            else:
-                std_fname = flux_std_files[0]
-                log.write("Running task: Calculation of Response Function")
-                log.write("Spectroscopic Flux Standard: %s" % std_fname)
+                # Bias correction, Flat correction
+                log.write("Running task: Bias and Flat Field Correction")
                 try:
-                    response_fname, response_msg = calculate_response(std_fname, arc_fname=corrected_arc2d_fname,
-                                                                      pixtable_fname=pixtable,
-                                                                      bias_fname=master_bias_fname,
-                                                                      flat_fname=norm_flat_fname,
-                                                                      output=response_fname,
-                                                                      output_dir=output_dir, pdf_fname=response_pdf,
-                                                                      order=options['response']['order'],
-                                                                      interactive=options['response']['interactive'],
-                                                                      dispaxis=sci_img.dispaxis, order_wl=order_wl,
-                                                                      order_bg=options['skysub']['order_bg'],
-                                                                      rectify_options=options['rectify'],
-                                                                      app=app)
-                    # copy response file to working directory
-                    if response_fname:
-                        copy_response = "cp %s %s" % (response_fname, os.path.basename(response_fname))
-                        if not os.path.exists(os.path.basename(response_fname)):
-                            os.system(copy_response)
-                    status['response'] = response_fname
-                    log.commit(response_msg)
-                    log.write("Copied response function to base working directory")
+                    output_msg = raw_correction(sci_img.data, sci_img.header, master_bias_fname, norm_flat_fname,
+                                                output=corrected_2d_fname, overwrite=True)
+                    log.commit(output_msg)
                     log.add_linebreak()
                 except Exception:
-                    log.error("Calculation of response function failed!")
+                    log.error("Bias and flat field correction failed!")
+                    log.fatal_error()
                     print("Unexpected error:", sys.exc_info()[0])
                     raise
-                    status['response'] = ''
-                    log.warn("No flux calibration will be performed!")
+
+
+                # Call rectify
+                log.write("Running task: 2D Rectification and Wavelength Calibration")
+                try:
+                    rect_msg = rectify(corrected_2d_fname, corrected_arc2d_fname, pixtable, output=rect2d_fname, fig_dir=output_dir,
+                                       dispaxis=sci_img.dispaxis, order_wl=order_wl, **options['rectify'])
+                    log.commit(rect_msg)
                     log.add_linebreak()
+                except WavelengthError:
+                    log.error("2D rectification failed!")
+                    log.fatal_error()
+                    print("Unexpected error:", sys.exc_info()[0])
+                    print("")
+                    raise
 
 
-        # Bias correction, Flat correction
-        log.write("Running task: Bias and Flat Field Correction")
-        try:
-            output_msg = raw_correction(sci_img.data, sci_img.header, master_bias_fname, norm_flat_fname,
-                                        output=corrected_2d_fname, overwrite=True)
-            log.commit(output_msg)
-            log.add_linebreak()
-        except Exception:
-            log.error("Bias and flat field correction failed!")
-            log.fatal_error()
-            print("Unexpected error:", sys.exc_info()[0])
-            raise
+                # Automatic Background Subtraction:
+                if options['skysub']['auto']:
+                    bgsub_pdf_name = os.path.join(output_dir, 'plot_skysub2D.pdf')
+                    log.write("Running task: Background Subtraction")
+                    try:
+                        bg_msg = auto_fit_background(rect2d_fname, bgsub2d_fname, dispaxis=1,
+                                                     plot_fname=bgsub_pdf_name, **options['skysub'])
+                        log.commit(bg_msg)
+                        log.write("2D sky model is saved in extension 'SKY' of the file: %s" % bgsub2d_fname)
+                        log.add_linebreak()
+                    except Exception:
+                        log.error("Automatic background subtraction failed!")
+                        log.fatal_error()
+                        print("Unexpected error:", sys.exc_info()[0])
+                        raise
+                else:
+                    log.warn("No sky-subtraction has been performed on the 2D spectrum!")
+                    log.write("Cosmic ray rejection may fail... double check the output or turn off 'crr' by setting niter=0.")
+                    log.add_linebreak()
+                    bgsub2d_fname = rect2d_fname
 
 
-        # Call rectify
-        log.write("Running task: 2D Rectification and Wavelength Calibration")
-        try:
-            rect_msg = rectify(corrected_2d_fname, corrected_arc2d_fname, pixtable, output=rect2d_fname, fig_dir=output_dir,
-                               dispaxis=sci_img.dispaxis, order_wl=order_wl, **options['rectify'])
-            log.commit(rect_msg)
-            log.add_linebreak()
-        except WavelengthError:
-            log.error("2D rectification failed!")
-            log.fatal_error()
-            print("Unexpected error:", sys.exc_info()[0])
-            print("")
-            raise
+                # Correct Cosmic Rays Hits:
+                if options['crr']['niter'] > 0:
+                    log.write("Running task: Cosmic Ray Rejection")
+                    crr_fname = os.path.join(output_dir, 'CRR_BGSUB2D_%s.fits' % (sci_img.target_name))
+                    try:
+                        crr_msg = correct_cosmics(bgsub2d_fname, crr_fname, **options['crr'])
+                        log.commit(crr_msg)
+                        log.add_linebreak()
+                    except Exception:
+                        log.error("Cosmic ray correction failed!")
+                        log.fatal_error()
+                        print("Unexpected error:", sys.exc_info()[0])
+                        raise
+                else:
+                    crr_fname = bgsub2d_fname
 
 
-        # Automatic Background Subtraction:
-        if options['skysub']['auto']:
-            bgsub_pdf_name = os.path.join(output_dir, 'plot_skysub2D.pdf')
-            log.write("Running task: Background Subtraction")
-            try:
-                bg_msg = auto_fit_background(rect2d_fname, bgsub2d_fname, dispaxis=1,
-                                             plot_fname=bgsub_pdf_name, **options['skysub'])
-                log.commit(bg_msg)
-                log.write("2D sky model is saved in extension 'SKY' of the file: %s" % bgsub2d_fname)
-                log.add_linebreak()
-            except Exception:
-                log.error("Automatic background subtraction failed!")
-                log.fatal_error()
-                print("Unexpected error:", sys.exc_info()[0])
-                raise
-        else:
-            log.warn("No sky-subtraction has been performed on the 2D spectrum!")
-            log.write("Cosmic ray rejection may fail... double check the output or turn off 'crr' by setting niter=0.")
-            log.add_linebreak()
-            bgsub2d_fname = rect2d_fname
+                # Flux Calibration:
+                if status['response']:
+                    log.write("Running task: Flux Calibration")
+                    response_fname = status['response']
+                    try:
+                        flux_msg = flux_calibrate(crr_fname, output=flux2d_fname, response_fname=response_fname)
+                        log.commit(flux_msg)
+                        log.add_linebreak()
+                        status['FLUX2D'] = flux2d_fname
+                    except Exception:
+                        log.error("Flux calibration failed!")
+                        log.fatal_error()
+                        print("Unexpected error:", sys.exc_info()[0])
+                        raise
+                else:
+                    status['FLUX2D'] = crr_fname
 
 
-        # Correct Cosmic Rays Hits:
-        if options['crr']['niter'] > 0:
-            log.write("Running task: Cosmic Ray Rejection")
-            crr_fname = os.path.join(output_dir, 'CRR_BGSUB2D_%s.fits' % (sci_img.target_name))
-            try:
-                crr_msg = correct_cosmics(bgsub2d_fname, crr_fname, **options['crr'])
-                log.commit(crr_msg)
-                log.add_linebreak()
-            except Exception:
-                log.error("Cosmic ray correction failed!")
-                log.fatal_error()
-                print("Unexpected error:", sys.exc_info()[0])
-                raise
-        else:
-            crr_fname = bgsub2d_fname
+                # Extract 1D spectrum:
+                log.write("Running task: 1D Extraction")
+                extract_fname = status['FLUX2D']
+                if options['extract']['interactive']:
+                    try:
+                        log.write("Extraction: Starting Graphical User Interface")
+                        extract_gui.run_gui(extract_fname, output_fname=flux1d_fname,
+                                            app=app, **options['extract'])
+                        log.write("Writing fits table: %s" % flux1d_fname, prefix=" [OUTPUT] - ")
+                    except:
+                        log.error("Interactive 1D extraction failed!")
+                        log.fatal_error()
+                        print("Unexpected error:", sys.exc_info()[0])
+                        raise
+                else:
+                    try:
+                        ext_msg = auto_extract(extract_fname, flux1d_fname, dispaxis=1, pdf_fname=extract_pdf_fname,
+                                               **options['extract'])
+                        log.commit(ext_msg)
+                        log.add_linebreak()
+                    except np.linalg.LinAlgError:
+                        log.warn("Automatic extraction failed. Try manual extraction...")
+                    except Exception:
+                        log.error("Spectral 1D extraction failed!")
+                        log.fatal_error()
+                        print("Unexpected error:", sys.exc_info()[0])
+                        raise
 
+                log.exit()
 
-        # Flux Calibration:
-        if status['response']:
-            log.write("Running task: Flux Calibration")
-            response_fname = status['response']
-            try:
-                flux_msg = flux_calibrate(crr_fname, output=flux2d_fname, response_fname=response_fname)
-                log.commit(flux_msg)
-                log.add_linebreak()
-                status['FLUX2D'] = flux2d_fname
-            except Exception:
-                log.error("Flux calibration failed!")
-                log.fatal_error()
-                print("Unexpected error:", sys.exc_info()[0])
-                raise
-        else:
-            status['FLUX2D'] = crr_fname
+            if len(frames) > 1:
+                # Combine individual OBs
+                log.write("Running task: Spectral Combination")
+                pattern = os.path.join(target_name, insID, '*', 'FLUX2D*.fits')
+                files_to_combine = glob.glob(pattern)
+                comb_basename = '%s_%s_flux2d.fits' % (target_name, insID)
+                comb2d_fname = os.path.join(target_name, comb_basename)
+                try:
+                    comb_output = combine_2d(files_to_combine, comb2d_fname)
+                    final_wl, final_flux, final_err, final_mask, output_msg = comb_output
+                    log.commit(output_msg)
+                    log.add_linebreak()
+                except Exception:
+                    log.warn("Combination of 2D spectra failed... Try again manually")
 
+                pattern = os.path.join(target_name, insID, '*', 'FLUX1D*.fits')
+                files_to_combine = glob.glob(pattern)
+                comb_basename = '%s_%s_flux1d.fits' % (target_name, insID)
+                comb1d_fname = os.path.join(target_name, comb_basename)
+                try:
+                    comb_output = combine_1d(files_to_combine, comb1d_fname)
+                    final_wl, final_flux, final_err, final_mask, output_msg = comb_output
+                    log.commit(output_msg)
+                    log.add_linebreak()
+                except Exception:
+                    log.warn("Combination of 1D spectra failed...")
+                    if os.path.exists(comb2d_fname):
+                        log.write("Running task: 1D Extraction on combined 2D")
+                        try:
+                            ext_msg = auto_extract(comb2d_fname, comb1d_fname, dispaxis=1,
+                                                   **options['extract'])
+                            log.commit(ext_msg)
+                            log.add_linebreak()
+                        except np.linalg.LinAlgError:
+                            log.warn("Automatic extraction failed. Try manual extraction...")
+                        except Exception:
+                            log.error("Spectral 1D extraction failed!")
+                            log.fatal_error()
+                            print("Unexpected error:", sys.exc_info()[0])
+                            raise
 
-        # Extract 1D spectrum:
-        log.write("Running task: 1D Extraction")
-        extract_fname = status['FLUX2D']
-        if options['extract']['interactive']:
-            try:
-                log.write("Extraction: Starting Graphical User Interface")
-                extract_gui.run_gui(extract_fname, output_fname=flux1d_fname,
-                                    app=app, **options['extract'])
-                log.write("Writing fits table: %s" % flux1d_fname, prefix=" [OUTPUT] - ")
-            except:
-                log.error("Interactive 1D extraction failed!")
-                log.fatal_error()
-                print("Unexpected error:", sys.exc_info()[0])
-                raise
-        else:
-            try:
-                ext_msg = auto_extract(extract_fname, flux1d_fname, dispaxis=1, pdf_fname=extract_pdf_fname,
-                                       **options['extract'])
-                log.commit(ext_msg)
-                log.add_linebreak()
-            except np.linalg.LinAlgError:
-                log.warn("Automatic extraction failed. Try manual extraction...")
-            except Exception:
-                log.error("Spectral 1D extraction failed!")
-                log.fatal_error()
-                print("Unexpected error:", sys.exc_info()[0])
-                raise
+            else:
+                # Create a hard link to the individual file instead
+                comb_basename = '%s_%s_flux2d.fits' % (target_name, insID)
+                comb2d_fname = os.path.join(target_name, comb_basename)
+                os.link(status['FLUX2D'], comb2d_fname)
+                log.write("Created file link: %s -> %s" % (status['FLUX2D'], comb2d_fname), prefix=" [OUTPUT] - ")
 
-        log.exit()
+                comb_basename = '%s_%s_flux1d.fits' % (target_name, insID)
+                comb1d_fname = os.path.join(target_name, comb_basename)
+                os.link(flux1d_fname, comb1d_fname)
+                log.write("Created file link: %s -> %s" % (flux1d_fname, comb1d_fname), prefix=" [OUTPUT] - ")
