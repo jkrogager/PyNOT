@@ -8,7 +8,6 @@ import glob
 import numpy as np
 import os
 import sys
-import datetime
 
 from pynot import instrument
 from pynot.data import io
