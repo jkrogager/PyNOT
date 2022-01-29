@@ -588,7 +588,7 @@ def main():
             if args.dir != '':
                 output = os.path.join(args.dir, output)
             _ = correct_raw_file(fname, output=output, bias_fname=args.bias, flat_fname=args.flat,
-                                 overscan=50, overwrite=True, mode=mode)
+                                 overwrite=True, mode=mode)
             print(" - Image: %s  ->  %s" % (fname, output))
 
     elif task == 'identify':
