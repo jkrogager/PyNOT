@@ -524,7 +524,7 @@ def task_bias(args, database=None, log=None, verbose=True, output_dir=''):
     for file_id, input_list in bias_files.items():
         output_fname = os.path.join(output_dir, '%s_%s.fits' % (tag, file_id))
         _, output_msg = combine_bias_frames(input_list, output_fname, kappa=args.kappa, method=args.method)
-        task_output[tag] = output_fname
+        task_output[tag].append(output_fname)
         log.commit(output_msg)
         log.add_linebreak()
     log.add_linebreak()
@@ -569,5 +569,5 @@ def task_sflat(args, database=None, log=None, verbose=True, output_dir=''):
                                               dispaxis=args.axis, fig_dir=output_dir, **options)
         log.commit(flat_msg)
         log.add_linebreak()
-        task_output[tag] = output_fname
+        task_output[tag].append(output_fname)
     return task_output, log
