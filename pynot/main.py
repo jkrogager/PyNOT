@@ -226,10 +226,10 @@ def main():
                              help="List of filenames to correct")
     parser_corr.add_argument("--dir", type=str, default='',
                              help="Output directory")
-    parser_corr.add_argument("--bias", type=str, required=True,
-                             help="Filename of combined bias frame  [REQUIRED]")
+    parser_corr.add_argument("--bias", type=str, default='',
+                             help="Filename of combined bias frame. If not given, a constant of 0 is used")
     parser_corr.add_argument("--flat", type=str, default='',
-                             help="Filename of combined flat frame")
+                             help="Filename of combined flat frame. If not given, a constant of 1 is used")
     parser_corr.add_argument("--img", action='store_true',
                              help="Imaging mode")
 

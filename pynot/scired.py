@@ -462,16 +462,21 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname='', output='', overwrite
         Log of status messages
     """
     msg = list()
-    mbias = fits.getdata(bias_fname)
-    # bias_hdr = instrument.get_header(bias_fname)
-    msg.append("          - Loaded combined bias image: %s" % bias_fname)
+    if bias_fname:
+        mbias = fits.getdata(bias_fname)
+        # bias_hdr = instrument.get_header(bias_fname)
+        msg.append("          - Loaded combined bias image: %s" % bias_fname)
+    else:
+        mbias = 0.
+        msg.append("          - No bias image. Using bias level = 0")
+
     if flat_fname:
         mflat = fits.getdata(flat_fname)
         mflat[mflat == 0] = 1
         msg.append("          - Loaded combined flat field image: %s" % flat_fname)
     else:
         mflat = 1.
-        msg.append("          - Not flat field image provided. No correction applied!")
+        msg.append("          - Not flat field image provided. Using flat level = 1")
 
     # Trim overscan of raw image:
     # - Trimming again of processed images doesn't change anything,
