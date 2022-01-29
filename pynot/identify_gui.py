@@ -32,7 +32,7 @@ code_dir = os.path.dirname(os.path.abspath(__file__))
 calib_dir = os.path.join(code_dir, 'calib/')
 
 # -- Function to call from PyNOT.main
-def create_pixtable(arc_image, grism_name, pixtable_name, linelist_fname, order_wl=4, air=False, loc=-1, app=None):
+def create_pixtable(arc_image, grism_name, output_pixtable, ref_pixtable_name, linelist_fname, order_wl=4, air=False, loc=-1, app=None):
     """
     arc_image : str
         Filename of arc image
@@ -41,15 +41,12 @@ def create_pixtable(arc_image, grism_name, pixtable_name, linelist_fname, order_
         Grism name, ex: al-gr4  (for ALFOSC grism#4)
     """
 
-    fname = os.path.basename(arc_image)
-    base_name, ext = os.path.splitext(fname)
-    output_pixtable = "%s_arcID_%s.tab" % (base_name, grism_name)
     # Launch App:
     if app is None:
         app = QApplication(sys.argv)
     gui = GraphicInterface(arc_image,
                            grism_name=grism_name,
-                           pixtable=pixtable_name,
+                           pixtable=ref_pixtable_name,
                            linelist_fname=linelist_fname,
                            output=output_pixtable,
                            order_wl=order_wl,
@@ -63,9 +60,9 @@ def create_pixtable(arc_image, grism_name, pixtable_name, linelist_fname, order_
         order_wl = int(gui.poly_order.text())
         msg = "          - Successfully saved line identifications: %s\n" % output_pixtable
 
-        if not os.path.exists(pixtable_name):
+        if not os.path.exists(ref_pixtable_name):
             # move output_pixtable to pixtable_name:
-            copy_command = "cp %s %s" % (output_pixtable, pixtable_name)
+            copy_command = "cp %s %s" % (output_pixtable, ref_pixtable_name)
             os.system(copy_command)
 
     else:

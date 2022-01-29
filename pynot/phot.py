@@ -19,6 +19,7 @@ import astroalign as aa
 import sep
 
 from pynot import instrument
+from pynot.data import obs
 from pynot.fitsio import load_fits_image
 from pynot.functions import get_version_number, mad
 
@@ -589,7 +590,7 @@ def get_sdss_catalog(ra, dec, radius=4.):
     field_center = SkyCoord(ra, dec, frame='icrs', unit='deg')
     sdss_result = SDSS.query_region(field_center, radius*u.arcmin, photoobj_fields=fields)
     if sdss_result is not None:
-        sdss_result.write(catalog_fname, format='ascii.csv', overwrite=True)
+        sdss_result.write(os.path.join(obs.output_base_phot, catalog_fname), format='ascii.csv', overwrite=True)
     return sdss_result
 
 

@@ -25,7 +25,7 @@ class OBDatabase:
                 for obnum, sci_img in enumerate(frames, 1):
                     # Create working directory:
                     obID = 'ob%i' % obnum
-                    ob_path = os.path.join(sci_img.target_name, insID, obID)
+                    ob_path = os.path.join(output_base_spec, sci_img.target_name, insID, obID)
                     if ob_path not in self.data:
                         self.data[ob_path] = ''
         self.save()

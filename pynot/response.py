@@ -242,7 +242,7 @@ def flux_calibrate_1d(input_fname, *, output, response_fname):
 
 def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat_fname, output='',
                        output_dir='', pdf_fname='', order=3, smoothing=0.02, interactive=False, dispaxis=2,
-                       order_wl=4, order_bg=5, rectify_options={}, app=None):
+                       order_wl=4, order_bg=5, rectify_options=None, app=None):
     """
     Extract and wavelength calibrate the standard star spectrum.
     Calculate the instrumental response function and fit the median filtered data points
@@ -307,6 +307,10 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
         Log of the function call
     """
     msg = list()
+    if rectify_options is None:
+        rectify_options = dict()
+    else:
+        rectify_options = rectify_options.copy()
 
     hdr = instrument.get_header(raw_fname)
     raw2D = fits.getdata(raw_fname)

@@ -222,7 +222,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
 
     # Start Calibration Tasks:
-
+    output_base = obs.output_base_spec
     # -- bias
     # task_args = ArgumentDict(options['bias'])
     # task_bias(task_args, database, log, verbose)
@@ -300,13 +300,14 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
         log.write("Starting interactive definition of pixel table for %s" % grism_name)
         try:
             arc_fname = arc_images_for_grism[grism_name][0]
-            if grism_name+'_pixtab' in options:
-                pixtab_fname = options[grism_name+'_pixtab']
-            else:
-                pixtab_fname = os.path.join(calib_dir, '%s_pixeltable.dat' % grism_name)
+            pixtab_fname = os.path.join(calib_dir, '%s_pixeltable.dat' % grism_name)
             linelist_fname = ''
             log.write("Input arc line frame: %s" % arc_fname)
-            poly_order, saved_pixtab_fname, msg = create_pixtable(arc_fname, grism_name,
+
+            arc_base_fname = os.path.basename(arc_fname)
+            arc_base, ext = os.path.splitext(arc_base_fname)
+            output_pixtable = os.path.join(output_base, "pixtab_%s_%s.tab" % (arc_base, grism_name))
+            poly_order, saved_pixtab_fname, msg = create_pixtable(arc_fname, grism_name, output_pixtable,
                                                                   pixtab_fname, linelist_fname,
                                                                   order_wl=options['identify']['order_wl'],
                                                                   app=app)
@@ -370,7 +371,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
             for obnum, sci_img in enumerate(frames, 1):
                 # Create working directory:
                 obID = 'ob%i' % obnum
-                output_dir = os.path.join(sci_img.target_name, insID, obID)
+                output_dir = os.path.join(output_base, sci_img.target_name, insID, obID)
                 if obdb.data[output_dir] in ['DONE', 'SKIP'] and not force_restart:
                     log.write("Skipping OB: %s  (status=%s)" % (output_dir, obdb.data[output_dir]))
                     log.write("Change OB status to blank in the .obd file if you want to redo the reduction")
@@ -439,9 +440,9 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                                                               method=options['bias']['method'],
                                                               overwrite=True)
                             log.commit(bias_msg)
-                            status['master_bias'] = os.path.basename(master_bias_fname)
-                            copy_bias = "cp %s %s" % (master_bias_fname, os.path.basename(master_bias_fname))
-                            if not os.path.exists(os.path.basename(master_bias_fname)):
+                            status['master_bias'] = os.path.join(output_base, os.path.basename(master_bias_fname))
+                            copy_bias = "cp %s %s" % (master_bias_fname, status['master_bias'])
+                            if not os.path.exists(status['master_bias']):
                                 os.system(copy_bias)
                             log.write("Copied combined Bias Image to base working directory")
                             log.add_linebreak()
@@ -465,8 +466,8 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                     log.write("Using static master flat frame: %s" % options['mflat'])
                     log.add_linebreak()
 
-                elif os.path.exists(os.path.basename(norm_flat_fname)):
-                    norm_flat_fname = os.path.basename(norm_flat_fname)
+                elif os.path.exists(os.path.join(output_base, os.path.basename(comb_flat_fname))):
+                    norm_flat_fname = os.path.join(output_base, os.path.basename(comb_flat_fname))
                     # check that image shapes match:
                     flat_hdr = fits.getheader(norm_flat_fname)
                     flat_img = fits.getdata(norm_flat_fname)
@@ -491,9 +492,9 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                                                           method=options['flat']['method'], overwrite=True,
                                                           mode='spec', dispaxis=sci_img.dispaxis)
                         log.commit(flat_msg)
-                        status['flat_combined'] = comb_flat_fname
-                        copy_flat = "cp %s %s" % (comb_flat_fname, os.path.basename(comb_flat_fname))
-                        if not os.path.exists(os.path.basename(comb_flat_fname)):
+                        status['flat_combined'] = os.path.join(output_base, os.path.basename(comb_flat_fname))
+                        copy_flat = "cp %s %s" % (comb_flat_fname, status['flat_combined'])
+                        if not os.path.exists(status['flat_combined']):
                             os.system(copy_flat)
                         log.write("Copied combined Flat Image to base working directory")
                         log.add_linebreak()
@@ -514,9 +515,9 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                                                               fig_dir=output_dir, dispaxis=sci_img.dispaxis,
                                                               **options['flat'])
                         log.commit(norm_msg)
-                        status['master_flat'] = norm_flat_fname
-                        copy_normflat = "cp %s %s" % (norm_flat_fname, os.path.basename(norm_flat_fname))
-                        if not os.path.exists(os.path.basename(norm_flat_fname)):
+                        status['master_flat'] = os.path.join(output_base, os.path.basename(norm_flat_fname))
+                        copy_normflat = "cp %s %s" % (norm_flat_fname, status['master_flat'])
+                        if not os.path.exists(status['master_flat']):
                             os.system(copy_normflat)
                         log.write("Copied normalized Flat Image to base working directory")
                         log.add_linebreak()
@@ -532,7 +533,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                 corrected_arc2d_fname = os.path.join(output_dir, 'corr_arc2d.fits')
                 log.write("Running task: Bias and Flat Field Correction of Arc Frame")
                 try:
-                    output_msg = correct_raw_file(arc_fname, bias_fname=master_bias_fname,
+                    output_msg = correct_raw_file(arc_fname, bias_fname=master_bias_fname, flat_fname=norm_flat_fname,
                                                   output=corrected_arc2d_fname, overwrite=True)
                     log.commit(output_msg)
                     log.add_linebreak()
@@ -543,16 +544,14 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                     raise
 
 
-                if grism+'_pixtab' in options:
-                    pixtab_fname = options[grism_name+'_pixtab']
-                else:
-                    pixtab_fname = os.path.join(calib_dir, '%s_pixeltable.dat' % grism)
-
+                pixtab_fname = os.path.join(calib_dir, '%s_pixeltable.dat' % grism)
                 if identify_interactive and identify_all:
                     log.write("Running task: Arc Line Identification")
                     try:
                         linelist_fname = ''
+                        output_pixtable_fname = os.path.join(output_base, '%s_pixtab.dat' % insID)
                         order_wl, pixtable, msg = create_pixtable(corrected_arc2d_fname, grism,
+                                                                  output_pixtable_fname,
                                                                   pixtab_fname, linelist_fname,
                                                                   order_wl=options['identify']['order_wl'],
                                                                   app=app)
@@ -585,8 +584,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
                 else:
                     std_fname = flux_std_files[0]
-                    # response_fname = os.path.join(output_dir, 'response_%s.fits' % (grism))
-                    response_fname = 'response_%s.fits' % (grism)
+                    response_fname = os.path.join(output_base, 'response_%s.fits' % (grism))
                     if os.path.exists(response_fname) and not options['response']['force']:
                         log.write("Using existing response function: %s" % response_fname)
                         log.add_linebreak()
@@ -610,8 +608,9 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                                                                               app=app)
                             # copy response file to working directory
                             if response_fname:
-                                copy_response = "cp %s %s" % (response_fname, os.path.basename(response_fname))
-                                if not os.path.exists(os.path.basename(response_fname)):
+                                new_response_name = os.path.join(output_base, os.path.basename(response_fname))
+                                copy_response = "cp %s %s" % (response_fname, new_response_name)
+                                if not os.path.exists(new_response_name):
                                     os.system(copy_response)
                             status['response'] = response_fname
                             log.commit(response_msg)
@@ -743,15 +742,19 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                 obdb.update(output_dir, 'DONE')
                 log.exit()
 
+
+
+            # -- Combine OBs for same target:
+
             # Check whether to combine or link OB files:
-            pattern = os.path.join(target_name, insID, '*', 'FLUX2D*.fits')
+            pattern = os.path.join(output_base, target_name, insID, '*', 'FLUX2D*.fits')
             files_to_combine = glob.glob(pattern)
             files_to_combine = [filter(lambda x: obdb.data[os.path.dirname(x)] == 'DONE', files_to_combine)]
             if len(files_to_combine) > 1:
                 # Combine individual OBs
                 log.write("Running task: Spectral Combination")
                 comb_basename = '%s_%s_flux2d.fits' % (target_name, insID)
-                comb2d_fname = os.path.join(target_name, comb_basename)
+                comb2d_fname = os.path.join(output_base, target_name, comb_basename)
                 try:
                     comb_output = combine_2d(files_to_combine, comb2d_fname)
                     final_wl, final_flux, final_err, final_mask, output_msg = comb_output
@@ -760,11 +763,11 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                 except Exception:
                     log.warn("Combination of 2D spectra failed... Try again manually")
 
-                pattern = os.path.join(target_name, insID, '*', 'FLUX1D*.fits')
+                pattern = os.path.join(output_base, target_name, insID, '*', 'FLUX1D*.fits')
                 files_to_combine = glob.glob(pattern)
                 files_to_combine = [filter(lambda x: obdb.data[os.path.dirname(x)] == 'DONE', files_to_combine)]
                 comb_basename = '%s_%s_flux1d.fits' % (target_name, insID)
-                comb1d_fname = os.path.join(target_name, comb_basename)
+                comb1d_fname = os.path.join(output_base, target_name, comb_basename)
                 try:
                     comb_output = combine_1d(files_to_combine, comb1d_fname)
                     final_wl, final_flux, final_err, final_mask, output_msg = comb_output
@@ -790,13 +793,13 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
             else:
                 # Create a hard link to the individual file instead
                 comb_basename = '%s_%s_flux2d.fits' % (target_name, insID)
-                comb2d_fname = os.path.join(target_name, comb_basename)
+                comb2d_fname = os.path.join(output_base, target_name, comb_basename)
                 if not os.path.exists(comb2d_fname):
                     os.link(status['FLUX2D'], comb2d_fname)
                     log.write("Created file link: %s -> %s" % (status['FLUX2D'], comb2d_fname), prefix=" [OUTPUT] - ")
 
                 comb_basename = '%s_%s_flux1d.fits' % (target_name, insID)
-                comb1d_fname = os.path.join(target_name, comb_basename)
+                comb1d_fname = os.path.join(output_base, target_name, comb_basename)
                 if not os.path.exists(comb1d_fname):
                     os.link(flux1d_fname, comb1d_fname)
                     log.write("Created file link: %s -> %s" % (flux1d_fname, comb1d_fname), prefix=" [OUTPUT] - ")
