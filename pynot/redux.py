@@ -23,103 +23,13 @@ from pynot.identify_gui import create_pixtable
 from pynot.scired import raw_correction, auto_fit_background, correct_cosmics, correct_raw_file
 from pynot.scombine import combine_2d, combine_1d
 from pynot.response import calculate_response, flux_calibrate
-
+from pynot.logging import Report
 from PyQt5.QtWidgets import QApplication
 
 code_dir = os.path.dirname(os.path.abspath(__file__))
 calib_dir = os.path.join(code_dir, 'calib/')
 defaults_fname = os.path.join(calib_dir, 'default_options.yml')
 __version__ = get_version_number()
-
-
-
-class Report(object):
-    def __init__(self, verbose=False):
-        self.verbose = verbose
-        self.time = datetime.datetime.now()
-        self.fname = 'pynot_%s.log' % self.time.strftime('%d%b%Y-%Hh%Mm%S')
-        self.remarks = list()
-        self.lines = list()
-        self.header = """
-        #  PyNOT Data Processing Pipeline
-        # ================================
-        # version %s
-        %s
-
-        """ % (__version__, self.time.strftime("%b %d, %Y  %H:%M:%S"))
-        self.report = ""
-
-        if self.verbose:
-            print(self.header)
-
-    def clear(self):
-        self.lines = list()
-        self.remarks = list()
-
-    def set_filename(self, fname):
-        self.fname = fname
-
-    def commit(self, text):
-        if self.verbose:
-            print(text, end='', flush=True)
-        self.lines.append(text)
-
-    def error(self, text):
-        text = ' [ERROR]  - ' + text
-        if self.verbose:
-            print(text)
-        if text[-1] != '\n':
-            text += '\n'
-        self.lines.append(text)
-
-    def warn(self, text):
-        text = '[WARNING] - ' + text
-        if self.verbose:
-            print(text)
-        if text[-1] != '\n':
-            text += '\n'
-        self.lines.append(text)
-
-    def write(self, text, prefix='          - '):
-        text = prefix + text
-        if self.verbose:
-            print(text)
-        if text[-1] != '\n':
-            text += '\n'
-        self.lines.append(text)
-
-    def add_linebreak(self):
-        if self.verbose:
-            print("")
-        self.lines.append("\n")
-
-    def add_remark(self, text):
-        self.remarks.append(text)
-
-    def _make_report(self):
-        remark_str = ''.join(self.remarks)
-        lines_str = ''.join(self.lines)
-        self.report = '\n'.join([self.header, remark_str, lines_str])
-
-    def print_report(self):
-        self._make_report()
-        print(self.report)
-
-    def save(self):
-        self._make_report()
-        with open(self.fname, 'w') as output:
-            output.write(self.report)
-
-    def exit(self):
-        print("          - Pipeline terminated.")
-        print("            Consult the log: %s\n" % self.fname)
-        print("")
-        self.save()
-
-    def fatal_error(self):
-        print(" !! FATAL ERROR !!")
-        print(" Consult the log: %s\n" % self.fname)
-        self.save()
 
 
 class State(dict):
@@ -191,8 +101,6 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
         # -- load collection
         database = io.load_database(dataset_fname)
         log.write("Loaded file classification database: %s" % dataset_fname)
-        # -- reclassify (takes already identified files into account)
-
     else:
         log.error("Dataset does not exist : %s" % dataset_fname)
         log.fatal_error()
@@ -223,11 +131,20 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
     # Start Calibration Tasks:
     output_base = obs.output_base_spec
+
     # -- bias
     # task_args = ArgumentDict(options['bias'])
-    # task_bias(task_args, database, log, verbose)
+    # task_output, log = task_bias(task_args, database=database, log=log, verbose=verbose, output_dir=output_base)
+    # for tag, filelist in task_output:
+    #     database[tag] = filelist
+    # io.save_database(database, dataset_fname)
 
     # -- sflat
+    # task_args = ArgumentDict(options['flat'])
+    # task_output, log = task_bias(task_args, database=database, log=log, verbose=verbose, output_dir=output_base)
+    # for tag, filelist in task_output:
+    #     database[tag] = filelist
+    # io.save_database(database, dataset_fname)
 
     # -- identify
     # get list of unique grisms in dataset:
@@ -239,9 +156,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
     # -- Check arc line files:
     arc_images = list()
-    for arc_type in ['ARC_HeNe', 'ARC_ThAr', 'ARC_HeAr']:
-        # For now only HeNe arc lines are accepted!
-        # Implement automatic combination of He + Ne
+    for arc_type in ['ARC', 'ARC_HeNe', 'ARC_ThAr', 'ARC_HeAr']:
         if arc_type in database.keys():
             arc_images += database[arc_type]
 
@@ -252,17 +167,15 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
         return
 
     arc_images_for_grism = defaultdict(list)
-    for arc_img in arc_images:
-        this_grism = instrument.get_grism(fits.getheader(arc_img))
-        arc_images_for_grism[this_grism].append(arc_img)
+    for arc_fname in arc_images:
+        this_grism = instrument.get_grism(fits.getheader(arc_fname))
+        arc_images_for_grism[this_grism].append(arc_fname)
 
     for grism_name in grism_list:
         if len(arc_images_for_grism[grism_name]) == 0:
             log.error("No arc frames defined for grism: %s" % grism_name)
             log.fatal_error()
             return
-        else:
-            log.write("%s has necessary arc files." % grism_name)
 
     log.add_linebreak()
     identify_all = options['identify']['all']
@@ -289,8 +202,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                 grisms_to_identify.append(grism_name)
             else:
                 log.write("%s : pixel table already exists" % grism_name)
-                status[grism_name+'_pixtab'] = pixtab_fname
-                status[pixtab_fname] = options['identify']['order_wl']
+                status['%s_pixtab' % grism_name] = pixtab_fname
         log.add_linebreak()
 
 
@@ -311,8 +223,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                                                                   pixtab_fname, linelist_fname,
                                                                   order_wl=options['identify']['order_wl'],
                                                                   app=app)
-            status[saved_pixtab_fname] = poly_order
-            status[grism_name+'_pixtab'] = saved_pixtab_fname
+            status['%s_pixtab' % grism_name] = output_pixtable
             log.commit(msg)
         except:
             log.error("Identification of arc lines failed!")
@@ -466,8 +377,8 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                     log.write("Using static master flat frame: %s" % options['mflat'])
                     log.add_linebreak()
 
-                elif os.path.exists(os.path.join(output_base, os.path.basename(comb_flat_fname))):
-                    norm_flat_fname = os.path.join(output_base, os.path.basename(comb_flat_fname))
+                elif os.path.exists(os.path.join(output_base, os.path.basename(norm_flat_fname))):
+                    norm_flat_fname = os.path.join(output_base, os.path.basename(norm_flat_fname))
                     # check that image shapes match:
                     flat_hdr = fits.getheader(norm_flat_fname)
                     flat_img = fits.getdata(norm_flat_fname)
@@ -543,8 +454,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                     print("Unexpected error:", sys.exc_info()[0])
                     raise
 
-
-                pixtab_fname = os.path.join(calib_dir, '%s_pixeltable.dat' % grism)
+                pixtab_fname = status['%s_pixtab' % grism]
                 if identify_interactive and identify_all:
                     log.write("Running task: Arc Line Identification")
                     try:
@@ -555,8 +465,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                                                                   pixtab_fname, linelist_fname,
                                                                   order_wl=options['identify']['order_wl'],
                                                                   app=app)
-                        status[pixtable] = order_wl
-                        status[grism+'_pixtab'] = pixtable
+                        status['%s_pixtab' % grism] = pixtable
                         log.commit(msg)
                         log.add_linebreak()
                     except Exception:
@@ -564,10 +473,6 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                         log.fatal_error()
                         print("Unexpected error:", sys.exc_info()[0])
                         raise
-                else:
-                    # -- or use previous line identifications
-                    pixtable = status[grism+'_pixtab']
-                    order_wl = status[pixtable]
 
 
                 # Response Function:
@@ -588,39 +493,32 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                     if os.path.exists(response_fname) and not options['response']['force']:
                         log.write("Using existing response function: %s" % response_fname)
                         log.add_linebreak()
-                        status['response'] = response_fname
+                        status['%s_response' % grism] = response_fname
                     else:
                         std_fname = flux_std_files[0]
                         log.write("Running task: Calculation of Response Function")
                         log.write("Spectroscopic Flux Standard: %s" % std_fname)
                         try:
                             response_fname, response_msg = calculate_response(std_fname, arc_fname=corrected_arc2d_fname,
-                                                                              pixtable_fname=pixtable,
+                                                                              pixtable_fname=status['%s_pixtab' % grism],
                                                                               bias_fname=master_bias_fname,
                                                                               flat_fname=norm_flat_fname,
                                                                               output=response_fname,
                                                                               output_dir=output_dir, pdf_fname=response_pdf,
                                                                               order=options['response']['order'],
                                                                               interactive=options['response']['interactive'],
-                                                                              dispaxis=sci_img.dispaxis, order_wl=order_wl,
+                                                                              dispaxis=sci_img.dispaxis,
                                                                               order_bg=options['skysub']['order_bg'],
                                                                               rectify_options=options['rectify'],
                                                                               app=app)
-                            # copy response file to working directory
-                            if response_fname:
-                                new_response_name = os.path.join(output_base, os.path.basename(response_fname))
-                                copy_response = "cp %s %s" % (response_fname, new_response_name)
-                                if not os.path.exists(new_response_name):
-                                    os.system(copy_response)
-                            status['response'] = response_fname
+                            status['%s_response' % grism] = response_fname
                             log.commit(response_msg)
-                            log.write("Copied response function to base working directory")
                             log.add_linebreak()
                         except Exception:
                             log.error("Calculation of response function failed!")
-                            print("Unexpected error:", sys.exc_info()[0])
-                            raise
-                            status['response'] = ''
+                            # print("Unexpected error:", sys.exc_info()[0])
+                            # raise
+                            status['%s_response' % grism] = ''
                             log.warn("No flux calibration will be performed!")
                             log.add_linebreak()
 
@@ -642,8 +540,9 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                 # Call rectify
                 log.write("Running task: 2D Rectification and Wavelength Calibration")
                 try:
-                    rect_msg = rectify(corrected_2d_fname, corrected_arc2d_fname, pixtable, output=rect2d_fname, fig_dir=output_dir,
-                                       dispaxis=sci_img.dispaxis, order_wl=order_wl, **options['rectify'])
+                    rect_msg = rectify(corrected_2d_fname, corrected_arc2d_fname, status['%s_pixtab' % grism],
+                                       output=rect2d_fname, fig_dir=output_dir,
+                                       dispaxis=sci_img.dispaxis, **options['rectify'])
                     log.commit(rect_msg)
                     log.add_linebreak()
                 except WavelengthError:
@@ -694,9 +593,9 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
 
                 # Flux Calibration:
-                if status['response']:
+                if status['%s_response' % grism]:
                     log.write("Running task: Flux Calibration")
-                    response_fname = status['response']
+                    response_fname = status['%s_response' % grism]
                     try:
                         flux_msg = flux_calibrate(crr_fname, output=flux2d_fname, response_fname=response_fname)
                         log.commit(flux_msg)
@@ -727,7 +626,8 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                         raise
                 else:
                     try:
-                        ext_msg = auto_extract(extract_fname, flux1d_fname, dispaxis=1, pdf_fname=extract_pdf_fname,
+                        ext_msg = auto_extract(extract_fname, flux1d_fname,
+                                               dispaxis=1, pdf_fname=extract_pdf_fname,
                                                **options['extract'])
                         log.commit(ext_msg)
                         log.add_linebreak()
@@ -796,10 +696,13 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                 comb2d_fname = os.path.join(output_base, target_name, comb_basename)
                 if not os.path.exists(comb2d_fname):
                     os.link(status['FLUX2D'], comb2d_fname)
-                    log.write("Created file link: %s -> %s" % (status['FLUX2D'], comb2d_fname), prefix=" [OUTPUT] - ")
+                    log.write("Created file link:")
+                    log.write("%s -> %s" % (status['FLUX2D'], comb2d_fname), prefix=" [OUTPUT] - ")
 
                 comb_basename = '%s_%s_flux1d.fits' % (target_name, insID)
                 comb1d_fname = os.path.join(output_base, target_name, comb_basename)
                 if not os.path.exists(comb1d_fname):
                     os.link(flux1d_fname, comb1d_fname)
-                    log.write("Created file link: %s -> %s" % (flux1d_fname, comb1d_fname), prefix=" [OUTPUT] - ")
+                    log.write("Created file link:")
+                    log.write("%s -> %s" % (flux1d_fname, comb1d_fname), prefix=" [OUTPUT] - ")
+                log.add_linebreak()

@@ -15,10 +15,12 @@ from scipy import ndimage, signal
 import os
 from os.path import exists, basename
 
+from pynot.data import io
+from pynot.data import organizer as organizer
+from pynot.logging import Report
 from pynot import instrument
 from pynot.functions import mad, my_formatter, get_version_number
 from pynot.scired import trim_overscan
-from pynot.data import organizer as organizer
 
 
 __version__ = get_version_number()
@@ -409,11 +411,11 @@ def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=2, order=24, 
         ax1_2d = fig2D.add_subplot(121)
         ax2_2d = fig2D.add_subplot(122)
         ax1_2d.imshow(flat, origin='lower')
-        ax1_2d.set_title("Raw Flat (%s - %s)" % (grism, slit_name))
+        ax1_2d.set_title("Combined Flat\n(%s - %s)" % (grism, slit_name))
         v1 = data_range[2] - 3*noise
         v2 = data_range[2] + 3*noise
         ax2_2d.imshow(flat_norm, origin='lower', vmin=v1, vmax=v2)
-        ax2_2d.set_title("Normalized Flat (%s - %s)" % (grism, slit_name))
+        ax2_2d.set_title("Normalized Flat\n(%s - %s)" % (grism, slit_name))
         ax2_2d.set_yticklabels("")
         if dispaxis == 2:
             ax1_2d.set_xlabel("Spatial Axis [pixels]", fontsize=11)
@@ -498,16 +500,13 @@ def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=2, order=24, 
     return output, output_msg
 
 
-def task_bias(args, database=None, log=None, verbose=True):
+def task_bias(args, database=None, log=None, verbose=True, output_dir=''):
     """
     Define the entry point for the task pynot:bias. This will automatcally
     """
-    from pynot.data import io
-    from pynot.redux import Report
-
     if log is None:
         log = Report(verbose)
-    log.write("Running task: Spectral flat field combination and normalization")
+    log.write("Running task: Bias combination")
 
     if database:
         bias_files = organizer.sort_bias(database['BIAS'])
@@ -520,10 +519,10 @@ def task_bias(args, database=None, log=None, verbose=True):
         input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
         bias_files = organizer.sort_bias(input_list)
 
-    task_output = {}
+    tag = 'MBIAS'
+    task_output = {tag: []}
     for file_id, input_list in bias_files.items():
-        output_fname = 'MBIAS_%s.fits' % file_id
-        tag = 'MBIAS_%s' % file_id
+        output_fname = os.path.join(output_dir, '%s_%s.fits' % (tag, file_id))
         _, output_msg = combine_bias_frames(input_list, output_fname, kappa=args.kappa, method=args.method)
         task_output[tag] = output_fname
         log.commit(output_msg)
@@ -532,16 +531,20 @@ def task_bias(args, database=None, log=None, verbose=True):
     return task_output, log
 
 
-def task_sflat(args, log=None):
+def task_sflat(args, database=None, log=None, verbose=True, output_dir=''):
     """
     Define the entry point for the main task of sflat, to be called by pynot.main
 
     args : command line arguments from argparse of pynot.main
     """
-    from pynot.data import io
+    if log is None:
+        log = Report(verbose)
+    log.write("Running task: Spectral flat field combination and normalization")
 
-    print("Running task: Spectral flat field combination and normalization")
-    if args.input.endswith('.pfc'):
+    if database:
+        flat_files = organizer.sort_bias(database['SPEC_FLAT'])
+
+    elif args.input.endswith('.pfc'):
         database = io.load_database(args.input)
         flat_files = organizer.sort_spec_flat(database['SPEC_FLAT'])
 
@@ -549,18 +552,22 @@ def task_sflat(args, log=None):
         input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
         flat_files = organizer.sort_spec_flat(input_list)
 
+    tag = 'NORM_SFLAT'
+    task_output = {tag: []}
     for file_id, input_list in flat_files.items():
-        print("Working on files taken with:")
-        grism, _, slit, filt, size = file_id.split('_')
-        print("  GRISM = %s    SLIT = %s    FILTER = %s    %s pixels" % (grism, slit, filt, size))
-        flatcombine, log = combine_flat_frames(input_list, output='', mbias=args.bias, mode='spec',
+        flatcombine, msg = combine_flat_frames(input_list, output='', mbias=args.bias, mode='spec',
                                                dispaxis=args.axis, kappa=args.kappa, method=args.method)
-        print(log)
+        log.commit(msg)
+        log.add_linebreak()
 
+        output_fname = os.path.join(output_dir, '%s_%s.fits' % (tag, file_id))
         options = copy(vars(args))
         vars_to_remove = ['task', 'input', 'output', 'axis', 'bias', 'kappa']
         for varname in vars_to_remove:
-            options.pop(varname)
-        _, log = normalize_spectral_flat(flatcombine, output=args.output, dispaxis=args.axis, **options)
-        print(log)
-        print("")
+            options.pop(varname, None)
+        _, flat_msg = normalize_spectral_flat(flatcombine, output=output_fname,
+                                              dispaxis=args.axis, fig_dir=output_dir, **options)
+        log.commit(flat_msg)
+        log.add_linebreak()
+        task_output[tag] = output_fname
+    return task_output, log

@@ -242,7 +242,7 @@ def flux_calibrate_1d(input_fname, *, output, response_fname):
 
 def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat_fname, output='',
                        output_dir='', pdf_fname='', order=3, smoothing=0.02, interactive=False, dispaxis=2,
-                       order_wl=4, order_bg=5, rectify_options=None, app=None):
+                       order_bg=5, rectify_options=None, app=None):
     """
     Extract and wavelength calibrate the standard star spectrum.
     Calculate the instrumental response function and fit the median filtered data points
@@ -291,9 +291,6 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
 
     dispaxis : integer  [default=2]
         Dispersion axis. 1: horizontal spectra, 2: vertical spectra (default for most ALFOSC grisms)
-
-    order_wl : integer  [default=4]
-        Polynomial order for wavelength solution as function of pixel value (from `identify`)
 
     rectify_options : dict()  [default={}]
         Dictionary of keyword arguments for `rectify`
@@ -352,7 +349,7 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
     try:
         rectify_options['plot'] = False
         rect_msg = rectify(std_tmp_fname, arc_fname, pixtable_fname, output=rect2d_fname,
-                           dispaxis=dispaxis, order_wl=order_wl, **rectify_options)
+                           dispaxis=dispaxis, **rectify_options)
         msg.append(rect_msg)
     except:
         msg.append("Unexpected error in rectify: %r" % sys.exc_info()[0])

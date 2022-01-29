@@ -617,9 +617,9 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
     msg.append("          - Wavelength solution is in reference system: %s" % ref_type)
     if found_all:
         order_wl = pixtab_pars['order_wl']
-        msg.append("          - Polynomial order for wavelength as function of pixels : %i" % order_wl)
     else:
         msg.append("[WARNING] - Not all parameters were loaded from the pixel table!")
+    msg.append("          - Polynomial order for wavelength as function of pixels : %i" % order_wl)
 
     if 'DISPAXIS' in hdr.keys():
         dispaxis = hdr['DISPAXIS']
