@@ -65,7 +65,7 @@ def match_date(files, date_mjd):
 
 def sort_spec_flat(file_list):
     """
-    Sort spectroscopic flat fields by grism, slit, filter and image size
+    Sort spectroscopic flat frames by grism, slit, filter and image size
     """
     sorted_files = defaultdict(list)
     for fname in file_list:
@@ -75,6 +75,19 @@ def sort_spec_flat(file_list):
         filter = instrument.get_filter(hdr)
         size = "%ix%i" % (hdr['NAXIS1'], hdr['NAXIS2'])
         file_id = "%s_%s_%s_%s" % (grism, slit, filter, size)
+        sorted_files[file_id].append(fname)
+    return sorted_files
+
+
+def sort_bias(file_list):
+    """
+    Sort spectroscopic bias frames by image size
+    """
+    sorted_files = defaultdict(list)
+    for fname in file_list:
+        hdr = fits.getheader(fname)
+        size = "%ix%i" % (hdr['NAXIS1'], hdr['NAXIS2'])
+        file_id = size
         sorted_files[file_id].append(fname)
     return sorted_files
 
