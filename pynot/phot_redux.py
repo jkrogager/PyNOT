@@ -12,6 +12,7 @@ import numpy as np
 from pynot import instrument
 from pynot.data import io
 from pynot.data import organizer as do
+from pynot.data import obs
 from pynot.phot import image_combine, create_fringe_image, source_detection, flux_calibration_sdss
 from pynot.calibs import combine_bias_frames, combine_flat_frames
 from pynot.functions import get_options, get_version_number
@@ -115,7 +116,7 @@ class Report(object):
 
 
 
-def run_pipeline(options_fname, verbose=False):
+def run_pipeline(options_fname, verbose=False, force_restart=False):
     log = Report(verbose)
 
     global app
@@ -158,10 +159,19 @@ def run_pipeline(options_fname, verbose=False):
         log.fatal_error()
         return
 
-
     object_images = defaultdict(lambda: defaultdict(list))
     for sci_img in raw_image_list:
         object_images[sci_img.target_name][sci_img.filter].append(sci_img)
+
+    obd_fname = os.path.splitext(dataset_fname)[0] + '.obd'
+    obdb = obs.OBDatabase(obd_fname)
+    if os.path.exists(obd_fname):
+        log.write("Loaded OB database: %s" % obd_fname)
+    else:
+        log.write("Initiated OB database: %s" % obd_fname)
+    obdb.update_imaging(object_images)
+    log.write("Updating OB database")
+    log.add_linebreak()
 
     # get list of unique filters in dataset:
     filter_list = np.unique(sum([list(obj.keys()) for obj in object_images.values()], []))
@@ -181,7 +191,7 @@ def run_pipeline(options_fname, verbose=False):
             flat_images_for_filter[this_filter].append(flat_file)
 
     # All files are put in a folder: imaging/OBJNAME/filter/...
-    output_base = 'imaging'
+    output_base = obs.output_base_phot
     if not os.path.exists(output_base):
         os.mkdir(output_base)
 
@@ -269,6 +279,12 @@ def run_pipeline(options_fname, verbose=False):
         for filter_name, image_list in images_per_filter.items():
             # Create working directory:
             output_dir = os.path.join(output_obj_base, filter_name)
+            if obdb.data[output_dir] in ['DONE', 'SKIP'] and not force_restart:
+                log.write("Skipping OB: %s  (status=%s)" % (output_dir, obdb.data[output_dir]))
+                log.write("Change OB status to blank in the .obd file if you want to redo the reduction")
+                log.write("or run the pipeline with the '-f' option to force re-reduction of all OBs")
+                log.add_linebreak()
+                continue
             if not os.path.exists(output_dir):
                 os.mkdir(output_dir)
             log.write("Filter : %s" % filter_name)
@@ -424,5 +440,6 @@ def run_pipeline(options_fname, verbose=False):
                     log.write(fname)
                 log.add_linebreak()
 
+            obdb.update(output_dir, 'DONE')
 
     log.exit()

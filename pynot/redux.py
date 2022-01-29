@@ -13,6 +13,7 @@ import datetime
 from pynot import instrument
 from pynot.data import io
 from pynot.data import organizer as do
+from pynot.data import obs
 from pynot.calibs import combine_bias_frames, combine_flat_frames, normalize_spectral_flat
 from pynot.extraction import auto_extract
 from pynot import extract_gui
@@ -30,75 +31,6 @@ calib_dir = os.path.join(code_dir, 'calib/')
 defaults_fname = os.path.join(calib_dir, 'default_options.yml')
 __version__ = get_version_number()
 
-
-class OBDatabase:
-    def __init__(self, fname):
-        if os.path.exists(fname):
-            data = np.loadtxt(fname, dtype=str, delimiter=':')
-            self.data = {obid.strip(): status.strip() for obid, status in data}
-        else:
-            self.data = {}
-        self.fname = fname
-
-    def update_from_science_files(self, scifile_dict):
-        """Expects a nested dictionary: {target1: {setup1: [], setup2: []}, ...}"""
-        for target_name, frames_per_setup in scifile_dict.items():
-            for insID, frames in frames_per_setup.items():
-                for obnum, sci_img in enumerate(frames, 1):
-                    # Create working directory:
-                    obID = 'ob%i' % obnum
-                    ob_path = os.path.join(sci_img.target_name, insID, obID)
-                    if ob_path not in self.data:
-                        self.data[ob_path] = ''
-        self.save()
-
-    def save(self):
-        with open(self.fname, 'w') as output:
-            output.write("# PyNOT OB Database\n#\n")
-            for obid, status in self.data.items():
-                output.write("%s : %s\n" % (obid, status))
-
-    def update(self, ob_path, status):
-        self.data[ob_path] = status
-        self.save()
-
-
-def update_ob_database(dataset_fname):
-    print(" - Don't mind me... I'm just doing some bookkeeping.")
-    obd_fname = os.path.splitext(dataset_fname)[0] + '.obd'
-    database = io.load_database(dataset_fname)
-    obdb = OBDatabase(obd_fname)
-    print(" - Updating OB database: %s" % obd_fname)
-
-    object_filelist = database['SPEC_OBJECT']
-    object_images = list(map(do.RawImage, object_filelist))
-
-    # Organize the science files according to target and instrument setup (insID)
-    science_frames = defaultdict(lambda: defaultdict(list))
-    for sci_img in object_images:
-        filt_name = sci_img.filter
-        insID = "%s_%s" % (sci_img.grism, sci_img.slit.replace('_', ''))
-        if filt_name.lower() not in ['free', 'open', 'none']:
-            insID = "%s_%s" % (insID, filt_name)
-        science_frames[sci_img.target_name][insID].append(sci_img)
-
-    for target_name, frames_per_setup in science_frames.items():
-        for insID, frames in frames_per_setup.items():
-            for obnum, sci_img in enumerate(frames, 1):
-                # Create working directory:
-                obID = 'ob%i' % obnum
-                output_dir = os.path.join(sci_img.target_name, insID, obID)
-                flux1d = os.path.join(output_dir, 'FLUX1D_%s.fits' % sci_img.target_name)
-                if os.path.exists(flux1d):
-                    if output_dir in obdb.data and obdb.data[output_dir] not in ['DONE', 'SKIP']:
-                        obdb.data[output_dir] = 'DONE'
-                    else:
-                        pass
-                else:
-                    obdb.data[output_dir] = ''
-    obdb.save()
-
-    print(" - Done!")
 
 
 class Report(object):
@@ -424,12 +356,12 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
         science_frames[sci_img.target_name][insID].append(sci_img)
 
     obd_fname = os.path.splitext(dataset_fname)[0] + '.obd'
-    obdb = OBDatabase(obd_fname)
+    obdb = obs.OBDatabase(obd_fname)
     if os.path.exists(obd_fname):
         log.write("Loaded OB database: %s" % obd_fname)
     else:
         log.write("Initiated OB database: %s" % obd_fname)
-    obdb.update_from_science_files(science_frames)
+    obdb.update_spectra(science_frames)
     log.write("Updating OB database")
     log.add_linebreak()
 

@@ -408,6 +408,8 @@ def main():
                              help="Input filename of pipeline configuration in YAML format")
     parser_phot.add_argument("-s", "--silent", action="store_false",
                              help="Minimze the output to terminal")
+    parser_phot.add_argument("-f", "--force", action="store_true",
+                             help="Force restart of all OBs!")
 
     parser_imtrim = tasks.add_parser('imtrim', formatter_class=set_help_width(30),
                                      help="Trim images")
@@ -526,7 +528,7 @@ def main():
         initialize(args.path, args.mode, pfc_fname=args.output, pars_fname=args.pars, verbose=args.silent)
 
     elif task == 'update-obs':
-        from pynot.redux import update_ob_database
+        from pynot.data.obs import update_ob_database
         update_ob_database(args.pfc)
 
     elif task == 'spex':
@@ -721,7 +723,8 @@ def main():
     elif task == 'phot':
         from pynot.phot_redux import run_pipeline
         run_pipeline(options_fname=args.params,
-                     verbose=args.silent)
+                     verbose=args.silent,
+                     force_restart=args.force)
 
     elif task == 'imflat':
         print("Running task: Combination of Imaging Flat Fields")
