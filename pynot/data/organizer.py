@@ -546,7 +546,7 @@ class RawImage(object):
             if shape:
                 # Match files with same image shape:
                 hdr = fits.getheader(fname)
-                this_shape = fits.getdata(fname).shape
+                this_shape = (hdr['NAXIS1'], hdr['NAXIS2'])
                 if 'OVERSCAN' in hdr:
                     # use original image shape before overscan-sub
                     over_x = hdr['OVERSCAN_X']
