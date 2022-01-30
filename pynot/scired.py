@@ -66,9 +66,9 @@ def trim_overscan(img, hdr):
     # Get detector pixel arrays from instrument:
     X, Y = instrument.get_detector_arrays(hdr)
 
-    img_region_x = (X >= pre_x) & (X <= 2148-over_x)
+    img_region_x = (X >= pre_x) & (X <= X.max()-over_x)
     xlimits = img_region_x.nonzero()[0]
-    img_region_y = (Y >= pre_y) & (Y <= 2102-over_y)
+    img_region_y = (Y >= pre_y) & (Y <= Y.max()-over_y)
     ylimits = img_region_y.nonzero()[0]
     x1 = min(xlimits)
     x2 = max(xlimits)+1
@@ -88,6 +88,8 @@ def trim_overscan(img, hdr):
     hdr['NAXIS1'] = img_trim.shape[1]
     hdr['NAXIS2'] = img_trim.shape[0]
     hdr['OVERSCAN'] = 'TRIMMED'
+    hdr['OVERSCAN_X'] = (np.sum(~img_region_x), "Number of pixels removed along X-axis")
+    hdr['OVERSCAN_Y'] = (np.sum(~img_region_y), "Number of pixels removed along Y-axis")
     return img_trim, hdr
 
 
@@ -488,8 +490,6 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname='', output='', overwrite
     sci = (sci_raw - mbias)/mflat
 
     # Calculate error image:
-    if 'CCDNAME' in hdr and hdr['CCDNAME'] == 'CCD14':
-        hdr['GAIN'] = 0.16
     gain = instrument.get_gain(hdr)
     readnoise = instrument.get_readnoise(hdr)
     with warnings.catch_warnings():
