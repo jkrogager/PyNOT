@@ -304,6 +304,7 @@ class ResponseGUI(QtWidgets.QMainWindow):
             hdu = fits.HDUList()
             prim_hdr = fits.Header()
             prim_hdr['AUTHOR'] = 'PyNOT version %s' % __version__
+            prim_hdr['INSTRUME'] = 'PyNOT'
             prim_hdr['OBJECT'] = instrument.get_object(self.spectrum.header)
             prim_hdr['DATE-OBS'] = instrument.get_date(self.spectrum.header)
             prim_hdr['EXPTIME'] = float(self.exptime_edit.text())

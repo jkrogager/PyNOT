@@ -21,7 +21,7 @@ from pynot.wavecal import rectify, WavelengthError
 from pynot.identify_gui import create_pixtable
 from pynot.scired import raw_correction, auto_fit_background, correct_cosmics, correct_raw_file
 from pynot.scombine import combine_2d
-from pynot.response import calculate_response, flux_calibrate
+from pynot.response import calculate_response, flux_calibrate, task_response
 from pynot.logging import Report
 from PyQt5.QtWidgets import QApplication
 
@@ -141,6 +141,10 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
     # Start Calibration Tasks:
     output_base = obs.output_base_spec
+    if not os.path.exists(os.path.join(output_base, 'arcs')):
+        os.makedirs(os.path.join(output_base, 'arcs'))
+    if not os.path.exists(os.path.join(output_base, 'std')):
+        os.makedirs(os.path.join(output_base, 'std'))
 
     # -- bias
     if not database.has_tag('MBIAS') or force_restart:
@@ -165,6 +169,8 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
         for tag, arc_images in task_output.items():
             database[tag] = arc_images
         io.save_database(database, dataset_fname)
+    else:
+        arc_images = database['ARC_CORR']
 
 
     # -- initial identify
@@ -220,6 +226,14 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
         status[pixtab_id] = fname
 
     # -- response
+    if not database.has_tag('RESPONSE') or force_restart:
+        task_output, log = task_response(options, database, status, log=log, verbose=verbose, app=app,
+                                         output_dir=os.path.join(output_base, 'std'))
+        for tag, response_files in task_output.items():
+            database[tag] = response_files
+        io.save_database(database, dataset_fname)
+
+    stop
 
     # Save overview log:
     print("")
@@ -328,20 +342,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                 except Exception:
                     log.fatal_error()
                     raise
-                # # Identify lines in arc frame:
-                # arc_fname, = sci_img.match_files(arc_images, date=False, grism=True, slit=True, filter=True, get_closest_time=True)
-                # corrected_arc2d_fname = os.path.join(output_dir, 'corr_arc2d.fits')
-                # log.write("Running task: Bias and Flat Field Correction of Arc Frame")
-                # try:
-                #     output_msg = correct_raw_file(arc_fname, bias_fname=master_bias_fname, flat_fname=norm_flat_fname,
-                #                                   output=corrected_arc2d_fname, overwrite=True)
-                #     log.commit(output_msg)
-                #     log.add_linebreak()
-                # except:
-                #     log.error("Bias and flat field correction of Arc frame failed!")
-                #     log.fatal_error()
-                #     print("Unexpected error:", sys.exc_info()[0])
-                #     raise
+
                 arc_base = os.path.splitext(os.path.basename(arc_fname))[0]
                 pixtable_fname = os.path.join(output_base, 'arcs', "pixtab_%s_%s.dat" % (arc_base, grism))
                 if os.path.exists(pixtable_fname):

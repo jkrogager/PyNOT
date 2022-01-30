@@ -97,6 +97,21 @@ def sort_arcs(file_list):
     return sorted_files
 
 
+def sort_std(file_list):
+    sorted_files = defaultdict(lambda: defaultdict(list))
+    for fname in file_list:
+        hdr = fits.getheader(fname)
+        target_name = instrument.get_target_name(hdr)
+        filt_name = instrument.get_filter(hdr)
+        grism = instrument.get_grism(hdr)
+        slit = instrument.get_slit(hdr).replace('_', '')
+        insID = "%s_%s" % (grism, slit)
+        if filt_name.lower() not in ['free', 'open', 'none']:
+            insID = "%s_%s" % (insID, filt_name)
+        sorted_files[target_name][insID].append(fname)
+    return sorted_files
+
+
 def sort_bias(file_list):
     """
     Sort spectroscopic bias frames by image size

@@ -172,6 +172,8 @@ def main():
                             help="Path (or paths) to raw data to be classified")
     parser_org.add_argument("-o", "--output", type=str, default='dataset.pfc',
                             help="Filename of file classification table (*.pfc)")
+    parser_org.add_argument("-f", "--force", action="store_true",
+                            help="Force overwrite of the file classification table (*.pfc)")
 
     parser_obd = tasks.add_parser('update-obs', formatter_class=set_help_width(31),
                                   help="Update the OB database based on a classification table")
@@ -844,17 +846,33 @@ def main():
         from pynot.data import io
 
         # Classify files:
-        # args.silent is set to "store_false", so by default it is true!
         database, message = do.classify(args.path)
+        print("")
+        print(message)
         if database is None:
-            print(message)
             return
 
         if not args.output.endswith('.pfc'):
-            args.output += '.pfc'
-        io.save_database(database, args.output)
-        print(message)
-        print(" [OUTPUT] - Saved file classification database: %s" % args.output)
+            pfc_fname = args.output + '.pfc'
+        else:
+            pfc_fname = args.output
+
+        if os.path.exists(pfc_fname):
+            print("          - File classification database already exists")
+            if args.force:
+                print("          - Overwriting the database! Are you sure?  [Y/n]")
+                user_input = input("          > ")
+                if user_input.lower() in ['y', 'yes', '']:
+                    pass
+                else:
+                    print("Aborting...")
+                    return
+            else:
+                previous_database = io.load_database(pfc_fname)
+                database = database + previous_database
+                print("          - Merging the databases")
+        io.save_database(database, pfc_fname)
+        print(" [OUTPUT] - Saved file classification database: %s" % pfc_fname)
 
     else:
         import pynot

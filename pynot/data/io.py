@@ -4,6 +4,7 @@
 Input / Output functions for the DataSet class.
 """
 
+from astropy.io import fits
 import numpy as np
 
 from pynot.data.organizer import TagDatabase
@@ -14,13 +15,22 @@ veclen = np.vectorize(len)
 
 # Function to save dataset: data/io.py
 def get_header_info(fname):
-    hdr = instrument.get_header(fname)
-    object = instrument.get_object(hdr)
-    exptime = "%.1f" % instrument.get_exptime(hdr)
-    grism = instrument.get_grism(hdr)
-    slit = instrument.get_slit(hdr)
-    filter = instrument.get_filter(hdr)
-    shape = "%ix%i" % (hdr['NAXIS1'], hdr['NAXIS2'])
+    hdr = fits.getheader(fname)
+    if hdr['INSTRUME'] == 'PyNOT':
+        object = hdr['OBJECT']
+        exptime = hdr['EXPTIME']
+        grism = hdr['GRISM']
+        slit = hdr['SLIT']
+        filter = '...'
+        shape = "..."
+    else:
+        hdr = instrument.get_header(fname)
+        object = instrument.get_object(hdr)
+        exptime = "%.1f" % instrument.get_exptime(hdr)
+        grism = instrument.get_grism(hdr)
+        slit = instrument.get_slit(hdr)
+        filter = instrument.get_filter(hdr)
+        shape = "%ix%i" % (hdr['NAXIS1'], hdr['NAXIS2'])
     return object, exptime, grism, slit, filter, shape
 
 
@@ -32,9 +42,18 @@ def save_database(database, output_fname):
             output.write("# %s:\n" % filetype)
             file_list = list()
             for fname in sorted(files):
-                object, exptime, grism, slit, filter, shape = get_header_info(fname)
+                try:
+                    object, exptime, grism, slit, filter, shape = get_header_info(fname)
+                except FileNotFoundError:
+                    print("[WARNING] - File not found: %s" % fname)
+                    continue
+                except Exception:
+                    print("[WARNING] - Problem reading header information: %s" % fname)
+                    object, exptime, grism, slit, filter, shape = '-', '-', '-', '-', '-', '-'
                 file_list.append((fname, filetype, object, exptime, grism, slit, filter, shape))
             file_list = np.array(file_list, dtype=str)
+            if len(file_list) == 0:
+                continue
             header_names = ('FILENAME', 'TYPE', 'OBJECT', 'EXPTIME', 'GRISM', 'SLIT', 'FILTER', 'SHAPE')
             max_len = np.max(veclen(file_list), 0)
             max_len = np.max([max_len, [len(n) for n in header_names]], 0)
