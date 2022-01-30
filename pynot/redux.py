@@ -325,53 +325,6 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                     master_bias = sci_img.match_files(database['MBIAS'], date=False, get_closest_time=True)
                 master_bias_fname = master_bias[0]
 
-                # # Combine Bias Frames matched for CCD setup:
-                # bias_frames = sci_img.match_files(database['BIAS'], date=False)
-                # perform_bias_comb = True
-                # if options['mbias']:
-                #     master_bias_fname = options['mbias']
-                #     log.write("Using static master bias frame: %s" % options['mbias'])
-                #     log.add_linebreak()
-                # elif os.path.exists(str(status.get('master_bias'))):
-                #     master_bias_fname = status['master_bias']
-                #     # check that image shapes match:
-                #     bias_hdr = fits.getheader(master_bias_fname)
-                #     bias_binning = instrument.get_binning_from_hdr(bias_hdr)
-                #     if sci_img.binning == bias_binning:
-                #         log.write("Using combined master frame: %s" % master_bias_fname)
-                #         log.add_linebreak()
-                #         perform_bias_comb = False
-                #     else:
-                #         perform_bias_comb = True
-                #
-                #
-                # if perform_bias_comb:
-                #     if len(bias_frames) < 3:
-                #         log.error("Must have at least 3 bias frames to combine, not %i" % len(bias_frames))
-                #         log.error("otherwise provide a static 'master bias' frame!")
-                #         log.fatal_error()
-                #         return
-                #     else:
-                #         log.write("Running task: Bias Combination")
-                #         try:
-                #             _, bias_msg = combine_bias_frames(bias_frames, output=master_bias_fname,
-                #                                               kappa=options['bias']['kappa'],
-                #                                               method=options['bias']['method'],
-                #                                               overwrite=True)
-                #             log.commit(bias_msg)
-                #             status['master_bias'] = os.path.join(output_base, os.path.basename(master_bias_fname))
-                #             copy_bias = "cp %s %s" % (master_bias_fname, status['master_bias'])
-                #             if not os.path.exists(status['master_bias']):
-                #                 os.system(copy_bias)
-                #             log.write("Copied combined Bias Image to base working directory")
-                #             log.add_linebreak()
-                #         except:
-                #             log.error("Median combination of bias frames failed!")
-                #             log.fatal_error()
-                #             print("Unexpected error:", sys.exc_info()[0])
-                #             raise
-
-
                 # Combine Flat Frames matched for CCD setup, grism, slit and filter:
                 flat_frames = sci_img.match_files(database['SPEC_FLAT'], date=False, grism=True, slit=True, filter=True)
                 perform_flat_comb = True
