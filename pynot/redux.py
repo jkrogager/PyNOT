@@ -13,14 +13,14 @@ from pynot import instrument
 from pynot.data import io
 from pynot.data import organizer as do
 from pynot.data import obs
-from pynot.calibs import combine_bias_frames, combine_flat_frames, normalize_spectral_flat, task_bias
+from pynot.calibs import combine_bias_frames, combine_flat_frames, normalize_spectral_flat, task_bias, task_sflat
 from pynot.extraction import auto_extract
 from pynot import extract_gui
 from pynot.functions import get_options, get_version_number
 from pynot.wavecal import rectify, WavelengthError
 from pynot.identify_gui import create_pixtable
 from pynot.scired import raw_correction, auto_fit_background, correct_cosmics, correct_raw_file
-from pynot.scombine import combine_2d, combine_1d
+from pynot.scombine import combine_2d
 from pynot.response import calculate_response, flux_calibrate
 from pynot.logging import Report
 from PyQt5.QtWidgets import QApplication
@@ -133,18 +133,17 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
     # -- bias
     if not database.has_tag('MBIAS') or force_restart:
-        task_args = ArgumentDict(options['bias'])
-        task_output, log = task_bias(task_args, database=database, log=log, verbose=verbose, output_dir=output_base)
+        task_output, log = task_bias(options['bias'], database=database, log=log, verbose=verbose, output_dir=output_base)
         for tag, filelist in task_output.items():
             database[tag] = filelist
         io.save_database(database, dataset_fname)
 
     # -- sflat
-    # task_args = ArgumentDict(options['flat'])
-    # task_output, log = task_bias(task_args, database=database, log=log, verbose=verbose, output_dir=output_base)
-    # for tag, filelist in task_output.items():
-    #     database[tag] = filelist
-    # io.save_database(database, dataset_fname)
+    if not database.has_tag('NORM_SFLAT') or force_restart:
+        task_output, log = task_sflat(options['flat'], database=database, log=log, verbose=verbose, output_dir=output_base)
+        for tag, filelist in task_output.items():
+            database[tag] = filelist
+        io.save_database(database, dataset_fname)
 
     # -- identify
     # get list of unique grisms in dataset:
@@ -321,106 +320,92 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                 extract_pdf_fname = os.path.join(output_dir, 'plot_extract1D_details.pdf')
 
                 # Find Bias Frame:
-                master_bias = sci_img.match_files(database['MBIAS'], date=False)
-                if len(master_bias) > 1:
-                    master_bias = sci_img.match_files(database['MBIAS'], date=False, get_closest_time=True)
-
-                if len(master_bias) != 1:
-                    log.error("Could not find a matching master bias.")
-                    log.error("Check filetype MBIAS in %s" % dataset_fname)
+                try:
+                    master_bias_fname = do.match_single_calib(sci_img, database, 'MBIAS', log, date=False)
+                except Exception:
                     log.fatal_error()
-                    return
-                master_bias_fname = master_bias[0]
-
+                    raise
 
                 # # Find Flat Frame:
-                # master_flat = sci_img.match_files(database['NORM_SFLAT'], date=False,
-                #                                   grism=True, slit=True, filter=True)
-                # if len(master_flat) > 1:
-                #     master_flat = sci_img.match_files(database['NORM_SFLAT'], date=False,
-                #                                       grism=True, slit=True, filter=True,
-                #                                       get_closest_time=True)
-                # if len(master_bias) != 1:
-                #     log.error("Could not find a matching nomalized flat.")
-                #     log.error("Check filetype NORM_SFLAT in %s" % dataset_fname)
-                #     log.fatal_error()
-                #     return
-                # norm_flat_fname = master_flat[0]
-
+                try:
+                    norm_flat_fname = do.match_single_calib(sci_img, database, 'NORM_SFLAT', log, date=False)
+                except Exception:
+                    log.fatal_error()
+                    raise
 
                 # Combine Flat Frames matched for CCD setup, grism, slit and filter:
-                flat_frames = sci_img.match_files(database['SPEC_FLAT'], date=False, grism=True, slit=True, filter=True)
-                perform_flat_comb = True
-                if options['mflat']:
-                    if options['mflat'] is None:
-                        norm_flat_fname = ''
-                    elif options['mflat'].lower() in ['none', 'null']:
-                        norm_flat_fname = ''
-                    else:
-                        norm_flat_fname = options['mflat']
-                    log.write("Using static master flat frame: %s" % options['mflat'])
-                    log.add_linebreak()
-
-                elif os.path.exists(os.path.join(output_base, os.path.basename(norm_flat_fname))):
-                    norm_flat_fname = os.path.join(output_base, os.path.basename(norm_flat_fname))
-                    # check that image shapes match:
-                    flat_hdr = fits.getheader(norm_flat_fname)
-                    flat_img = fits.getdata(norm_flat_fname)
-                    flat_binning = instrument.get_binning_from_hdr(flat_hdr)
-                    # Change this to match the image shape *after* overscan correction
-                    if sci_img.binning == flat_binning and sci_img.shape == flat_img.shape:
-                        log.write("Using normalized flat frame: %s" % norm_flat_fname)
-                        log.add_linebreak()
-                        perform_flat_comb = False
-                    else:
-                        perform_flat_comb = True
-
-                if len(flat_frames) == 0:
-                    log.error("No flat frames provided!")
-                    log.fatal_error()
-                    return
-                elif perform_flat_comb:
-                    try:
-                        log.write("Running task: Spectral Flat Combination")
-                        _, flat_msg = combine_flat_frames(flat_frames, comb_flat_fname, mbias=master_bias_fname,
-                                                          kappa=options['flat']['kappa'],
-                                                          method=options['flat']['method'], overwrite=True,
-                                                          mode='spec', dispaxis=sci_img.dispaxis)
-                        log.commit(flat_msg)
-                        status['flat_combined'] = os.path.join(output_base, os.path.basename(comb_flat_fname))
-                        copy_flat = "cp %s %s" % (comb_flat_fname, status['flat_combined'])
-                        if not os.path.exists(status['flat_combined']):
-                            os.system(copy_flat)
-                        log.write("Copied combined Flat Image to base working directory")
-                        log.add_linebreak()
-                    except ValueError as err:
-                        log.commit(str(err)+'\n')
-                        log.fatal_error()
-                        raise
-                    except:
-                        log.error("Combination of flat frames failed!")
-                        log.fatal_error()
-                        print("Unexpected error:", sys.exc_info()[0])
-                        raise
-
-                    # Normalize the spectral flat field:
-                    try:
-                        log.write("Running task: Spectral Flat Normalization")
-                        _, norm_msg = normalize_spectral_flat(comb_flat_fname, output=norm_flat_fname,
-                                                              fig_dir=output_dir, dispaxis=sci_img.dispaxis,
-                                                              **options['flat'])
-                        log.commit(norm_msg)
-                        status['master_flat'] = os.path.join(output_base, os.path.basename(norm_flat_fname))
-                        copy_normflat = "cp %s %s" % (norm_flat_fname, status['master_flat'])
-                        if not os.path.exists(status['master_flat']):
-                            os.system(copy_normflat)
-                        log.write("Copied normalized Flat Image to base working directory")
-                        log.add_linebreak()
-                    except:
-                        log.error("Normalization of flat frames failed!")
-                        log.fatal_error()
-                        print("Unexpected error:", sys.exc_info()[0])
-                        raise
+                # flat_frames = sci_img.match_files(database['SPEC_FLAT'], date=False, grism=True, slit=True, filter=True)
+                # perform_flat_comb = True
+                # if options['mflat']:
+                #     if options['mflat'] is None:
+                #         norm_flat_fname = ''
+                #     elif options['mflat'].lower() in ['none', 'null']:
+                #         norm_flat_fname = ''
+                #     else:
+                #         norm_flat_fname = options['mflat']
+                #     log.write("Using static master flat frame: %s" % options['mflat'])
+                #     log.add_linebreak()
+                #
+                # elif os.path.exists(os.path.join(output_base, os.path.basename(norm_flat_fname))):
+                #     norm_flat_fname = os.path.join(output_base, os.path.basename(norm_flat_fname))
+                #     # check that image shapes match:
+                #     flat_hdr = fits.getheader(norm_flat_fname)
+                #     flat_img = fits.getdata(norm_flat_fname)
+                #     flat_binning = instrument.get_binning_from_hdr(flat_hdr)
+                #     # Change this to match the image shape *after* overscan correction
+                #     if sci_img.binning == flat_binning and sci_img.shape == flat_img.shape:
+                #         log.write("Using normalized flat frame: %s" % norm_flat_fname)
+                #         log.add_linebreak()
+                #         perform_flat_comb = False
+                #     else:
+                #         perform_flat_comb = True
+                #
+                # if len(flat_frames) == 0:
+                #     log.error("No flat frames provided!")
+                #     log.fatal_error()
+                #     return
+                # elif perform_flat_comb:
+                #     try:
+                #         log.write("Running task: Spectral Flat Combination")
+                #         _, flat_msg = combine_flat_frames(flat_frames, comb_flat_fname, mbias=master_bias_fname,
+                #                                           kappa=options['flat']['kappa'],
+                #                                           method=options['flat']['method'], overwrite=True,
+                #                                           mode='spec', dispaxis=sci_img.dispaxis)
+                #         log.commit(flat_msg)
+                #         status['flat_combined'] = os.path.join(output_base, os.path.basename(comb_flat_fname))
+                #         copy_flat = "cp %s %s" % (comb_flat_fname, status['flat_combined'])
+                #         if not os.path.exists(status['flat_combined']):
+                #             os.system(copy_flat)
+                #         log.write("Copied combined Flat Image to base working directory")
+                #         log.add_linebreak()
+                #     except ValueError as err:
+                #         log.commit(str(err)+'\n')
+                #         log.fatal_error()
+                #         raise
+                #     except:
+                #         log.error("Combination of flat frames failed!")
+                #         log.fatal_error()
+                #         print("Unexpected error:", sys.exc_info()[0])
+                #         raise
+                #
+                #     # Normalize the spectral flat field:
+                #     try:
+                #         log.write("Running task: Spectral Flat Normalization")
+                #         _, norm_msg = normalize_spectral_flat(comb_flat_fname, output=norm_flat_fname,
+                #                                               fig_dir=output_dir, dispaxis=sci_img.dispaxis,
+                #                                               **options['flat'])
+                #         log.commit(norm_msg)
+                #         status['master_flat'] = os.path.join(output_base, os.path.basename(norm_flat_fname))
+                #         copy_normflat = "cp %s %s" % (norm_flat_fname, status['master_flat'])
+                #         if not os.path.exists(status['master_flat']):
+                #             os.system(copy_normflat)
+                #         log.write("Copied normalized Flat Image to base working directory")
+                #         log.add_linebreak()
+                #     except:
+                #         log.error("Normalization of flat frames failed!")
+                #         log.fatal_error()
+                #         print("Unexpected error:", sys.exc_info()[0])
+                #         raise
 
 
                 # Identify lines in arc frame:

@@ -547,19 +547,19 @@ def main():
         _, log = combine_bias_frames(input_list, args.output, kappa=args.kappa, method=args.method)
 
     elif task == 'sflat':
-        # from pynot.calibs import combine_flat_frames, normalize_spectral_flat
-        # print("Running task: Spectral flat field combination and normalization")
-        # input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
-        # flatcombine, log = combine_flat_frames(input_list, output='', mbias=args.bias, mode='spec',
-        #                                        dispaxis=args.axis, kappa=args.kappa, method=args.method)
-        #
-        # options = copy(vars(args))
-        # vars_to_remove = ['task', 'input', 'output', 'axis', 'bias', 'kappa']
-        # for varname in vars_to_remove:
-        #     options.pop(varname)
-        # _, log = normalize_spectral_flat(flatcombine, args.output, dispaxis=args.axis, **options)
-        from pynot.calibs import task_sflat
-        task_sflat(args)
+        from pynot.calibs import combine_flat_frames, normalize_spectral_flat
+        print("Running task: Spectral flat field combination and normalization")
+        input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
+        flatcombine, log = combine_flat_frames(input_list, output='', mbias=args.bias, mode='spec',
+                                               dispaxis=args.axis, kappa=args.kappa, method=args.method)
+
+        options = copy(vars(args))
+        vars_to_remove = ['task', 'input', 'output', 'axis', 'bias', 'kappa']
+        for varname in vars_to_remove:
+            options.pop(varname)
+        _, log = normalize_spectral_flat(flatcombine, args.output, dispaxis=args.axis, **options)
+        # from pynot.calibs import task_sflat
+        # task_sflat(args)
 
     elif task == 'corr':
         from pynot.scired import correct_raw_file

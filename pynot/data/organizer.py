@@ -71,10 +71,13 @@ def sort_spec_flat(file_list):
     for fname in file_list:
         hdr = fits.getheader(fname)
         grism = instrument.get_grism(hdr)
-        slit = instrument.get_slit(hdr)
-        filter = instrument.get_filter(hdr)
+        slit = instrument.get_slit(hdr).replace('_', '')
+        filt_name = instrument.get_filter(hdr)
         size = "%ix%i" % (hdr['NAXIS1'], hdr['NAXIS2'])
-        file_id = "%s_%s_%s_%s" % (grism, slit, filter, size)
+        if filt_name.lower() in ['free', 'open', 'none']:
+            file_id = "%s_%s_%s" % (grism, slit, size)
+        else:
+            file_id = "%s_%s_%s_%s" % (grism, slit, filt_name, size)
         sorted_files[file_id].append(fname)
     return sorted_files
 
@@ -582,6 +585,20 @@ class RawImage(object):
 
         return matches
 
+
+def match_single_calib(raw_img, database, tag, log, **kwargs):
+    calib_list = raw_img.match_files(database[tag], **kwargs)
+
+    if len(calib_list) > 1:
+        kwargs['get_closest_time'] = True
+        calib_list = raw_img.match_files(database[tag], **kwargs)
+
+    if len(calib_list) != 1:
+        log.error("Could not match filetype %s" % tag)
+        log.error("Check that the filetype exists in the PFC database")
+        raise KeyError("Could not match filetype %s" % tag)
+
+    return calib_list[0]
 
 
 class TagDatabase(dict):
