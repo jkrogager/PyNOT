@@ -601,21 +601,17 @@ class TagDatabase(dict):
 
     def __add__(self, other):
         new_file_database = other.file_database
-
         for key in self.file_database.keys():
             new_file_database[key] = self.file_database[key]
-
         return TagDatabase(new_file_database)
 
     def __radd__(self, other):
         if other == 0:
             return self
-
         else:
             return self.__add__(other)
 
     def has_tag(self, tag):
         if tag in self.keys():
             return True
-
         return False

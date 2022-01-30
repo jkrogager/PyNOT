@@ -309,7 +309,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
                 # Prepare output filenames:
                 grism = sci_img.grism
-                master_bias_fname = os.path.join(output_dir, 'MASTER_BIAS.fits')
+                # master_bias_fname = os.path.join(output_dir, 'MASTER_BIAS.fits')
                 comb_flat_fname = os.path.join(output_dir, 'FLAT_COMBINED_%s_%s.fits' % (grism, sci_img.slit))
                 norm_flat_fname = os.path.join(output_dir, 'NORM_FLAT_%s_%s.fits' % (grism, sci_img.slit))
                 rect2d_fname = os.path.join(output_dir, 'RECT2D_%s.fits' % (sci_img.target_name))
@@ -320,10 +320,33 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                 flux1d_fname = os.path.join(output_dir, 'FLUX1D_%s.fits' % (sci_img.target_name))
                 extract_pdf_fname = os.path.join(output_dir, 'plot_extract1D_details.pdf')
 
+                # Find Bias Frame:
                 master_bias = sci_img.match_files(database['MBIAS'], date=False)
                 if len(master_bias) > 1:
                     master_bias = sci_img.match_files(database['MBIAS'], date=False, get_closest_time=True)
+
+                if len(master_bias) != 1:
+                    log.error("Could not find a matching master bias.")
+                    log.error("Check filetype MBIAS in %s" % dataset_fname)
+                    log.fatal_error()
+                    return
                 master_bias_fname = master_bias[0]
+
+
+                # # Find Flat Frame:
+                # master_flat = sci_img.match_files(database['NORM_SFLAT'], date=False,
+                #                                   grism=True, slit=True, filter=True)
+                # if len(master_flat) > 1:
+                #     master_flat = sci_img.match_files(database['NORM_SFLAT'], date=False,
+                #                                       grism=True, slit=True, filter=True,
+                #                                       get_closest_time=True)
+                # if len(master_bias) != 1:
+                #     log.error("Could not find a matching nomalized flat.")
+                #     log.error("Check filetype NORM_SFLAT in %s" % dataset_fname)
+                #     log.fatal_error()
+                #     return
+                # norm_flat_fname = master_flat[0]
+
 
                 # Combine Flat Frames matched for CCD setup, grism, slit and filter:
                 flat_frames = sci_img.match_files(database['SPEC_FLAT'], date=False, grism=True, slit=True, filter=True)
