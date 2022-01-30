@@ -551,10 +551,7 @@ class RawImage(object):
                     # use original image shape before overscan-sub
                     over_x = hdr['OVERSCAN_X']
                     over_y = hdr['OVERSCAN_Y']
-                    # print("Overscan has been removed")
-                    # print(" shape: ", this_shape)
                     this_shape = (this_shape[0]+over_y, this_shape[1]+over_x)
-                    # print(" shape including overscan: ", this_shape)
 
                 criteria.append(this_shape == self.shape)
 
