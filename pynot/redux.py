@@ -309,8 +309,8 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                 # Prepare output filenames:
                 grism = sci_img.grism
                 # master_bias_fname = os.path.join(output_dir, 'MASTER_BIAS.fits')
-                comb_flat_fname = os.path.join(output_dir, 'FLAT_COMBINED_%s_%s.fits' % (grism, sci_img.slit))
-                norm_flat_fname = os.path.join(output_dir, 'NORM_FLAT_%s_%s.fits' % (grism, sci_img.slit))
+                # comb_flat_fname = os.path.join(output_dir, 'FLAT_COMBINED_%s_%s.fits' % (grism, sci_img.slit))
+                # norm_flat_fname = os.path.join(output_dir, 'NORM_FLAT_%s_%s.fits' % (grism, sci_img.slit))
                 rect2d_fname = os.path.join(output_dir, 'RECT2D_%s.fits' % (sci_img.target_name))
                 bgsub2d_fname = os.path.join(output_dir, 'BGSUB2D_%s.fits' % (sci_img.target_name))
                 response_pdf = os.path.join(output_dir, 'plot_response_%s.pdf' % (grism))
@@ -326,87 +326,12 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                     log.fatal_error()
                     raise
 
-                # # Find Flat Frame:
+                # Find Flat Frame:
                 try:
                     norm_flat_fname = do.match_single_calib(sci_img, database, 'NORM_SFLAT', log, date=False)
                 except Exception:
                     log.fatal_error()
                     raise
-
-                # Combine Flat Frames matched for CCD setup, grism, slit and filter:
-                # flat_frames = sci_img.match_files(database['SPEC_FLAT'], date=False, grism=True, slit=True, filter=True)
-                # perform_flat_comb = True
-                # if options['mflat']:
-                #     if options['mflat'] is None:
-                #         norm_flat_fname = ''
-                #     elif options['mflat'].lower() in ['none', 'null']:
-                #         norm_flat_fname = ''
-                #     else:
-                #         norm_flat_fname = options['mflat']
-                #     log.write("Using static master flat frame: %s" % options['mflat'])
-                #     log.add_linebreak()
-                #
-                # elif os.path.exists(os.path.join(output_base, os.path.basename(norm_flat_fname))):
-                #     norm_flat_fname = os.path.join(output_base, os.path.basename(norm_flat_fname))
-                #     # check that image shapes match:
-                #     flat_hdr = fits.getheader(norm_flat_fname)
-                #     flat_img = fits.getdata(norm_flat_fname)
-                #     flat_binning = instrument.get_binning_from_hdr(flat_hdr)
-                #     # Change this to match the image shape *after* overscan correction
-                #     if sci_img.binning == flat_binning and sci_img.shape == flat_img.shape:
-                #         log.write("Using normalized flat frame: %s" % norm_flat_fname)
-                #         log.add_linebreak()
-                #         perform_flat_comb = False
-                #     else:
-                #         perform_flat_comb = True
-                #
-                # if len(flat_frames) == 0:
-                #     log.error("No flat frames provided!")
-                #     log.fatal_error()
-                #     return
-                # elif perform_flat_comb:
-                #     try:
-                #         log.write("Running task: Spectral Flat Combination")
-                #         _, flat_msg = combine_flat_frames(flat_frames, comb_flat_fname, mbias=master_bias_fname,
-                #                                           kappa=options['flat']['kappa'],
-                #                                           method=options['flat']['method'], overwrite=True,
-                #                                           mode='spec', dispaxis=sci_img.dispaxis)
-                #         log.commit(flat_msg)
-                #         status['flat_combined'] = os.path.join(output_base, os.path.basename(comb_flat_fname))
-                #         copy_flat = "cp %s %s" % (comb_flat_fname, status['flat_combined'])
-                #         if not os.path.exists(status['flat_combined']):
-                #             os.system(copy_flat)
-                #         log.write("Copied combined Flat Image to base working directory")
-                #         log.add_linebreak()
-                #     except ValueError as err:
-                #         log.commit(str(err)+'\n')
-                #         log.fatal_error()
-                #         raise
-                #     except:
-                #         log.error("Combination of flat frames failed!")
-                #         log.fatal_error()
-                #         print("Unexpected error:", sys.exc_info()[0])
-                #         raise
-                #
-                #     # Normalize the spectral flat field:
-                #     try:
-                #         log.write("Running task: Spectral Flat Normalization")
-                #         _, norm_msg = normalize_spectral_flat(comb_flat_fname, output=norm_flat_fname,
-                #                                               fig_dir=output_dir, dispaxis=sci_img.dispaxis,
-                #                                               **options['flat'])
-                #         log.commit(norm_msg)
-                #         status['master_flat'] = os.path.join(output_base, os.path.basename(norm_flat_fname))
-                #         copy_normflat = "cp %s %s" % (norm_flat_fname, status['master_flat'])
-                #         if not os.path.exists(status['master_flat']):
-                #             os.system(copy_normflat)
-                #         log.write("Copied normalized Flat Image to base working directory")
-                #         log.add_linebreak()
-                #     except:
-                #         log.error("Normalization of flat frames failed!")
-                #         log.fatal_error()
-                #         print("Unexpected error:", sys.exc_info()[0])
-                #         raise
-
 
                 # Identify lines in arc frame:
                 arc_fname, = sci_img.match_files(arc_images, date=False, grism=True, slit=True, filter=True, get_closest_time=True)
