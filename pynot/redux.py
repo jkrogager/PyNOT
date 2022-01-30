@@ -132,11 +132,12 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
     output_base = obs.output_base_spec
 
     # -- bias
-    task_args = ArgumentDict(options['bias'])
-    task_output, log = task_bias(task_args, database=database, log=log, verbose=verbose, output_dir=output_base)
-    for tag, filelist in task_output.items():
-        database[tag] = filelist
-    io.save_database(database, dataset_fname)
+    if not database.has_tag('MBIAS') or force_restart:
+        task_args = ArgumentDict(options['bias'])
+        task_output, log = task_bias(task_args, database=database, log=log, verbose=verbose, output_dir=output_base)
+        for tag, filelist in task_output.items():
+            database[tag] = filelist
+        io.save_database(database, dataset_fname)
 
     # -- sflat
     # task_args = ArgumentDict(options['flat'])
@@ -282,12 +283,15 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                 # Create working directory:
                 obID = 'ob%i' % obnum
                 output_dir = os.path.join(output_base, sci_img.target_name, insID, obID)
-                if obdb.data[output_dir] in ['DONE', 'SKIP'] and not force_restart:
-                    log.write("Skipping OB: %s  (status=%s)" % (output_dir, obdb.data[output_dir]))
-                    log.write("Change OB status to blank in the .obd file if you want to redo the reduction")
-                    log.write("or run the pipeline with the '-f' option to force re-reduction of all OBs")
-                    log.add_linebreak()
-                    continue
+                if obdb.data[output_dir] in ['DONE', 'SKIP']:
+                    if force_restart and obdb.data[output_dir] == 'DONE':
+                        pass
+                    else:
+                        log.write("Skipping OB: %s  (status=%s)" % (output_dir, obdb.data[output_dir]))
+                        log.write("Change OB status to blank in the .obd file if you want to redo the reduction")
+                        log.write("or run the pipeline with the '-f' option to force re-reduction of all OBs")
+                        log.add_linebreak()
+                        continue
                 if not os.path.exists(output_dir):
                     os.makedirs(output_dir)
 
@@ -653,60 +657,64 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
             # Check whether to combine or link OB files:
             pattern = os.path.join(output_base, target_name, insID, '*', 'FLUX2D*.fits')
             files_to_combine = glob.glob(pattern)
-            files_to_combine = [filter(lambda x: obdb.data[os.path.dirname(x)] == 'DONE', files_to_combine)]
+            files_to_combine = list(filter(lambda x: obdb.data[os.path.dirname(x)] == 'DONE', files_to_combine))
             if len(files_to_combine) > 1:
                 # Combine individual OBs
-                log.write("Running task: Spectral Combination")
                 comb_basename = '%s_%s_flux2d.fits' % (target_name, insID)
                 comb2d_fname = os.path.join(output_base, target_name, comb_basename)
-                try:
-                    comb_output = combine_2d(files_to_combine, comb2d_fname)
-                    final_wl, final_flux, final_err, final_mask, output_msg = comb_output
-                    log.commit(output_msg)
-                    log.add_linebreak()
-                except Exception:
-                    log.warn("Combination of 2D spectra failed... Try again manually")
+                if not os.path.exists(comb2d_fname) or force_restart:
+                    log.write("Running task: Spectral Combination")
+                    try:
+                        comb_output = combine_2d(files_to_combine, comb2d_fname)
+                        final_wl, final_flux, final_err, final_mask, output_msg = comb_output
+                        log.commit(output_msg)
+                        log.add_linebreak()
+                    except Exception:
+                        log.warn("Combination of 2D spectra failed... Try again manually")
+                        raise
 
-                pattern = os.path.join(output_base, target_name, insID, '*', 'FLUX1D*.fits')
-                files_to_combine = glob.glob(pattern)
-                files_to_combine = [filter(lambda x: obdb.data[os.path.dirname(x)] == 'DONE', files_to_combine)]
                 comb_basename = '%s_%s_flux1d.fits' % (target_name, insID)
                 comb1d_fname = os.path.join(output_base, target_name, comb_basename)
-                try:
-                    comb_output = combine_1d(files_to_combine, comb1d_fname)
-                    final_wl, final_flux, final_err, final_mask, output_msg = comb_output
-                    log.commit(output_msg)
-                    log.add_linebreak()
-                except Exception:
-                    log.warn("Combination of 1D spectra failed...")
-                    if os.path.exists(comb2d_fname):
-                        log.write("Running task: 1D Extraction on combined 2D")
+                if not os.path.exists(comb1d_fname) or force_restart:
+                    log.write("Running task: 1D Extraction")
+                    if options['extract']['interactive']:
                         try:
-                            ext_msg = auto_extract(comb2d_fname, comb1d_fname, dispaxis=1,
-                                                   **options['extract'])
-                            log.commit(ext_msg)
-                            log.add_linebreak()
-                        except np.linalg.LinAlgError:
-                            log.warn("Automatic extraction failed. Try manual extraction...")
-                        except Exception:
-                            log.error("Spectral 1D extraction failed!")
+                            log.write("Extraction: Starting Graphical User Interface")
+                            extract_gui.run_gui(comb2d_fname, output_fname=comb1d_fname,
+                                                app=app, **options['extract'])
+                            log.write("Writing fits table: %s" % comb1d_fname, prefix=" [OUTPUT] - ")
+                        except:
+                            log.error("Interactive 1D extraction failed!")
                             log.fatal_error()
                             print("Unexpected error:", sys.exc_info()[0])
                             raise
+                    else:
+                        try:
+                            pdf_basename = '%s_extract1D_details.pdf' % insID
+                            extract_pdf_fname = os.path.join(output_base, target_name, pdf_basename)
+                            ext_msg = auto_extract(comb2d_fname, comb1d_fname,
+                                                   dispaxis=1, pdf_fname=extract_pdf_fname,
+                                                   **options['extract'])
+                            log.commit(ext_msg)
+                            log.add_linebreak()
+                        except Exception:
+                            log.warn("Automatic extraction failed. Try manual extraction...")
 
-            else:
+            elif len(files_to_combine) == 1:
                 # Create a hard link to the individual file instead
                 comb_basename = '%s_%s_flux2d.fits' % (target_name, insID)
                 comb2d_fname = os.path.join(output_base, target_name, comb_basename)
+                source_2d = files_to_combine[0]
                 if not os.path.exists(comb2d_fname):
-                    os.link(status['FLUX2D'], comb2d_fname)
+                    os.link(source_2d, comb2d_fname)
                     log.write("Created file link:")
-                    log.write("%s -> %s" % (status['FLUX2D'], comb2d_fname), prefix=" [OUTPUT] - ")
+                    log.write("%s -> %s" % (source_2d, comb2d_fname), prefix=" [OUTPUT] - ")
 
                 comb_basename = '%s_%s_flux1d.fits' % (target_name, insID)
                 comb1d_fname = os.path.join(output_base, target_name, comb_basename)
+                source_1d = source_2d.replace('FLUX2D', 'FLUX1D')
                 if not os.path.exists(comb1d_fname):
-                    os.link(flux1d_fname, comb1d_fname)
+                    os.link(source_1d, comb1d_fname)
                     log.write("Created file link:")
-                    log.write("%s -> %s" % (flux1d_fname, comb1d_fname), prefix=" [OUTPUT] - ")
+                    log.write("%s -> %s" % (source_1d, comb1d_fname), prefix=" [OUTPUT] - ")
                 log.add_linebreak()
