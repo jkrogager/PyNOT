@@ -43,6 +43,17 @@ class State(dict):
     def set_current_state(self, state):
         self.current = state
 
+    def find_pixtab(self, grism, basename=None):
+        """Find a pixel-table that matches the `grism` and arc `basename` (optional)"""
+        matches = list()
+        for key, fname in self.items():
+            if grism in key:
+                if basename is None:
+                    matches.append(fname)
+                else:
+                    if basename in key:
+                        matches.append(fname)
+        return matches
 
 
 class ArgumentDict(dict):
@@ -183,12 +194,12 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
             arc_base_fname = os.path.basename(arc_fname)
             arc_base, ext = os.path.splitext(arc_base_fname)
-            output_pixtable = os.path.join(output_base, 'arcs', "pixtab_%s_%s.tab" % (arc_base, grism_name))
+            output_pixtable = os.path.join(output_base, 'arcs', "pixtab_%s_%s.dat" % (arc_base, grism_name))
             poly_order, saved_pixtab_fname, msg = create_pixtable(arc_fname, grism_name, output_pixtable,
                                                                   pixtab_fname, linelist_fname,
                                                                   order_wl=options['identify']['order_wl'],
                                                                   app=app)
-            status["pixtab_%s_%s.tab" % (arc_base, grism_name)] = output_pixtable
+            status["pixtab_%s_%s" % (arc_base, grism_name)] = output_pixtable
             log.commit(msg)
         except:
             log.error("Identification of arc lines failed!")
@@ -197,6 +208,16 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
             print("Unexpected error:", sys.exc_info()[0])
             raise
 
+    identify_all = options['identify']['all']
+    # update status with all available pixtables:
+    local_pixtables = glob.glob(os.path.join(output_base, 'arcs', "pixtab_*.dat"))
+    for fname in local_pixtables:
+        pixtab_id = os.path.splitext(fname)[0].split('_')[1]
+        status[pixtab_id] = fname
+    cached_pixtables = glob.glob(os.path.join(calib_dir, "*_pixeltable.dat"))
+    for fname in cached_pixtables:
+        pixtab_id = fname.split('_')[0]
+        status[pixtab_id] = fname
 
     # -- response
 
@@ -300,33 +321,43 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                     log.fatal_error()
                     raise
 
-                # Identify lines in arc frame:
-                arc_fname, = sci_img.match_files(arc_images, date=False, grism=True, slit=True, filter=True, get_closest_time=True)
-                corrected_arc2d_fname = os.path.join(output_dir, 'corr_arc2d.fits')
-                log.write("Running task: Bias and Flat Field Correction of Arc Frame")
+                # Find Arc Frame:
                 try:
-                    output_msg = correct_raw_file(arc_fname, bias_fname=master_bias_fname, flat_fname=norm_flat_fname,
-                                                  output=corrected_arc2d_fname, overwrite=True)
-                    log.commit(output_msg)
-                    log.add_linebreak()
-                except:
-                    log.error("Bias and flat field correction of Arc frame failed!")
+                    arc_fname = do.match_single_calib(sci_img, database, 'ARC_CORR', log, date=False,
+                                                      grism=True, slit=True, get_closest_time=True)
+                except Exception:
                     log.fatal_error()
-                    print("Unexpected error:", sys.exc_info()[0])
                     raise
-
-                pixtab_fname = status['%s_pixtab' % grism]
-                if identify_interactive and identify_all:
+                # # Identify lines in arc frame:
+                # arc_fname, = sci_img.match_files(arc_images, date=False, grism=True, slit=True, filter=True, get_closest_time=True)
+                # corrected_arc2d_fname = os.path.join(output_dir, 'corr_arc2d.fits')
+                # log.write("Running task: Bias and Flat Field Correction of Arc Frame")
+                # try:
+                #     output_msg = correct_raw_file(arc_fname, bias_fname=master_bias_fname, flat_fname=norm_flat_fname,
+                #                                   output=corrected_arc2d_fname, overwrite=True)
+                #     log.commit(output_msg)
+                #     log.add_linebreak()
+                # except:
+                #     log.error("Bias and flat field correction of Arc frame failed!")
+                #     log.fatal_error()
+                #     print("Unexpected error:", sys.exc_info()[0])
+                #     raise
+                arc_base = os.path.splitext(os.path.basename(arc_fname))[0]
+                pixtable_fname = os.path.join(output_base, 'arcs', "pixtab_%s_%s.dat" % (arc_base, grism))
+                if os.path.exists(pixtable_fname):
+                    pixtable = pixtable_fname
+                elif identify_all:
                     log.write("Running task: Arc Line Identification")
                     try:
                         linelist_fname = ''
-                        output_pixtable_fname = os.path.join(output_base, '%s_pixtab.dat' % insID)
-                        order_wl, pixtable, msg = create_pixtable(corrected_arc2d_fname, grism,
+                        pixtab_fname = os.path.join(calib_dir, '%s_pixeltable.dat' % grism)
+                        output_pixtable_fname = os.path.join(output_base, 'arcs', "pixtab_%s_%s.dat" % (arc_base, grism))
+                        order_wl, pixtable, msg = create_pixtable(arc_fname, grism,
                                                                   output_pixtable_fname,
                                                                   pixtab_fname, linelist_fname,
                                                                   order_wl=options['identify']['order_wl'],
                                                                   app=app)
-                        status['%s_pixtab' % grism] = pixtable
+                        status["pixtab_%s_%s" % (arc_base, grism)] = pixtable
                         log.commit(msg)
                         log.add_linebreak()
                     except Exception:
@@ -334,7 +365,9 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                         log.fatal_error()
                         print("Unexpected error:", sys.exc_info()[0])
                         raise
-
+                else:
+                    pixtab_fnames = status.find_pixtab(grism)
+                    pixtable = pixtab_fnames[0]
 
                 # Response Function:
                 if 'SPEC_FLUX-STD' in database:
@@ -360,8 +393,8 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                         log.write("Running task: Calculation of Response Function")
                         log.write("Spectroscopic Flux Standard: %s" % std_fname)
                         try:
-                            response_fname, response_msg = calculate_response(std_fname, arc_fname=corrected_arc2d_fname,
-                                                                              pixtable_fname=status['%s_pixtab' % grism],
+                            response_fname, response_msg = calculate_response(std_fname, arc_fname=arc_fname,
+                                                                              pixtable_fname=pixtable,
                                                                               bias_fname=master_bias_fname,
                                                                               flat_fname=norm_flat_fname,
                                                                               output=response_fname,
@@ -401,7 +434,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                 # Call rectify
                 log.write("Running task: 2D Rectification and Wavelength Calibration")
                 try:
-                    rect_msg = rectify(corrected_2d_fname, corrected_arc2d_fname, status['%s_pixtab' % grism],
+                    rect_msg = rectify(corrected_2d_fname, arc_fname, pixtable,
                                        output=rect2d_fname, fig_dir=output_dir,
                                        dispaxis=sci_img.dispaxis, **options['rectify'])
                     log.commit(rect_msg)
