@@ -234,7 +234,9 @@ def get_dispaxis(hdr):
         return None
 
 def get_gain(hdr):
-    return hdr.get('GAIN')
+    if 'CCDNAME' in hdr and hdr['CCDNAME'] == 'CCD14':
+        hdr['GAIN'] = 0.16
+    return hdr.get('GAIN', 0.)
 
 def get_readnoise(hdr):
     return hdr.get('RDNOISE')
