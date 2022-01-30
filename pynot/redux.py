@@ -13,7 +13,7 @@ from pynot import instrument
 from pynot.data import io
 from pynot.data import organizer as do
 from pynot.data import obs
-from pynot.calibs import combine_bias_frames, combine_flat_frames, normalize_spectral_flat, task_bias, task_sflat
+from pynot.calibs import task_bias, task_sflat, task_prep_arcs
 from pynot.extraction import auto_extract
 from pynot import extract_gui
 from pynot.functions import get_options, get_version_number
@@ -138,6 +138,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
             database[tag] = filelist
         io.save_database(database, dataset_fname)
 
+
     # -- sflat
     if not database.has_tag('NORM_SFLAT') or force_restart:
         task_output, log = task_sflat(options['flat'], database=database, log=log, verbose=verbose, output_dir=output_base)
@@ -145,7 +146,17 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
             database[tag] = filelist
         io.save_database(database, dataset_fname)
 
-    # -- identify
+
+    # -- Check arc line files:
+    if not database.has_tag('ARC_CORR') or force_restart:
+        task_output, log = task_prep_arcs(options, database, log=log, verbose=verbose,
+                                          output_dir=os.path.join(output_base, 'arcs'))
+        for tag, arc_images in task_output.items():
+            database[tag] = arc_images
+        io.save_database(database, dataset_fname)
+
+
+    # -- initial identify
     # get list of unique grisms in dataset:
     grism_list = list()
     for sci_img in object_images:
@@ -153,76 +164,31 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
         if grism_name not in grism_list:
             grism_list.append(grism_name)
 
-    # -- Check arc line files:
-    arc_images = list()
-    for arc_type in ['ARC', 'ARC_HeNe', 'ARC_ThAr', 'ARC_HeAr']:
-        if arc_type in database.keys():
-            arc_images += database[arc_type]
-
-    if len(arc_images) == 0:
-        log.error("No arc line calibration data found in the dataset!")
-        log.error("Check the classification table... object type 'ARC_HeNe', 'ARC_ThAr', 'ARC_HeAr' missing")
-        log.fatal_error()
-        return
-
     arc_images_for_grism = defaultdict(list)
     for arc_fname in arc_images:
         this_grism = instrument.get_grism(fits.getheader(arc_fname))
         arc_images_for_grism[this_grism].append(arc_fname)
 
     for grism_name in grism_list:
-        if len(arc_images_for_grism[grism_name]) == 0:
-            log.error("No arc frames defined for grism: %s" % grism_name)
-            log.fatal_error()
-            return
+        pixtab_fname = os.path.join(calib_dir, '%s_pixeltable.dat' % grism_name)
+        if os.path.exists(pixtab_fname):
+            continue
 
-    log.add_linebreak()
-    identify_all = options['identify']['all']
-    identify_interactive = options['identify']['interactive']
-    if identify_interactive and identify_all:
-        grisms_to_identify = []
-        log.write("Identify: interactively reidentify arc lines for all objects")
-        log.add_linebreak()
-
-    elif identify_interactive and not identify_all:
-        # Make pixeltable for all grisms:
-        grisms_to_identify = grism_list
-        log.write("Identify: interactively identify all grisms in dataset:")
-        log.write(", ".join(grisms_to_identify))
-        log.add_linebreak()
-
-    else:
-        # Check if pixeltables exist:
-        grisms_to_identify = []
-        for grism_name in grism_list:
-            pixtab_fname = os.path.join(calib_dir, '%s_pixeltable.dat' % grism_name)
-            if not os.path.exists(pixtab_fname):
-                log.write("%s : pixel table does not exist. Will identify lines..." % grism_name)
-                grisms_to_identify.append(grism_name)
-            else:
-                log.write("%s : pixel table already exists" % grism_name)
-                status['%s_pixtab' % grism_name] = pixtab_fname
-        log.add_linebreak()
-
-
-    # Identify interactively for grisms that are not defined
-    # add the new pixel tables to the calib cache for future use
-    for grism_name in grisms_to_identify:
         log.write("Starting interactive definition of pixel table for %s" % grism_name)
         try:
             arc_fname = arc_images_for_grism[grism_name][0]
             pixtab_fname = os.path.join(calib_dir, '%s_pixeltable.dat' % grism_name)
             linelist_fname = ''
-            log.write("Input arc line frame: %s" % arc_fname)
+            log.write("Input arc frame: %s" % arc_fname)
 
             arc_base_fname = os.path.basename(arc_fname)
             arc_base, ext = os.path.splitext(arc_base_fname)
-            output_pixtable = os.path.join(output_base, "pixtab_%s_%s.tab" % (arc_base, grism_name))
+            output_pixtable = os.path.join(output_base, 'arcs', "pixtab_%s_%s.tab" % (arc_base, grism_name))
             poly_order, saved_pixtab_fname, msg = create_pixtable(arc_fname, grism_name, output_pixtable,
                                                                   pixtab_fname, linelist_fname,
                                                                   order_wl=options['identify']['order_wl'],
                                                                   app=app)
-            status['%s_pixtab' % grism_name] = output_pixtable
+            status["pixtab_%s_%s.tab" % (arc_base, grism_name)] = output_pixtable
             log.commit(msg)
         except:
             log.error("Identification of arc lines failed!")
@@ -328,7 +294,8 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
                 # Find Flat Frame:
                 try:
-                    norm_flat_fname = do.match_single_calib(sci_img, database, 'NORM_SFLAT', log, date=False)
+                    norm_flat_fname = do.match_single_calib(sci_img, database, 'NORM_SFLAT', log, date=False,
+                                                            grism=True, slit=True, filter=True)
                 except Exception:
                     log.fatal_error()
                     raise

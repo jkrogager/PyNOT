@@ -15,12 +15,11 @@ from scipy import ndimage, signal
 import os
 from os.path import exists, basename
 
-from pynot.data import io
 from pynot.data import organizer as organizer
 from pynot.logging import Report
 from pynot import instrument
 from pynot.functions import mad, my_formatter, get_version_number
-from pynot.scired import trim_overscan
+from pynot.scired import trim_overscan, correct_raw_file
 from pynot import reports
 
 __version__ = get_version_number()
@@ -583,4 +582,42 @@ def task_sflat(options, database, log=None, verbose=True, output_dir='', report_
         log.commit(flat_msg)
         log.add_linebreak()
         task_output[tag].append(output_fname)
+    return task_output, log
+
+
+def task_prep_arcs(options, database, log=None, verbose=True, output_dir='', report_dir=reports.report_dir):
+    """
+    Prepare all arc frames for analysis: apply bias and flat field corrections
+    """
+    if log is None:
+        log = Report(verbose)
+    log.write("Running task: Arc frame preparation")
+
+    arc_filelist = []
+    for tag in database.keys():
+        if 'ARC' in tag:
+            arc_filelist += database[tag]
+
+    if len(arc_filelist) == 0:
+        log.error("No arc line calibration data found in the dataset!")
+        log.error("Check the classification table... object type 'ARC_HeNe', 'ARC_ThAr', 'ARC_HeAr' missing")
+        raise KeyError('No ARC files found in database!')
+
+    arc_files = organizer.sort_arcs(arc_filelist)
+    tag = 'ARC_CORR'
+    task_output = {tag: []}
+    for file_id, input_list in arc_files.items():
+        # find BIAS and FLAT
+        raw_img = organizer.RawImage(input_list[0])
+        master_bias = organizer.match_single_calib(raw_img, database, 'MBIAS', log, date=False)
+        norm_flat = organizer.match_single_calib(raw_img, database, 'NORM_SFLAT', log, date=False,
+                                                 grism=True, slit=True, filter=True)
+        for arc_fname in input_list:
+            arc_basename = 'CORR_' + os.path.basename(arc_fname)
+            corrected_arc2d_fname = os.path.join(output_dir, arc_basename)
+            output_msg = correct_raw_file(arc_fname, bias_fname=master_bias, flat_fname=norm_flat,
+                                          output=corrected_arc2d_fname, overwrite=True)
+            log.commit(output_msg)
+            task_output[tag].append(corrected_arc2d_fname)
+        log.add_linebreak()
     return task_output, log

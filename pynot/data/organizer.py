@@ -82,6 +82,21 @@ def sort_spec_flat(file_list):
     return sorted_files
 
 
+def sort_arcs(file_list):
+    """
+    Sort arc lapm frames by grism, slit and image size
+    """
+    sorted_files = defaultdict(list)
+    for fname in file_list:
+        hdr = fits.getheader(fname)
+        grism = instrument.get_grism(hdr)
+        slit = instrument.get_slit(hdr).replace('_', '')
+        size = "%ix%i" % (hdr['NAXIS1'], hdr['NAXIS2'])
+        file_id = "%s_%s_%s" % (grism, slit, size)
+        sorted_files[file_id].append(fname)
+    return sorted_files
+
+
 def sort_bias(file_list):
     """
     Sort spectroscopic bias frames by image size
