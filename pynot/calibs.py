@@ -21,12 +21,12 @@ from pynot.logging import Report
 from pynot import instrument
 from pynot.functions import mad, my_formatter, get_version_number
 from pynot.scired import trim_overscan
-
+from pynot import reports
 
 __version__ = get_version_number()
 
 
-def combine_bias_frames(bias_frames, output='', kappa=15, method='mean', overwrite=True, mode='spec'):
+def combine_bias_frames(bias_frames, output='', kappa=15, method='mean', overwrite=True, mode='spec', report_fname=''):
     """Combine individual bias frames to create a 'master bias' frame.
     The combination is performed using robust sigma-clipping and
     median combination. Bad pixels are subsequently replaced by the
@@ -49,6 +49,9 @@ def combine_bias_frames(bias_frames, output='', kappa=15, method='mean', overwri
 
     method : string [default='mean']
         Method used for image combination (median/mean)
+
+    report_fname : string  [default='']
+        Filename of pdf report
 
     Returns
     =======
@@ -91,8 +94,10 @@ def combine_bias_frames(bias_frames, output='', kappa=15, method='mean', overwri
         Ncomb = len(bias) - mask
         master_bias[Ncomb == 0] = np.mean(master_bias[Ncomb != 0])
     msg.append("          - Combined %i files" % len(bias))
+    msg.append("          - Image Stats:")
+    msg.append("          - Median = %.2e,  Std.Dev = %.2e")
 
-    hdr = instrument.get_header(bias_frames[0])
+    hdr = bias_hdr
     hdr['NCOMBINE'] = len(bias_frames)
     if method.lower() == 'median':
         hdr.add_comment('Median combined Master Bias')
@@ -104,6 +109,10 @@ def combine_bias_frames(bias_frames, output='', kappa=15, method='mean', overwri
 
     fits.writeto(output, master_bias, header=hdr, overwrite=overwrite)
     msg.append(" [OUTPUT] - Saving combined Bias Image: %s" % output)
+
+    if report_fname:
+        reports.check_bias(bias, bias_frames, output, report_fname=report_fname)
+        msg.append(" [OUTPUT] - Saving Bias Report: %s" % report_fname)
     msg.append("")
     output_msg = "\n".join(msg)
 
@@ -220,7 +229,7 @@ def combine_flat_frames(raw_frames, output, mbias='', mode='spec', dispaxis=2,
     else:
         msg.append("          - Combined %i files" % len(flats))
 
-    hdr = instrument.get_header(raw_frames[0])
+    # hdr = instrument.get_header(raw_frames[0])
     hdr['NCOMBINE'] = len(flats)
     if method.lower() == 'median':
         hdr.add_comment('Median combined Flat')
@@ -500,13 +509,19 @@ def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=2, order=24, 
     return output, output_msg
 
 
-def task_bias(args, database=None, log=None, verbose=True, output_dir=''):
+def task_bias(args, database=None, log=None, verbose=True, output_dir='', report_dir=reports.report_dir):
     """
     Define the entry point for the task pynot:bias. This will automatcally
     """
     if log is None:
         log = Report(verbose)
     log.write("Running task: Bias combination")
+
+    if not os.path.exists(report_dir):
+        os.makedirs(report_dir)
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
     if database:
         bias_files = organizer.sort_bias(database['BIAS'])
@@ -523,7 +538,10 @@ def task_bias(args, database=None, log=None, verbose=True, output_dir=''):
     task_output = {tag: []}
     for file_id, input_list in bias_files.items():
         output_fname = os.path.join(output_dir, '%s_%s.fits' % (tag, file_id))
-        _, output_msg = combine_bias_frames(input_list, output_fname, kappa=args.kappa, method=args.method)
+        report_fname = os.path.join(report_dir, '%s_%s_report.pdf' % (tag, file_id))
+        _, output_msg = combine_bias_frames(input_list, output_fname,
+                                            kappa=args.kappa, method=args.method,
+                                            report_fname=report_fname)
         task_output[tag].append(output_fname)
         log.commit(output_msg)
         log.add_linebreak()
@@ -531,7 +549,7 @@ def task_bias(args, database=None, log=None, verbose=True, output_dir=''):
     return task_output, log
 
 
-def task_sflat(args, database=None, log=None, verbose=True, output_dir=''):
+def task_sflat(args, database=None, log=None, verbose=True, output_dir='', report_dir=reports.report_dir):
     """
     Define the entry point for the main task of sflat, to be called by pynot.main
 
