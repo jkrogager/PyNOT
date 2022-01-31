@@ -152,6 +152,8 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
         for tag, filelist in task_output.items():
             database[tag] = filelist
         io.save_database(database, dataset_fname)
+    else:
+        log.write("Static calibrations for master bias already exist. Skipping")
 
 
     # -- sflat
@@ -160,16 +162,20 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
         for tag, filelist in task_output.items():
             database[tag] = filelist
         io.save_database(database, dataset_fname)
+    else:
+        log.write("Static calibrations for normalized flats already exist. Skipping")
 
 
     # -- Check arc line files:
     if not database.has_tag('ARC_CORR') or force_restart:
+        database.pop('ARC_CORR', None)
         task_output, log = task_prep_arcs(options, database, log=log, verbose=verbose,
                                           output_dir=os.path.join(output_base, 'arcs'))
         for tag, arc_images in task_output.items():
             database[tag] = arc_images
         io.save_database(database, dataset_fname)
     else:
+        log.write("Corrected arc lamp frames already exist. Skipping")
         arc_images = database['ARC_CORR']
 
 
@@ -225,6 +231,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
         pixtab_id = fname.split('_')[0]
         status[pixtab_id] = fname
 
+
     # -- response
     if not database.has_tag('RESPONSE') or force_restart:
         task_output, log = task_response(options, database, status, log=log, verbose=verbose, app=app,
@@ -232,8 +239,9 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
         for tag, response_files in task_output.items():
             database[tag] = response_files
         io.save_database(database, dataset_fname)
+    else:
+        log.write("Static calibrations for response functions already exist. Skipping")
 
-    stop
 
     # Save overview log:
     print("")
@@ -304,6 +312,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                 log.add_linebreak()
                 log.write("Target Name: %s" % sci_img.target_name)
                 log.write("Input Filename: %s" % sci_img.filename)
+                log.write("Grism: %s" % sci_img.grism)
                 log.write("Saving output to directory: %s" % output_dir)
                 log.add_linebreak()
 
@@ -313,12 +322,12 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                 # comb_flat_fname = os.path.join(output_dir, 'FLAT_COMBINED_%s_%s.fits' % (grism, sci_img.slit))
                 # norm_flat_fname = os.path.join(output_dir, 'NORM_FLAT_%s_%s.fits' % (grism, sci_img.slit))
                 rect2d_fname = os.path.join(output_dir, 'RECT2D_%s.fits' % (sci_img.target_name))
-                bgsub2d_fname = os.path.join(output_dir, 'BGSUB2D_%s.fits' % (sci_img.target_name))
-                response_pdf = os.path.join(output_dir, 'plot_response_%s.pdf' % (grism))
-                corrected_2d_fname = os.path.join(output_dir, 'CORRECTED2D_%s.fits' % (sci_img.target_name))
+                bgsub2d_fname = os.path.join(output_dir, 'SKYSUB2D_%s.fits' % (sci_img.target_name))
+                # response_pdf = os.path.join(output_dir, 'plot_response_%s.pdf' % (grism))
+                corrected_2d_fname = os.path.join(output_dir, 'CORR2D_%s.fits' % (sci_img.target_name))
                 flux2d_fname = os.path.join(output_dir, 'FLUX2D_%s.fits' % (sci_img.target_name))
                 flux1d_fname = os.path.join(output_dir, 'FLUX1D_%s.fits' % (sci_img.target_name))
-                extract_pdf_fname = os.path.join(output_dir, 'plot_extract1D_details.pdf')
+                extract_pdf_fname = os.path.join(output_dir, 'extraction_details.pdf')
 
                 # Find Bias Frame:
                 try:
@@ -370,52 +379,52 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                     pixtab_fnames = status.find_pixtab(grism)
                     pixtable = pixtab_fnames[0]
 
-                # Response Function:
-                if 'SPEC_FLUX-STD' in database:
-                    flux_std_files = sci_img.match_files(database['SPEC_FLUX-STD'],
-                                                         date=False, grism=True, slit=True, filter=True, get_closest_time=True)
-                else:
-                    flux_std_files = []
-
-                if len(flux_std_files) == 0:
-                    log.warn("No spectroscopic standard star was found in the dataset!")
-                    log.warn("The reduced spectra will not be flux calibrated")
-                    status['response'] = None
-
-                else:
-                    std_fname = flux_std_files[0]
-                    response_fname = os.path.join(output_base, 'response_%s.fits' % (grism))
-                    if os.path.exists(response_fname) and not options['response']['force']:
-                        log.write("Using existing response function: %s" % response_fname)
-                        log.add_linebreak()
-                        status['%s_response' % grism] = response_fname
-                    else:
-                        std_fname = flux_std_files[0]
-                        log.write("Running task: Calculation of Response Function")
-                        log.write("Spectroscopic Flux Standard: %s" % std_fname)
-                        try:
-                            response_fname, response_msg = calculate_response(std_fname, arc_fname=arc_fname,
-                                                                              pixtable_fname=pixtable,
-                                                                              bias_fname=master_bias_fname,
-                                                                              flat_fname=norm_flat_fname,
-                                                                              output=response_fname,
-                                                                              output_dir=output_dir, pdf_fname=response_pdf,
-                                                                              order=options['response']['order'],
-                                                                              interactive=options['response']['interactive'],
-                                                                              dispaxis=sci_img.dispaxis,
-                                                                              order_bg=options['skysub']['order_bg'],
-                                                                              rectify_options=options['rectify'],
-                                                                              app=app)
-                            status['%s_response' % grism] = response_fname
-                            log.commit(response_msg)
-                            log.add_linebreak()
-                        except Exception:
-                            log.error("Calculation of response function failed!")
-                            # print("Unexpected error:", sys.exc_info()[0])
-                            # raise
-                            status['%s_response' % grism] = ''
-                            log.warn("No flux calibration will be performed!")
-                            log.add_linebreak()
+                # # Response Function:
+                # if 'SPEC_FLUX-STD' in database:
+                #     flux_std_files = sci_img.match_files(database['SPEC_FLUX-STD'],
+                #                                          date=False, grism=True, slit=True, filter=True, get_closest_time=True)
+                # else:
+                #     flux_std_files = []
+                #
+                # if len(flux_std_files) == 0:
+                #     log.warn("No spectroscopic standard star was found in the dataset!")
+                #     log.warn("The reduced spectra will not be flux calibrated")
+                #     status['response'] = None
+                #
+                # else:
+                #     std_fname = flux_std_files[0]
+                #     response_fname = os.path.join(output_base, 'response_%s.fits' % (grism))
+                #     if os.path.exists(response_fname) and not options['response']['force']:
+                #         log.write("Using existing response function: %s" % response_fname)
+                #         log.add_linebreak()
+                #         status['%s_response' % grism] = response_fname
+                #     else:
+                #         std_fname = flux_std_files[0]
+                #         log.write("Running task: Calculation of Response Function")
+                #         log.write("Spectroscopic Flux Standard: %s" % std_fname)
+                #         try:
+                #             response_fname, response_msg = calculate_response(std_fname, arc_fname=arc_fname,
+                #                                                               pixtable_fname=pixtable,
+                #                                                               bias_fname=master_bias_fname,
+                #                                                               flat_fname=norm_flat_fname,
+                #                                                               output=response_fname,
+                #                                                               output_dir=output_dir, pdf_fname=response_pdf,
+                #                                                               order=options['response']['order'],
+                #                                                               interactive=options['response']['interactive'],
+                #                                                               dispaxis=sci_img.dispaxis,
+                #                                                               order_bg=options['skysub']['order_bg'],
+                #                                                               rectify_options=options['rectify'],
+                #                                                               app=app)
+                #             status['%s_response' % grism] = response_fname
+                #             log.commit(response_msg)
+                #             log.add_linebreak()
+                #         except Exception:
+                #             log.error("Calculation of response function failed!")
+                #             # print("Unexpected error:", sys.exc_info()[0])
+                #             # raise
+                #             status['%s_response' % grism] = ''
+                #             log.warn("No flux calibration will be performed!")
+                #             log.add_linebreak()
 
 
                 # Bias correction, Flat correction
@@ -450,7 +459,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
                 # Automatic Background Subtraction:
                 if options['skysub']['auto']:
-                    bgsub_pdf_name = os.path.join(output_dir, 'plot_skysub2D.pdf')
+                    bgsub_pdf_name = os.path.join(output_dir, 'skysub_diagnostics.pdf')
                     log.write("Running task: Background Subtraction")
                     try:
                         bg_msg = auto_fit_background(rect2d_fname, bgsub2d_fname, dispaxis=1,
@@ -473,7 +482,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                 # Correct Cosmic Rays Hits:
                 if options['crr']['niter'] > 0:
                     log.write("Running task: Cosmic Ray Rejection")
-                    crr_fname = os.path.join(output_dir, 'CRR_BGSUB2D_%s.fits' % (sci_img.target_name))
+                    crr_fname = os.path.join(output_dir, 'CRR_SKYSUB2D_%s.fits' % (sci_img.target_name))
                     try:
                         crr_msg = correct_cosmics(bgsub2d_fname, crr_fname, **options['crr'])
                         log.commit(crr_msg)
@@ -488,9 +497,9 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
 
                 # Flux Calibration:
-                if status['%s_response' % grism]:
+                response_fname = do.match_response(sci_img, database['RESPONSE'], exact_date=False)
+                if response_fname:
                     log.write("Running task: Flux Calibration")
-                    response_fname = status['%s_response' % grism]
                     try:
                         flux_msg = flux_calibrate(crr_fname, output=flux2d_fname, response_fname=response_fname)
                         log.commit(flux_msg)
@@ -502,6 +511,8 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                         print("Unexpected error:", sys.exc_info()[0])
                         raise
                 else:
+                    log.warn("Could not find a response function that matches the observations!")
+                    log.warn("The spectra will not be flux clibrated!")
                     status['FLUX2D'] = crr_fname
 
 
@@ -577,7 +588,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                             raise
                     else:
                         try:
-                            pdf_basename = '%s_extract1D_details.pdf' % insID
+                            pdf_basename = 'comb_%s_extraction_details.pdf' % insID
                             extract_pdf_fname = os.path.join(output_base, target_name, pdf_basename)
                             ext_msg = auto_extract(comb2d_fname, comb1d_fname,
                                                    dispaxis=1, pdf_fname=extract_pdf_fname,

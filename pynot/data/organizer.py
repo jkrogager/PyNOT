@@ -7,6 +7,7 @@ import sys
 from glob import glob
 from astropy.io import fits
 from astropy.io.fits.file import AstropyUserWarning
+from astropy.time import Time
 import warnings
 
 from pynot.response import lookup_std_star
@@ -61,6 +62,34 @@ def match_date(files, date_mjd):
             matches.append(fname)
 
     return matches
+
+def match_response(sci_img, file_list, exact_date=False):
+    """
+    Find response function that matches the grism of the input `sci_img`
+    If `exact_date` is True, only return a match if the date matches exactly that of `sci_img`
+    Otherwise return the file that is closest in time.
+    """
+    target_grism = sci_img.grism
+    target_mjd = sci_img.mjd
+    matches = list()
+    date_diff = list()
+    for fname in file_list:
+        # These are PyNOT FITS files, so follows a slightly different Header Format
+        hdr = fits.getheader(fname)
+        this_grism = hdr['GRISM']
+        this_date = Time(hdr['DATE-OBS'])
+        if this_grism == target_grism:
+            matches.append(fname)
+            date_diff.append(this_date.mjd - target_mjd)
+
+    # Find target with smallest time difference
+    idx = np.argmin(np.abs(date_diff))
+    match_fname = matches[idx]
+    min_dt = date_diff[idx]
+    if exact_date and min_dt >= 1.:
+        # The exact dates is not matched!
+        match_fname = ""
+    return match_fname
 
 
 def sort_spec_flat(file_list):
