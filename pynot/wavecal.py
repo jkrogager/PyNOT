@@ -508,7 +508,7 @@ def wavecal_1d(input_fname, pixtable_fname, *, output, order_wl=None, log=False,
 
 # ============== PLOTTING =====================================================
 
-def plot_2d_pixtable(arc2D_sub, pix, pixtab2d, fit_table2d, filename=''):
+def plot_2d_pixtable(arc2D_sub, pix, pixtab2d, fit_table2d, arc_fname, filename=''):
     fig = plt.figure()
     ax = fig.add_subplot(111)
     mad = np.nanmedian(np.abs(arc2D_sub - np.nanmedian(arc2D_sub)))
@@ -521,6 +521,7 @@ def plot_2d_pixtable(arc2D_sub, pix, pixtab2d, fit_table2d, filename=''):
         ax.plot(col, np.arange(arc2D_sub.shape[0]), lw=1, color='r', alpha=0.5)
     ax.set_xlim(pix.min(), pix.max())
     ax.set_ylim(1, arc2D_sub.shape[0])
+    ax.set_title("Reference arc frame: %s" % arc_fname)
     if filename:
         fig.savefig(filename)
 
@@ -670,7 +671,7 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
 
     if plot:
         plot_fname = os.path.join(fig_dir, 'PixTable2D.pdf')
-        plot_2d_pixtable(arc2D_sub, pix_in, pixtab2d, fit_table2d, filename=plot_fname)
+        plot_2d_pixtable(arc2D_sub, pix_in, pixtab2d, fit_table2d, arc_fname, filename=plot_fname)
         msg.append("          - Plotting fitted arc line positions in 2D frame")
         msg.append(" [OUTPUT] - Saving figure: %s" % plot_fname)
 
