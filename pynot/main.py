@@ -869,7 +869,7 @@ def main():
                     return
             else:
                 previous_database = io.load_database(pfc_fname)
-                database = database + previous_database
+                database = previous_database + database
                 print("          - Merging the databases")
         io.save_database(database, pfc_fname)
         print(" [OUTPUT] - Saved file classification database: %s" % pfc_fname)

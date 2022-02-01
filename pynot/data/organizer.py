@@ -661,9 +661,14 @@ def match_single_calib(raw_img, database, tag, log, **kwargs):
 
 
 class TagDatabase(dict):
-    def __init__(self, file_database):
+    def __init__(self, file_database, inactive_files=None):
         # Convert file_database with file-classifications
         # to a tag_database containing a list of all files with a given tag:
+        if inactive_files is None:
+            inactive_files = {}
+
+        self.file_database = file_database
+        self.inactive_file_database = inactive_files
         tag_database = dict()
         for fname, tag in file_database.items():
             if tag in tag_database.keys():
@@ -671,15 +676,25 @@ class TagDatabase(dict):
             else:
                 tag_database[tag] = [fname]
 
+        self.inactive = defaultdict(list)
+        for fname, tag in inactive_files.items():
+            self.inactive[tag].append(fname)
+
         # And make this converted tag_database the basis of the TagDatabase class
         dict.__init__(self, tag_database)
-        self.file_database = file_database
 
     def __add__(self, other):
-        new_file_database = other.file_database
-        for key in self.file_database.keys():
-            new_file_database[key] = self.file_database[key]
-        return TagDatabase(new_file_database)
+        all_inactive_fnames = [fname.strip('#') for fname in self.inactive_file_database]
+        for fname, tag in other.file_database.items():
+            if fname in all_inactive_fnames:
+                pass
+            else:
+                self.file_database[fname] = tag
+
+        for fname, tag in other.inactive_file_database.items():
+            self.inactive_file_database[fname] = tag
+
+        return TagDatabase(self.file_database, self.inactive_file_database)
 
     def __radd__(self, other):
         if other == 0:
