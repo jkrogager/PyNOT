@@ -519,10 +519,12 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname='', output='', overwrite
     hdr['AUTHOR'] = 'PyNOT version %s' % __version__
 
     mask = np.zeros_like(sci, dtype=int)
-    msg.append("          - Empty pixel mask created")
+    mask[err_NaN] = 4
+    msg.append("          - Pixel mask created")
     mask_hdr = fits.Header()
     mask_hdr.add_comment("0 = Good Pixels")
     mask_hdr.add_comment("1 = Cosmic Ray Hits")
+    mask_hdr.add_comment("4 = NaN error from base CDD processing")
     for key in ['CRPIX1', 'CRPIX2', 'CRVAL1', 'CRVAL2', 'CTYPE1', 'CTYPE2', 'CUNIT1', 'CUNIT2']:
         if key in hdr:
             mask_hdr[key] = hdr[key]

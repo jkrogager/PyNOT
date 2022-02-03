@@ -19,9 +19,9 @@ from pynot import extract_gui
 from pynot.functions import get_options, get_version_number
 from pynot.wavecal import rectify, WavelengthError
 from pynot.identify_gui import create_pixtable
-from pynot.scired import raw_correction, auto_fit_background, correct_cosmics, correct_raw_file
+from pynot.scired import raw_correction, auto_fit_background, correct_cosmics
 from pynot.scombine import combine_2d
-from pynot.response import calculate_response, flux_calibrate, task_response
+from pynot.response import flux_calibrate, task_response
 from pynot.logging import Report
 from PyQt5.QtWidgets import QApplication
 
@@ -54,14 +54,6 @@ class State(dict):
                     if basename in key:
                         matches.append(fname)
         return matches
-
-
-class ArgumentDict(dict):
-    """Access dictionary keys as attributes"""
-    __getattr__ = dict.get
-    __setattr__ = dict.__setitem__
-    __delattr__ = dict.__delitem__
-
 
 
 def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False, force_restart=False,
@@ -146,6 +138,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
         os.makedirs(os.path.join(output_base, 'arcs'))
     if not os.path.exists(os.path.join(output_base, 'std')):
         os.makedirs(os.path.join(output_base, 'std'))
+
 
     # -- bias
     if not database.has_tag('MBIAS') or make_bias:
