@@ -166,7 +166,7 @@ def trim_filter_edge(fname, x1, x2, y1, y2, output='', output_dir=''):
     return output_msg
 
 
-def fit_background_image(data, order_bg=3, xmin=0, xmax=None, kappa=5, fwhm_scale=1):
+def fit_background_image(data, order_bg=3, xmin=0, xmax=None, med_kernel=15, kappa=5, fwhm_scale=1, obj_kappa=20):
     """
     Fit background in 2D spectral data. The background is fitted along the spatial rows by a Chebyshev polynomium.
 
@@ -200,7 +200,7 @@ def fit_background_image(data, order_bg=3, xmin=0, xmax=None, kappa=5, fwhm_scal
         xmax = len(x) + xmax
     SPSF = np.nanmedian(data, 0)
     noise = 1.5*mad(SPSF)
-    peaks, properties = signal.find_peaks(SPSF, prominence=10*noise, width=3)
+    peaks, properties = signal.find_peaks(SPSF, prominence=obj_kappa*noise, width=3)
     mask = (x >= xmin) & (x <= xmax)
     for num, center in enumerate(peaks):
         width = properties['widths'][num]
@@ -208,21 +208,22 @@ def fit_background_image(data, order_bg=3, xmin=0, xmax=None, kappa=5, fwhm_scal
         x2 = center + width*fwhm_scale
         obj = (x >= x1) * (x <= x2)
         mask &= ~obj
+    N_masked_pixels = np.sum(~mask)
 
     bg2D = np.zeros_like(data)
     for i, row in enumerate(data):
         # Median filter the data to remove outliers:
-        med_row = median_filter(row, 15)
+        med_row = median_filter(row, med_kernel)
         noise = mad(row)*1.4826
         this_mask = mask * (np.abs(row - med_row) < kappa*noise)
         if np.sum(this_mask) > order_bg+1:
             bg_model = Chebyshev.fit(x[this_mask], row[this_mask], order_bg, domain=[x.min(), x.max()])
             bg2D[i] = bg_model(x)
 
-    return bg2D
+    return bg2D, N_masked_pixels
 
 
-def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, kappa=10, fwhm_scale=3, xmin=0, xmax=None, plot_fname='', **kwargs):
+def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, med_kernel=15, kappa=10, obj_kappa=20, fwhm_scale=3, xmin=0, xmax=None, plot_fname='', **kwargs):
     """
     Fit background in 2D spectral data. The background is fitted along the spatial rows by a Chebyshev polynomium.
 
@@ -246,12 +247,18 @@ def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, kappa=
     xmin, xmax : integer  [default=0, None]
         Mask out pixels below xmin and above xmax
 
+    obj_kappa : float  [default=20]
+        Threshold for automatic object detection to be masked out.
+
     fwhm_scale : float  [default=3]
         Number of FWHM below and above centroid of auto-detected trace
         that will be masked out during fitting.
 
+    med_kernel : int  [default=15]
+        Median filter width for defining masking of cosmic rays, CCD artefacts etc.
+
     kappa : float  [default=10]
-        Threshold for masking out cosmic rays etc.
+        Threshold for masking out cosmic rays, CCD artefacts etc.
 
     plot_fname : string  [default='']
         Filename of diagnostic plots. If nothing is given, do not plot.
@@ -281,7 +288,11 @@ def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, kappa=
 
     msg.append("          - Fitting background along the spatial axis with polynomium of order: %i" % order_bg)
     msg.append("          - Automatic masking of outlying pixels and object trace")
-    bg2D = fit_background_image(data, order_bg=order_bg, kappa=kappa, fwhm_scale=fwhm_scale, xmin=xmin, xmax=xmax)
+    bg2D, N_masked_pixels = fit_background_image(data, order_bg=order_bg,
+                                                 med_kernel=med_kernel, kappa=kappa,
+                                                 obj_kappa=obj_kappa, fwhm_scale=fwhm_scale,
+                                                 xmin=xmin, xmax=xmax)
+    msg.append("          - Number of pixels rejected: %i" % int(N_masked_pixels))
 
     if plot_fname:
         fig2D = plt.figure()

@@ -52,6 +52,8 @@ skysub:
   auto:        True          # Automatically subtract the sky from the 2D spectrum?
   order_bg:    3             # Polynomial order for sky background subtraction (per row)
   kappa:       10            # Threshold for rejection of outlying pixels (cosmics etc) in units of std. deviations
+  med_kernel:  15            # Median filter width for defining masking of cosmic rays, CCD artefacts etc.
+  obj_kappa:   20            # Threshold for automatic object detection to be masked out.
   fwhm_scale:  3             # Mask out auto-identified objects within ±`fwhm_scale`*FWHM around centroid of object
   xmin:        0             # Mask out pixels below xmin
   xmax:        null          # Mask out pixels above xmax

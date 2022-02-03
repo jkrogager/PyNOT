@@ -265,6 +265,8 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
             log.error("No data matched the given object ID: %r" % object_id)
             log.fatal_error()
             return
+        else:
+            force_restart = True
 
     # Organize the science files according to target and instrument setup (insID)
     science_frames = defaultdict(lambda: defaultdict(list))
