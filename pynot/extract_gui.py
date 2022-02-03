@@ -2002,7 +2002,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
 
             wl = self.image2d.wl
             spec_hdr = self.image2d.header.copy()
-            spec_hdr['APER_CEN'] = model.cen
+            spec_hdr['OBJ_POS'] = (model.cen, "Extraction position along slit [pixels]")
             spec1d = Spectrum(wl=wl, data=data1d, error=err1d, hdr=spec_hdr,
                               wl_unit=self.image2d.wl_unit, flux_unit=self.image2d.flux_unit)
             spec1d.background = bg1d

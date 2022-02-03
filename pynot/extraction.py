@@ -463,7 +463,8 @@ def auto_extract_img(img2D, err2D, *, N=None, pdf_fname=None, mask=None, model_n
         var1D = np.sum(M*P, axis=0) / np.sum(M*P**2/var2D, axis=0)
         err1D = np.sqrt(var1D)
         err1D = fix_nans(err1D)
-        spectra.append([spec1D, err1D])
+        trace_pos = np.median(info_dict['fit_mu'])
+        spectra.append([spec1D, err1D, trace_pos])
 
         if pdf_fname:
             plot_diagnostics(pdf, spec1D, err1D, info_dict, width_scale)
@@ -530,10 +531,11 @@ def auto_extract(fname, output, dispaxis=1, *, N=None, pdf_fname=None, mask=None
     keywords_to_remove = sum([[key % num for key in keywords_base] for num in [1, 2]], [])
     keywords_to_remove += ['CD1_1', 'CD2_1', 'CD1_2', 'CD2_2']
     keywords_to_remove += ['BUNIT', 'DATAMIN', 'DATAMAX']
-    for num, (flux, err) in enumerate(spectra):
+    for num, (flux, err, trace_pos) in enumerate(spectra):
         col_wl = fits.Column(name='WAVE', array=wl, format='D', unit=wl_unit)
         col_flux = fits.Column(name='FLUX', array=flux, format='D', unit=flux_unit)
         col_err = fits.Column(name='ERR', array=err, format='D', unit=flux_unit)
+        hdr['OBJ_POS'] = (trace_pos, "Extraction position along slit [pixels]")
         for key in keywords_to_remove:
             hdr.remove(key, ignore_missing=True)
         tab = fits.BinTableHDU.from_columns([col_wl, col_flux, col_err], header=hdr)
