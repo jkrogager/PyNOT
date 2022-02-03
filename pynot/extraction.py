@@ -535,7 +535,7 @@ def auto_extract(fname, output, dispaxis=1, *, N=None, pdf_fname=None, mask=None
         col_wl = fits.Column(name='WAVE', array=wl, format='D', unit=wl_unit)
         col_flux = fits.Column(name='FLUX', array=flux, format='D', unit=flux_unit)
         col_err = fits.Column(name='ERR', array=err, format='D', unit=flux_unit)
-        hdr['OBJ_POS'] = (trace_pos, "Extraction position along slit [pixels]")
+        hdr['OBJ_POS'] = (np.round(trace_pos, 2), "Median extraction position along slit [pixels]")
         for key in keywords_to_remove:
             hdr.remove(key, ignore_missing=True)
         tab = fits.BinTableHDU.from_columns([col_wl, col_flux, col_err], header=hdr)
