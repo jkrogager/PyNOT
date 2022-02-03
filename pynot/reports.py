@@ -7,8 +7,11 @@ Write calibration reports for:
 """
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.backends import backend_pdf
 from astropy.io import fits
 import os
+
+from pynot import instrument
 
 report_dir = 'reports'
 
@@ -95,6 +98,39 @@ def check_bias(bias_images, bias_fnames, mbias_fname, report_fname=''):
     return report_fname
 
 
-def check_flats(pfc_file, date=False):
-    """If `date` is True, combine biases into separate master bias frames, one per date"""
+def check_flats(flat_images, flat_fnames, mflat_fname, report_fname=''):
     pass
+
+def check_arcs(arc_fnames, report_fname):
+    pdf = backend_pdf.PdfPages(report_fname)
+    for fname in arc_fnames:
+        fig, axes = plt.subplots(3, 1, figsize=(5.6, 8))
+        img = fits.getdata(fname)
+        hdr = fits.getheader(fname)
+        x0 = img.shape[1]//2
+        y0 = img.shape[0]//2
+
+        grism = instrument.get_grism(hdr)
+        slit = instrument.get_slit(hdr)
+        med = np.nanmedian(img)
+        noise = np.nanmedian(np.abs(img - med))
+        vmin = med - 3*noise
+        vmax = med + 20*noise
+        axes[0].imshow(img, vmin=vmin, vmax=vmax, origin='lower')
+        axes[1].plot(img[:, x0], color='k', lw=0.5, drawstyle='steps-mid')
+        axes[2].plot(img[y0, :], color='k', lw=0.5, drawstyle='steps-mid')
+
+        axes[0].set_title('%s  |  %s  |  %s' % (fname, grism, slit), pad=10, fontsize=10)
+        axes[1].set_xlabel("Dispersion Axis at col=%i (pixels)" % x0)
+        axes[1].set_xlim(0, img.shape[0])
+        axes[1].ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
+        axes[2].ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
+        axes[2].set_xlabel("Spatial Axis at row=%i (pixels)" % y0)
+        axes[2].set_xlim(0, img.shape[1])
+        axes[1].set_ylabel("Counts")
+        axes[2].set_ylabel("Counts")
+
+        fig.tight_layout()
+        pdf.savefig(fig)
+        plt.close()
+    pdf.close()

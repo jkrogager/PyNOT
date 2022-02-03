@@ -692,7 +692,7 @@ def task_response(options, database, status, log=None, verbose=True, app=None, o
             norm_flat = organizer.match_single_calib(raw_img, database, 'NORM_SFLAT', log, date=False,
                                                      grism=True, slit=True, filter=True)
             arc_fname = organizer.match_single_calib(raw_img, database, 'ARC_CORR', log, date=False,
-                                                     grism=True, slit=True, filter=True,
+                                                     grism=True, slit=False, filter=True,
                                                      get_closest_time=True)
             pixtab_fnames = status.find_pixtab(grism)
             pixtable = pixtab_fnames[0]

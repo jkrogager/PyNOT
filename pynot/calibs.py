@@ -50,7 +50,7 @@ def combine_bias_frames(bias_frames, output='', kappa=15, method='mean', overwri
         Method used for image combination (median/mean)
 
     report_fname : string  [default='']
-        Filename of pdf report
+        Filename of pdf diagnostic report
 
     Returns
     =======
@@ -119,7 +119,8 @@ def combine_bias_frames(bias_frames, output='', kappa=15, method='mean', overwri
 
 
 def combine_flat_frames(raw_frames, output, mbias='', mode='spec', dispaxis=None,
-                        kappa=5, verbose=False, overwrite=True, method='mean', **kwargs):
+                        kappa=5, verbose=False, overwrite=True, method='mean', report_fname='',
+                        **kwargs):
     """Combine individual spectral flat frames to create a 'master flat' frame.
     The individual frames are normalized to the mode of the 1D collapsed spectral
     shape. Individual frames are clipped using a kappa-sigma-clipping on the mode
@@ -157,6 +158,9 @@ def combine_flat_frames(raw_frames, output, mbias='', mode='spec', dispaxis=None
 
     overwrite : boolean  [default=True]
         Overwrite existing output file if True.
+
+    report_fname : string  [default='']
+        Filename of pdf diagnostic report
 
     Returns
     =======
@@ -612,6 +616,7 @@ def task_prep_arcs(options, database, log=None, verbose=True, output_dir='', rep
         master_bias = organizer.match_single_calib(raw_img, database, 'MBIAS', log, date=False)
         norm_flat = organizer.match_single_calib(raw_img, database, 'NORM_SFLAT', log, date=False,
                                                  grism=True, slit=True, filter=True)
+        current_fnames = list()
         for arc_fname in input_list:
             arc_basename = 'CORR_' + os.path.basename(arc_fname)
             corrected_arc2d_fname = os.path.join(output_dir, arc_basename)
@@ -619,5 +624,11 @@ def task_prep_arcs(options, database, log=None, verbose=True, output_dir='', rep
                                           output=corrected_arc2d_fname, overwrite=True)
             log.commit(output_msg)
             task_output[tag].append(corrected_arc2d_fname)
+            current_fnames.append(corrected_arc2d_fname)
+        # Create PDF diagnostic report
+        report_fname = os.path.join(report_dir, 'ARCS_%s_report.pdf' % file_id)
+        reports.check_arcs(current_fnames, report_fname)
         log.add_linebreak()
+
+
     return task_output, log
