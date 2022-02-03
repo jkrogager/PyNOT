@@ -17,7 +17,7 @@ import warnings
 import spectres
 
 from pynot import instrument
-from pynot.functions import get_version_number, NN_mod_gaussian, get_pixtab_parameters
+from pynot.functions import get_version_number, NN_mod_gaussian, get_pixtab_parameters, mad
 
 __version__ = get_version_number()
 
@@ -436,8 +436,8 @@ def wavecal_1d(input_fname, pixtable_fname, *, output, order_wl=None, log=False,
         pix = tab['WAVE']
         flux1d = tab['FLUX']
         err1d = tab['ERR']
-        if 'APER_CEN' in hdr:
-            aper_cen = hdr['APER_CEN']
+        if 'OBJ_POS' in hdr:
+            aper_cen = hdr['OBJ_POS']
             msg.append("          - Extraction aperture along slit at pixel no. %i" % aper_cen)
             if pixtab_pars['loc'] != -1:
                 aperture_offset = np.abs(aper_cen - pixtab_pars['loc'])
@@ -542,7 +542,7 @@ def format_table2D_residuals(pixtab2d, fit_table2d, ref_table):
     wavelengths = ref_table[:, 1]
     resid2D = pixtab2d - fit_table2d
     for wl, resid_col, col in zip(wavelengths, resid2D.T, fit_table2d.T):
-        line_resid = np.std(resid_col)
+        line_resid = 1.48*mad(resid_col)
         median_pix = np.median(col)
         delta_col = np.max(col) - np.min(col)
         resid_log.append([wl, median_pix, line_resid, delta_col])
