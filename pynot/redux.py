@@ -64,7 +64,8 @@ class ArgumentDict(dict):
 
 
 
-def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False, force_restart=False):
+def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False, force_restart=False,
+                 make_bias=False, make_flat=False, make_arcs=False, make_response=False):
     log = Report(verbose)
     status = State()
 
@@ -147,7 +148,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
         os.makedirs(os.path.join(output_base, 'std'))
 
     # -- bias
-    if not database.has_tag('MBIAS') or force_restart:
+    if not database.has_tag('MBIAS') or make_bias:
         task_output, log = task_bias(options['bias'], database=database, log=log, verbose=verbose, output_dir=output_base)
         for tag, filelist in task_output.items():
             database[tag] = filelist
@@ -157,7 +158,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
 
     # -- sflat
-    if not database.has_tag('NORM_SFLAT') or force_restart:
+    if not database.has_tag('NORM_SFLAT') or make_flat:
         task_output, log = task_sflat(options['flat'], database=database, log=log, verbose=verbose, output_dir=output_base)
         for tag, filelist in task_output.items():
             database[tag] = filelist
@@ -167,7 +168,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
 
     # -- Check arc line files:
-    if not database.has_tag('ARC_CORR') or force_restart:
+    if not database.has_tag('ARC_CORR') or make_arcs:
         database.pop('ARC_CORR', None)
         task_output, log = task_prep_arcs(options, database, log=log, verbose=verbose,
                                           output_dir=os.path.join(output_base, 'arcs'))
@@ -233,7 +234,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
 
     # -- response
-    if not database.has_tag('RESPONSE') or force_restart:
+    if not database.has_tag('RESPONSE') or make_response:
         task_output, log = task_response(options, database, status, log=log, verbose=verbose, app=app,
                                          output_dir=os.path.join(output_base, 'std'))
         for tag, response_files in task_output.items():
@@ -320,12 +321,8 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
                 # Prepare output filenames:
                 grism = sci_img.grism
-                # master_bias_fname = os.path.join(output_dir, 'MASTER_BIAS.fits')
-                # comb_flat_fname = os.path.join(output_dir, 'FLAT_COMBINED_%s_%s.fits' % (grism, sci_img.slit))
-                # norm_flat_fname = os.path.join(output_dir, 'NORM_FLAT_%s_%s.fits' % (grism, sci_img.slit))
                 rect2d_fname = os.path.join(output_dir, 'RECT2D_%s.fits' % (sci_img.target_name))
                 bgsub2d_fname = os.path.join(output_dir, 'SKYSUB2D_%s.fits' % (sci_img.target_name))
-                # response_pdf = os.path.join(output_dir, 'plot_response_%s.pdf' % (grism))
                 corrected_2d_fname = os.path.join(output_dir, 'CORR2D_%s.fits' % (sci_img.target_name))
                 flux2d_fname = os.path.join(output_dir, 'FLUX2D_%s.fits' % (sci_img.target_name))
                 flux1d_fname = os.path.join(output_dir, 'FLUX1D_%s.fits' % (sci_img.target_name))
@@ -380,53 +377,6 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                 else:
                     pixtab_fnames = status.find_pixtab(grism)
                     pixtable = pixtab_fnames[0]
-
-                # # Response Function:
-                # if 'SPEC_FLUX-STD' in database:
-                #     flux_std_files = sci_img.match_files(database['SPEC_FLUX-STD'],
-                #                                          date=False, grism=True, slit=True, filter=True, get_closest_time=True)
-                # else:
-                #     flux_std_files = []
-                #
-                # if len(flux_std_files) == 0:
-                #     log.warn("No spectroscopic standard star was found in the dataset!")
-                #     log.warn("The reduced spectra will not be flux calibrated")
-                #     status['response'] = None
-                #
-                # else:
-                #     std_fname = flux_std_files[0]
-                #     response_fname = os.path.join(output_base, 'response_%s.fits' % (grism))
-                #     if os.path.exists(response_fname) and not options['response']['force']:
-                #         log.write("Using existing response function: %s" % response_fname)
-                #         log.add_linebreak()
-                #         status['%s_response' % grism] = response_fname
-                #     else:
-                #         std_fname = flux_std_files[0]
-                #         log.write("Running task: Calculation of Response Function")
-                #         log.write("Spectroscopic Flux Standard: %s" % std_fname)
-                #         try:
-                #             response_fname, response_msg = calculate_response(std_fname, arc_fname=arc_fname,
-                #                                                               pixtable_fname=pixtable,
-                #                                                               bias_fname=master_bias_fname,
-                #                                                               flat_fname=norm_flat_fname,
-                #                                                               output=response_fname,
-                #                                                               output_dir=output_dir, pdf_fname=response_pdf,
-                #                                                               order=options['response']['order'],
-                #                                                               interactive=options['response']['interactive'],
-                #                                                               dispaxis=sci_img.dispaxis,
-                #                                                               order_bg=options['skysub']['order_bg'],
-                #                                                               rectify_options=options['rectify'],
-                #                                                               app=app)
-                #             status['%s_response' % grism] = response_fname
-                #             log.commit(response_msg)
-                #             log.add_linebreak()
-                #         except Exception:
-                #             log.error("Calculation of response function failed!")
-                #             # print("Unexpected error:", sys.exc_info()[0])
-                #             # raise
-                #             status['%s_response' % grism] = ''
-                #             log.warn("No flux calibration will be performed!")
-                #             log.add_linebreak()
 
 
                 # Bias correction, Flat correction
@@ -576,6 +526,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                 comb_basename = '%s_%s_flux1d.fits' % (target_name, insID)
                 comb1d_fname = os.path.join(output_base, target_name, comb_basename)
                 if not os.path.exists(comb1d_fname) or force_restart:
+                    log.add_linebreak()
                     log.write("Running task: 1D Extraction")
                     if options['extract']['interactive']:
                         try:
@@ -605,16 +556,18 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                 comb_basename = '%s_%s_flux2d.fits' % (target_name, insID)
                 comb2d_fname = os.path.join(output_base, target_name, comb_basename)
                 source_2d = files_to_combine[0]
-                if not os.path.exists(comb2d_fname):
-                    os.link(source_2d, comb2d_fname)
-                    log.write("Created file link:")
-                    log.write("%s -> %s" % (source_2d, comb2d_fname), prefix=" [OUTPUT] - ")
+                if os.path.exists(comb2d_fname):
+                    os.remove(comb2d_fname)
+                os.link(source_2d, comb2d_fname)
+                log.write("Created file link:")
+                log.write("%s -> %s" % (source_2d, comb2d_fname), prefix=" [OUTPUT] - ")
 
                 comb_basename = '%s_%s_flux1d.fits' % (target_name, insID)
                 comb1d_fname = os.path.join(output_base, target_name, comb_basename)
                 source_1d = source_2d.replace('FLUX2D', 'FLUX1D')
-                if not os.path.exists(comb1d_fname):
-                    os.link(source_1d, comb1d_fname)
-                    log.write("Created file link:")
-                    log.write("%s -> %s" % (source_1d, comb1d_fname), prefix=" [OUTPUT] - ")
+                if os.path.exists(comb1d_fname):
+                    os.remove(comb1d_fname)
+                os.link(source_1d, comb1d_fname)
+                log.write("Created file link:")
+                log.write("%s -> %s" % (source_1d, comb1d_fname), prefix=" [OUTPUT] - ")
                 log.add_linebreak()
