@@ -57,6 +57,12 @@ def save_fits_spectrum(fname, wl, flux, err, hdr, bg=None, aper=None, mask=None)
         aper_hdr['COMMENT'] = '2D Extraction Aperture'
         aper_hdu = fits.ImageHDU(data=aper, header=aper_hdr, name='APER')
         hdu.append(aper_hdu)
+    if mask is not None:
+        mask_hdr = fits.Header()
+        mask_hdr['AUTHOR'] = 'PyNOT'
+        mask_hdr['COMMENT'] = 'Pixel mask, 0: good, 1: bad'
+        mask_hdu = fits.ImageHDU(data=mask, header=mask_hdr, name='MASK')
+        hdu.append(mask_hdu)
     hdu.writeto(fname, output_verify='silentfix', overwrite=True)
     return True, "File saved successfully"
 
@@ -65,7 +71,6 @@ def save_fitstable_spectrum(fname, wl, flux, err, hdr, bg=None, aper=None, mask=
     """Write spectrum to a FITS Table with 4 columns: Wave, FLUX, ERR and SKY"""
     hdu = fits.HDUList()
     hdr['COMMENT'] = 'PyNOT extracted spectrum'
-    hdr['COMMENT'] = 'Each spectrum in its own extension'
     if bg is None:
         bg = np.zeros_like(flux)
     if mask is None:
@@ -120,13 +125,15 @@ def get_wavelength_from_header(hdr):
 
 
 # -- These names are used to define proper column names for Wavelength, Flux and Error:
-wavelength_column_names = ['wl', 'lam', 'lambda', 'loglam', 'wave', 'wavelength']
+wavelength_column_names = ['wl', 'lam', 'lambda', 'loglam', 'wave', 'wavelength', 'awav']
 flux_column_names = ['data', 'spec', 'flux', 'flam', 'fnu', 'flux_density']
 error_column_names = ['err', 'sig', 'error', 'ivar', 'sigma', 'var']
+mask_column_names = ['mask', 'qual', 'dq', 'qc']
 
 # -- These names are used to define proper ImageHDU names for Flux and Error:
 flux_HDU_names = ['FLUX', 'SCI', 'FLAM', 'FNU']
 error_HDU_names = ['ERR', 'ERRS', 'SIG', 'SIGMA', 'ERROR', 'ERRORS', 'IVAR', 'VAR']
+mask_HDU_names = ['MASK', 'QUAL', 'QC', 'DQ']
 
 
 def get_spectrum_fits_table(tbdata):
@@ -162,12 +169,14 @@ def get_spectrum_fits_table(tbdata):
                 wavelength = 10**tbdata[colname]
             else:
                 wavelength = tbdata[colname]
+            break
 
     data_in_table = False
     for colname in flux_column_names:
         if colname in table_names:
             data_in_table = True
             data = tbdata[colname]
+            break
 
     error_in_table = False
     for colname in error_column_names:
@@ -179,16 +188,22 @@ def get_spectrum_fits_table(tbdata):
                 error = np.sqrt(tbdata[colname])
             else:
                 error = tbdata[colname]
+            break
 
     all_arrays_found = wl_in_table and data_in_table and error_in_table
     if not all_arrays_found:
         raise FormatError("Could not find all data columns in the table")
 
-    mask = np.ones_like(data, dtype=bool)
-    if 'mask' in tbdata.names:
-        mask = tbdata[colname]
+    mask_in_table = False
+    for colname in mask_column_names:
+        if colname in table_names:
+            mask_in_table = True
+            mask = tbdata[colname]
+            break
+    if not mask_in_table:
+        mask = np.zeros_like(data, dtype=bool)
 
-    return wavelength.flatten(), data.flatten(), error.flatten(), mask
+    return wavelength.flatten(), data.flatten(), error.flatten(), mask.flatten()
 
 # Hack the doc-string of the function to input the variable names:
 output_column_names = {'WL_COL_NAMES': wavelength_column_names,

@@ -369,10 +369,11 @@ def combine_1d(files, output=None, method='mean', scale=False):
             idx_0 = min(nonzero) + len(nonzero)/2
             x1 = idx_0 - 50
             x2 = idx_0 + 51
-            scales.append(np.median(flux[x1:x2]))
+            scales.append(np.nanmedian(flux[x1:x2]))
         else:
             scales.append(1.)
 
+    # Determine average reference scale:
     f0 = np.nanmean(scales)
 
     # -- Determine new wavelength grid:
@@ -412,7 +413,7 @@ def combine_1d(files, output=None, method='mean', scale=False):
         pix = np.min([np.min(np.diff(this_wl)) for this_wl in wl_all])
         final_wl = np.arange(overlap.min(), overlap.max(), pix)
         msg.append("          - Creating new linear wavelength grid:")
-        msg.append("          - %.1f -- %.1f  |  sampling: %.1f" % (final_wl.min(), final_wl.max(), pix))
+        msg.append("          - %.3f -- %.3f  |  sampling: %.3f" % (final_wl.min(), final_wl.max(), pix))
         hdr['CRVAL1'] = final_wl.min()
         hdr['CRPIX1'] = 1
         hdr['CDELT1'] = pix
@@ -423,15 +424,14 @@ def combine_1d(files, output=None, method='mean', scale=False):
 
         # interpolate
         for this_wl, f, e, m, s in zip(wl_all, flux_all, err_all, mask_all, scales):
-            v = (e*s/f0)**2
             m[e <= 0] = 1
             e[e <= 0] = 1.e4
+            v = (e*s/f0)**2
             f = f*s/f0
-            f_i = np.interp(final_wl, this_wl, f, left=0., right=0.)
-            v_i = np.interp(final_wl, this_wl, v, left=0., right=0.)
-            m_i = np.interp(final_wl, this_wl, m, left=0., right=0.)
-            m_i = m_i > 0
-            w_i = np.interp(final_wl, this_wl, 1./v, left=0., right=0.)
+            f_i = np.interp(final_wl, this_wl, f, left=np.nan, right=np.nan)
+            v_i = np.interp(final_wl, this_wl, v, left=np.nan, right=np.nan)
+            m_i = np.interp(final_wl, this_wl, m, left=np.nan, right=np.nan) > 0
+            w_i = np.interp(final_wl, this_wl, 1./v, left=np.nan, right=np.nan)
             int_flux.append(f_i)
             int_var.append(v_i)
             int_mask.append(m_i)
@@ -442,20 +442,20 @@ def combine_1d(files, output=None, method='mean', scale=False):
         warnings.simplefilter('ignore')
         if method == 'median':
             msg.append("          - Combination method: median")
-            final_flux = np.median(int_flux, axis=0)
-            final_var = np.sum(int_var, axis=0)/len(int_flux)
+            final_flux = np.nanmedian(int_flux, axis=0)
+            final_var = np.nansum(int_var, axis=0)/len(int_flux)
             final_err = np.sqrt(final_var)
-            final_mask = np.sum(int_mask, axis=0) > 0
+            final_mask = np.nansum(int_mask, axis=0) > 0
 
         else:
             msg.append("          - Combination method: inverse variance weighting")
             int_flux = np.array(int_flux)
             M = ~np.array(int_mask, dtype=bool)
             weight = np.array(weight)
-            final_flux = np.sum(M*int_flux*weight, 0) / np.sum(M*weight, 0)
-            final_var = 1. / np.sum(M*weight, 0)
+            final_flux = np.nansum(M*int_flux*weight, 0) / np.nansum(M*weight, 0)
+            final_var = 1. / np.nansum(M*weight, 0)
             final_err = np.sqrt(final_var)
-            final_mask = np.sum(int_mask, axis=0) > 0
+            final_mask = np.nansum(int_mask, axis=0) > 0
 
     if output is None:
         obj_name = hdr.get('OBJECT')
