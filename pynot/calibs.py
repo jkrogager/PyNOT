@@ -394,12 +394,13 @@ def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=None, order=2
     msg.append("          - Fitting each spatial row/column using Chebyshev polynomials combined with Savitzky--Golay filtering")
     msg.append("          - Polynomial order: %i" % order)
     msg.append("          - Savitzky--Golay filter width: %i" % savgol_window)
-    pad = savgol_window // 2
+    pad = savgol_window // 2 + 1
     x_fit = x[x1:x2]
     for num, row in enumerate(smoothed_flat):
-        filtered_row = signal.savgol_filter(row[x1:x2], savgol_window, 1)
+        filtered_row = signal.savgol_filter(row[x1:x2], savgol_window, 2)
         sig = 1.5*mad(row[x1:x2] - filtered_row)
-        mask = (row[x1:x2] - filtered_row) > -sig
+        # mask = (row[x1:x2] - filtered_row) > -sig
+        mask = np.abs(row[x1:x2] - filtered_row) < 2*sig
         # Exclude filter edges, half filter width:
         x_mask = x_fit[mask][pad:-pad]
         row_mask = filtered_row[mask][pad:-pad]
@@ -423,7 +424,8 @@ def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=None, order=2
         stat_region = flat_norm[x1:x2, :]
     else:
         stat_region = flat_norm[:, x1:x2]
-    noise = np.std(stat_region)
+    # noise = np.std(stat_region)
+    noise = mad(stat_region)*1.48
     data_range = (np.min(stat_region), np.max(stat_region), np.median(stat_region))
     msg.append("          - Standard deviation of 1D residuals: %.2f ADUs" % noise)
     msg.append("          - Normalized data range: min=%.2e  max=%.2e  median=%.2e" % data_range)
@@ -456,9 +458,11 @@ def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=None, order=2
         ax2_1d = fig1D.add_subplot(212)
 
         flat1D = np.nanmedian(flat, 2-dispaxis)
-        f1d = signal.savgol_filter(flat1D[x1:x2], savgol_window, 1)
-        x_mask = x_fit[pad:-pad]
-        row_mask = f1d[pad:-pad]
+        f1d = signal.savgol_filter(flat1D[x1:x2], savgol_window, 2)
+        sig1d = 1.5*mad(flat1D[x1:x2] - f1d)
+        mask = np.abs(flat1D[x1:x2] - f1d) < 2*sig1d
+        x_mask = x_fit[mask][pad:-pad]
+        row_mask = f1d[mask][pad:-pad]
         fit_row = np.polynomial.Chebyshev.fit(x_mask, row_mask, order, domain=[x_fit.min(), x_fit.max()])
         flat_model = fit_row(x_fit)
         # Remove edge effects in fitting, the filtered data are more robust:
@@ -482,10 +486,11 @@ def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=None, order=2
         ax1_1d.set_ylabel('Counts  [$10^{{{0:d}}}$ ADU]'.format(int(power)), fontsize=11)
 
         ax2_1d.set_ylabel('($F_{\\rm 1D} -$ model) / model', fontsize=11)
-        plot_noise = np.nanstd(residuals/flat_model)
-        ax2_1d.set_ylim(-5*plot_noise, 5*plot_noise)
+        plot_noise = 1.48*mad(residuals/flat_model)
+        ax2_1d.set_ylim(-10*plot_noise, 10*plot_noise)
         ax2_1d.set_xlim(x.min(), x.max())
         ax1_1d.set_xlim(x.min(), x.max())
+        ax1_1d.set_ylim(flat_model.min()-10*sig1d, flat_model.max()+10*sig1d)
 
         ax1_1d.minorticks_on()
         ax2_1d.minorticks_on()
