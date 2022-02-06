@@ -393,6 +393,8 @@ def load_fits_image(fname):
     with fits.open(fname) as hdu_list:
         image = hdu_list[0].data
         hdr = hdu_list[0].header
+        # Loop through HDU list instead to check all
+        # for hdu in hdu_list:
         if 'ERR' in hdu_list:
             error = hdu_list['ERR'].data
         elif len(hdu_list) > 1:
@@ -405,3 +407,44 @@ def load_fits_image(fname):
         else:
             mask = np.zeros_like(image, dtype=bool)
     return image, error, mask, hdr
+
+
+def verify_header_key(key):
+    """If given a string with spaces or dots convert to HIERARCH ESO format"""
+    check_ESO = False
+    key = key.strip()
+    if '.' in key:
+        key = key.replace('.', ' ')
+        check_ESO = True
+
+    if ' ' in key:
+        check_ESO = True
+
+    if check_ESO:
+        if not key.startswith('ESO'):
+            key = 'ESO %s' % key
+
+    return key
+
+
+def fits_to_ascii(fname, output, keys=None):
+    """
+    Convert the input FITS file to an ASCII table.
+
+    keys : list[string]
+        List of header keywords to include in the table header
+    """
+    wl, flux, err, mask, hdr, msg = load_fits_spectrum(fname)
+    if not keys:
+        keys = []
+    data = np.column_stack([wl, flux, err, mask])
+    tbl_header = ""
+    for key in keys:
+        key = verify_header_key(key)
+        if key in hdr:
+            tbl_header += "# %s : %s \n" % (key, str(hdr[key]))
+    tbl_header += "#-----------------------------------------\n"
+    tbl_header += "# WAVE  FLUX  ERROR  MASK [0:good / 1:bad]\n"
+    with open(output, 'w') as out:
+        out.write(tbl_header)
+        np.savetxt(out, data, fmt="%.4f  %+.4e  %.4e  %i")

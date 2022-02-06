@@ -12,6 +12,7 @@ import warnings
 
 from pynot.response import lookup_std_star
 from pynot import instrument
+from pynot.fitsio import verify_header_key
 
 # -- use os.path
 code_dir = os.path.dirname(os.path.abspath(__file__))
@@ -193,24 +194,6 @@ def get_unclassified_files(file_list, database):
         if fname not in database.file_database:
             missing_files.append(fname)
     return missing_files
-
-
-def verify_header_key(key):
-    """If given a string with spaces or dots convert to HIERARCH ESO format"""
-    check_ESO = False
-    key = key.strip()
-    if '.' in key:
-        key = key.replace('.', ' ')
-        check_ESO = True
-
-    if ' ' in key:
-        check_ESO = True
-
-    if check_ESO:
-        if not key.startswith('ESO'):
-            key = 'ESO %s' % key
-
-    return key
 
 
 def classify_file(fname, rules):

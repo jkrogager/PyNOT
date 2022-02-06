@@ -518,6 +518,15 @@ def main():
     parser_use.add_argument('--list', action="store_true",
                             help='Display a list of the currently installed instruments')
 
+    parser_f2a = tasks.add_parser('fits2ascii', formatter_class=set_help_width(30),
+                                  help="Convert FITS spectrum to ASCII table format")
+    parser_f2a.add_argument('input', type=str,
+                            help='Input filename of FITS spectrum (either table or MEF)')
+    parser_f2a.add_argument('output', type=str,
+                            help='Output filename of the ASCII table')
+    parser_f2a.add_argument('--keys', type=str, nargs='+',
+                            help='List of keywords from the FITS header to include (ESO keywords must use . not space delimiter)')
+
     args = parser.parse_args()
 
 
@@ -873,6 +882,10 @@ def main():
                 print("          - Merging the databases")
         io.save_database(database, pfc_fname)
         print(" [OUTPUT] - Saved file classification database: %s" % pfc_fname)
+
+    elif task == 'fits2ascii':
+        from pynot.fitsio import fits_to_ascii
+        fits_to_ascii(args.input, args.output, args.keys)
 
     else:
         import pynot
