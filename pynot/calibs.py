@@ -604,7 +604,7 @@ def task_prep_arcs(options, database, log=None, verbose=True, output_dir='', rep
 
     arc_filelist = []
     for tag in database.keys():
-        if 'ARC' in tag:
+        if 'ARC' in tag and 'CORR' not in tag:
             arc_filelist += database[tag]
 
     if len(arc_filelist) == 0:
