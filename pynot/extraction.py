@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from scipy.ndimage import median_filter
 from scipy.signal import find_peaks
 from numpy.polynomial import Chebyshev
+import warnings
 
 from lmfit import Parameters, minimize
 
@@ -459,13 +460,15 @@ def auto_extract_img(img2D, err2D, *, N=None, pdf_fname=None, mask=None, model_n
 
     spectra = list()
     for P, info_dict in zip(trace_models_2d, trace_info):
-        spec1D = np.sum(M*P*img2D/var2D, axis=0) / np.sum(M*P**2/var2D, axis=0)
-        var1D = np.sum(M*P, axis=0) / np.sum(M*P**2/var2D, axis=0)
-        err1D = np.sqrt(var1D)
-        err1D = fix_nans(err1D)
-        mask1D = np.sum((1-M)*P, axis=0) / np.sum((1-M)*P**2, axis=0) > 0
-        trace_pos = np.median(info_dict['fit_mu'])
-        spectra.append([spec1D, err1D, mask1D, trace_pos])
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            spec1D = np.sum(M*P*img2D/var2D, axis=0) / np.sum(M*P**2/var2D, axis=0)
+            var1D = np.sum(M*P, axis=0) / np.sum(M*P**2/var2D, axis=0)
+            err1D = np.sqrt(var1D)
+            err1D = fix_nans(err1D)
+            mask1D = np.sum((1-M)*P, axis=0) / np.sum((1-M)*P**2, axis=0) > 0
+            trace_pos = np.median(info_dict['fit_mu'])
+            spectra.append([spec1D, err1D, mask1D, trace_pos])
 
         if pdf_fname:
             plot_diagnostics(pdf, spec1D, err1D, info_dict, width_scale)
