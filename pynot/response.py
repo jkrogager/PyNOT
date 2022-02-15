@@ -48,7 +48,7 @@ standard_stars = [fname.strip('.dat') for fname in _standard_star_files]
 # (mostly used for ALFOSC where TCSTGT is different)
 std_fname = os.path.join(path, 'calib/std/tcs_namelist.txt')
 calib_names = np.loadtxt(std_fname, dtype=str, delimiter=':')
-tcs_standard_stars = {row[1]: row[0] for row in calib_names}
+tcs_standard_stars = {row[1].strip(): row[0].strip() for row in calib_names}
 
 
 def lookup_std_star(hdr):
