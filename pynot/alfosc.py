@@ -103,6 +103,9 @@ def overscan():
     overscan_y = 50
     return (prescan_x, overscan_x, prescan_y, overscan_y)
 
+def get_ccd_extent():
+    return (2148, 2102)
+
 def get_detector_arrays(hdr):
     det_window = hdr['DETWIN1']
     xy_ranges = det_window.replace('[', '').replace(']', '')

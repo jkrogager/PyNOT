@@ -62,13 +62,14 @@ def trim_overscan(img, hdr):
 
     # Get overscan from instrument:
     pre_x, over_x, pre_y, over_y = instrument.overscan()
+    Npix_x, Npix_y = instrument.get_ccd_extent()
 
     # Get detector pixel arrays from instrument:
     X, Y = instrument.get_detector_arrays(hdr)
 
-    img_region_x = (X >= pre_x) & (X <= X.max()-over_x)
+    img_region_x = (X >= pre_x) & (X <= Npix_x-over_x)
     xlimits = img_region_x.nonzero()[0]
-    img_region_y = (Y >= pre_y) & (Y <= Y.max()-over_y)
+    img_region_y = (Y >= pre_y) & (Y <= Npix_y-over_y)
     ylimits = img_region_y.nonzero()[0]
     x1 = min(xlimits)
     x2 = max(xlimits)+1

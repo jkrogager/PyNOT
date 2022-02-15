@@ -189,6 +189,9 @@ def overscan():
     overscan_y = 12
     return (prescan_x, overscan_x, prescan_y, overscan_y)
 
+def get_ccd_extent():
+    return (2060, 2060)
+
 def get_detector_arrays(hdr):
     nx = hdr['NAXIS1']
     ny = hdr['NAXIS2']
