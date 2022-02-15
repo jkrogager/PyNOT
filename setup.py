@@ -21,7 +21,7 @@ mypackage_root_dir = path.dirname(path.abspath(__file__))
 with open(path.join(mypackage_root_dir, 'pynot', 'VERSION')) as v_file:
     version = v_file.read().strip()
 
-python_version_requirement = '<3.9'
+python_version_requirement = '<3.10'
 programming_language = 'Programming Language :: Python :: 3'
 
 setup(
