@@ -93,13 +93,28 @@ def match_response(sci_img, file_list, exact_date=False):
     return match_fname
 
 
+def match_single_calib(raw_img, database, tag, log, **kwargs):
+    calib_list = raw_img.match_files(database[tag], **kwargs)
+
+    if len(calib_list) > 1:
+        kwargs['get_closest_time'] = True
+        calib_list = raw_img.match_files(database[tag], **kwargs)
+
+    if len(calib_list) != 1:
+        log.error("Could not match filetype %s" % tag)
+        log.error("Check that the filetype exists in the PFC database")
+        raise KeyError("Could not match filetype %s" % tag)
+
+    return calib_list[0]
+
+
 def sort_spec_flat(file_list):
     """
     Sort spectroscopic flat frames by grism, slit, filter and image size
     """
     sorted_files = defaultdict(list)
     for fname in file_list:
-        hdr = fits.getheader(fname)
+        hdr = instrument.get_header(fname)
         grism = instrument.get_grism(hdr)
         slit = instrument.get_slit(hdr).replace('_', '')
         filt_name = instrument.get_filter(hdr)
@@ -118,7 +133,7 @@ def sort_arcs(file_list):
     """
     sorted_files = defaultdict(list)
     for fname in file_list:
-        hdr = fits.getheader(fname)
+        hdr = instrument.get_header(fname)
         grism = instrument.get_grism(hdr)
         slit = instrument.get_slit(hdr).replace('_', '')
         size = "%ix%i" % (hdr['NAXIS1'], hdr['NAXIS2'])
@@ -130,7 +145,7 @@ def sort_arcs(file_list):
 def sort_std(file_list):
     sorted_files = defaultdict(lambda: defaultdict(list))
     for fname in file_list:
-        hdr = fits.getheader(fname)
+        hdr = instrument.get_header(fname)
         target_name = instrument.get_target_name(hdr)
         filt_name = instrument.get_filter(hdr)
         grism = instrument.get_grism(hdr)
@@ -148,7 +163,7 @@ def sort_bias(file_list):
     """
     sorted_files = defaultdict(list)
     for fname in file_list:
-        hdr = fits.getheader(fname)
+        hdr = instrument.get_header(fname)
         size = "%ix%i" % (hdr['NAXIS1'], hdr['NAXIS2'])
         file_id = size
         sorted_files[file_id].append(fname)
@@ -590,8 +605,8 @@ class RawImage(object):
 
             if shape:
                 # Match files with same image shape:
-                hdr = fits.getheader(fname)
-                this_shape = (hdr['NAXIS1'], hdr['NAXIS2'])
+                hdr = instrument.get_header(fname)
+                this_shape = (hdr['NAXIS2'], hdr['NAXIS1'])
                 if 'OVERSCAN' in hdr:
                     # use original image shape before overscan-sub
                     over_x = hdr['OVERSCAN_X']
@@ -626,21 +641,6 @@ class RawImage(object):
             matches = matches[index:index+1]
 
         return matches
-
-
-def match_single_calib(raw_img, database, tag, log, **kwargs):
-    calib_list = raw_img.match_files(database[tag], **kwargs)
-
-    if len(calib_list) > 1:
-        kwargs['get_closest_time'] = True
-        calib_list = raw_img.match_files(database[tag], **kwargs)
-
-    if len(calib_list) != 1:
-        log.error("Could not match filetype %s" % tag)
-        log.error("Check that the filetype exists in the PFC database")
-        raise KeyError("Could not match filetype %s" % tag)
-
-    return calib_list[0]
 
 
 class TagDatabase(dict):

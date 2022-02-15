@@ -400,6 +400,12 @@ def main():
                               help="Use interactive interface throughout")
     parser_redux.add_argument("-f", "--force", action="store_true",
                               help="Force restart of all OBs!")
+    parser_redux.add_argument("--mbias", action="store_true",
+                              help="Run bias only")
+    parser_redux.add_argument("--mflat", action="store_true",
+                              help="Run flat combination and normalization only")
+    parser_redux.add_argument("--arcs", action="store_true",
+                              help="Process arcs")
 
     parser_break = tasks.add_parser('', help="")
 
@@ -549,7 +555,10 @@ def main():
                      object_id=args.object,
                      verbose=args.silent,
                      interactive=args.interactive,
-                     force_restart=args.force)
+                     force_restart=args.force,
+                     make_bias=args.mbias,
+                     make_flat=args.mflat,
+                     make_arcs=args.arcs)
 
     elif task == 'bias':
         from pynot.calibs import combine_bias_frames

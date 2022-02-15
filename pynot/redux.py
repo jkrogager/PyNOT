@@ -228,8 +228,14 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
     # -- response
     if not database.has_tag('RESPONSE') or make_response:
-        task_output, log = task_response(options, database, status, log=log, verbose=verbose, app=app,
-                                         output_dir=os.path.join(output_base, 'std'))
+        if database.has_tag('SPEC_FLUX-STD'):
+            task_output, log = task_response(options, database, status, log=log, verbose=verbose, app=app,
+                                             output_dir=os.path.join(output_base, 'std'))
+        else:
+            task_output = {}
+            log.warn("No data for file type: SPEC_FLUX-STD")
+            log.warn("Could not determine instrument response function.")
+            log.warn("Spectra will not be flux-calibrated")
         for tag, response_files in task_output.items():
             database[tag] = response_files
         io.save_database(database, dataset_fname)
@@ -239,10 +245,14 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
     # Save overview log:
     print("")
-    print(" - Pipeline setup ended successfully.")
-    print("   Consult the overview log: %s\n\n" % log.fname)
+    print("          - Pipeline setup ended successfully.")
+    print("            Consult the overview log: %s\n\n" % log.fname)
     log.save()
 
+
+    if any([make_bias, make_flat, make_arcs, make_response]):
+        print("          - Static Calibrations Finished.")
+        return
 
     # ------------------------------------------------------------------
     # -- Start Main Reduction:
@@ -442,7 +452,11 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
 
                 # Flux Calibration:
-                response_fname = do.match_response(sci_img, database['RESPONSE'], exact_date=False)
+                if database.has_tag('RESPONSE'):
+                    response_fname = do.match_response(sci_img, database['RESPONSE'], exact_date=False)
+                else:
+                    response_fname = ''
+
                 if response_fname:
                     log.write("Running task: Flux Calibration")
                     try:
