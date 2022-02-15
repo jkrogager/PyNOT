@@ -567,7 +567,8 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                     os.remove(comb2d_fname)
                 os.link(source_2d, comb2d_fname)
                 log.write("Created file link:")
-                log.write("%s -> %s" % (source_2d, comb2d_fname), prefix=" [OUTPUT] - ")
+                log.write("%s" % source_2d, prefix=" [OUTPUT] - ")
+                log.write("-> %s" % comb2d_fname, prefix=" [OUTPUT] ")
 
                 comb_basename = '%s_%s_flux1d.fits' % (target_name, insID)
                 comb1d_fname = os.path.join(output_base, target_name, comb_basename)
@@ -576,5 +577,6 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
                     os.remove(comb1d_fname)
                 os.link(source_1d, comb1d_fname)
                 log.write("Created file link:")
-                log.write("%s -> %s" % (source_1d, comb1d_fname), prefix=" [OUTPUT] - ")
+                log.write("%s" % (source_1d), prefix=" [OUTPUT] - ")
+                log.write("-> %s" % (comb1d_fname), prefix=" [OUTPUT] ")
                 log.add_linebreak()
