@@ -13,6 +13,8 @@ class OBDatabase:
     def __init__(self, fname):
         if os.path.exists(fname):
             data = np.loadtxt(fname, dtype=str, delimiter=':')
+            if len(data.shape) == 1:
+                data = np.array([data])
             self.data = {obid.strip(): status.strip() for obid, status in data}
         else:
             self.data = {}

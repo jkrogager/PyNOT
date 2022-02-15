@@ -584,7 +584,7 @@ class RawImage(object):
     def set_filetype(self, filetype):
         self.filetype = filetype
 
-    def match_files(self, filelist, date=True, binning=True, shape=True, grism=False, slit=False, filter=False, get_closest_time=False):
+    def match_files(self, filelist, date=True, binning=True, shape=True, grism=False, slit=False, filter=False, get_closest_time=False, debug=False):
         """Return list of filenames that match the given criteria"""
         matches = list()
         # sort by:
@@ -592,16 +592,19 @@ class RawImage(object):
         for fname in filelist:
             this_hdr = fits.getheader(fname, 0)
             criteria = list()
+            criteria_name = list()
             this_mjd = instrument.get_mjd(this_hdr)
             if date:
                 # Match files from same night, midnight ± 9hr
                 dt = self.mjd - this_mjd
                 criteria.append(-0.4 < dt < +0.4)
+                criteria_name.append('name')
 
             if binning:
                 # Match files with same binning and readout speed:
                 this_binning = instrument.get_binning_from_hdr(this_hdr)
                 criteria.append(this_binning == self.binning)
+                criteria_name.append('binning')
 
             if shape:
                 # Match files with same image shape:
@@ -614,23 +617,25 @@ class RawImage(object):
                     this_shape = (this_shape[0]+over_y, this_shape[1]+over_x)
 
                 criteria.append(this_shape == self.shape)
+                criteria_name.append('shape')
 
             if grism:
                 # Match files with same grism:
-                # this_grism = this_hdr['ALGRNM']
                 this_grism = instrument.get_grism(this_hdr)
                 criteria.append(this_grism == self.grism)
+                criteria_name.append('grism')
 
             if slit:
                 # Match files with the same slit-width:
-                # this_slit = this_hdr['ALAPRTNM']
                 this_slit = instrument.get_slit(this_hdr)
                 criteria.append(this_slit == self.slit)
+                criteria_name.append('slit')
 
             if filter:
                 # Match files with the same filter:
                 this_filter = instrument.get_filter(this_hdr)
                 criteria.append(this_filter == self.filter)
+                criteria_name.append('filter')
 
             if np.all(criteria):
                 matches.append(fname)
