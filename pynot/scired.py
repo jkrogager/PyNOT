@@ -408,10 +408,12 @@ def correct_cosmics(input_fname, output_fname, niter=4, gain=None, readnoise=Non
                 msg.append("")
                 return "\n".join(msg)
 
-    crr_mask, sci = detect_cosmics(sci, gain=gain, readnoise=readnoise, niter=niter, pssl=sky_level,
-                                   sigclip=sigclip, sigfrac=sigfrac, objlim=objlim, satlevel=satlevel,
+    sci = (sci + sky_level) * gain
+    crr_mask, sci = detect_cosmics(sci, gain=gain, readnoise=readnoise, niter=niter,
+                                   sigclip=sigclip, sigfrac=sigfrac, objlim=objlim,
+                                   satlevel=instrument.get_saturation_level(),
                                    cleantype=cleantype)
-    # Corrected image is in ELECTRONS!! Convert back to ADUs:
+    # Corrected image is in ELECTRONS! Convert back to ADUs:
     sci = sci/gain - sky_level
 
     # Add comment to FITS header:
