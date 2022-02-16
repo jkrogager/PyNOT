@@ -192,8 +192,6 @@ def fit_2dwave_solution(pixtab2d, deg=5):
             print("degree:", deg)
             print("domain: %r  %r" % (col.min(), col.max()))
             raise
-        finally:
-            np.savetxt('pixtable_2d_dump.dat', pixtab2d)
 
         # Insert back into the fit_table
         fit_table2d[num] = cheb_polyfit(col)

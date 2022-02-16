@@ -587,7 +587,7 @@ def task_sflat(options, database, log=None, verbose=True, output_dir='', report_
 
         output_fname = os.path.join(output_dir, '%s_%s.fits' % (tag, file_id))
         _, flat_msg = normalize_spectral_flat(flatcombine, output=output_fname,
-                                              fig_dir=output_dir, **options)
+                                              fig_dir=report_dir, **options)
         log.commit(flat_msg)
         log.add_linebreak()
         task_output[tag].append(output_fname)
