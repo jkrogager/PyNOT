@@ -192,6 +192,10 @@ def overscan():
 def get_ccd_extent():
     return (2060, 2060)
 
+def get_saturation_level():
+    # Return Saturation Level in Electrons
+    return 88000
+
 def get_detector_arrays(hdr):
     nx = hdr['NAXIS1']
     ny = hdr['NAXIS2']

@@ -135,6 +135,9 @@ def get_binning_from_hdr(hdr):
     ccd_setup = "%ix%i_%i" % (binx, biny, read)
     return ccd_setup
 
+def get_saturation_level():
+    # Get Saturation Level in Electrons
+    return 113500
 
 def get_binx(hdr):
     return hdr.get('DETXBIN')
