@@ -10,6 +10,7 @@ from setuptools import setup, find_packages
 # To use a consistent encoding
 from codecs import open
 from os import path
+import glob
 
 here = path.abspath(path.dirname(__file__))
 
@@ -23,6 +24,9 @@ with open(path.join(mypackage_root_dir, 'pynot', 'VERSION')) as v_file:
 
 python_version_requirement = '<3.10'
 programming_language = 'Programming Language :: Python :: 3'
+
+std_filelist = glob.glob('pynot/calib/std/*.dat')
+std_filelist += ['tcs_namelist.txt']
 
 setup(
     name='PyNOT-redux',
@@ -112,22 +116,7 @@ setup(
                         'paranal.ext',
                         ],
 
-        'pynot/calib/std': ['wolf1346.dat',
-                            'namelist.txt',
-                            'tcs_namelist.txt',
-                            'hiltner600.dat',
-                            'he3.dat',
-                            'hd93521.dat',
-                            'hd84937.dat',
-                            'hd19445.dat',
-                            'gd153.dat',
-                            'gd71.dat',
-                            'feige110.dat',
-                            'feige34.dat',
-                            'bd332642.dat',
-                            'bd262606.dat',
-                            'bd174708.dat',
-                            'bd75325.dat'],
+        'pynot/calib/std': std_filelist,
 
         'pynot/data': ['alfosc.rules'],
 
@@ -135,7 +124,9 @@ setup(
                             'welcome_msg_identify.html',
                             'welcome_msg_response.html'],
 
-        'pynot': ['VERSION'],
+        'pynot': ['VERSION',
+                  '.instrument.cfg',
+                  ],
     },
 
     include_package_data=True,
