@@ -56,7 +56,7 @@ class State(dict):
         return matches
 
 
-def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False, force_restart=False,
+def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False, no_interactive=False, force_restart=False,
                  make_bias=False, make_flat=False, make_arcs=False, make_response=False):
     log = Report(verbose)
     status = State()
@@ -98,6 +98,11 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
         options['identify']['all'] = True
         options['extract']['interactive'] = True
         options['response']['interactive'] = True
+    elif no_interactive:
+        options['identify']['interactive'] = False
+        options['identify']['all'] = False
+        options['extract']['interactive'] = False
+        options['response']['interactive'] = False
 
     dataset_fname = options['dataset']
     if dataset_fname and os.path.exists(dataset_fname):

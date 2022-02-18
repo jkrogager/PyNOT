@@ -400,6 +400,8 @@ def main():
                               help="Use interactive interface throughout")
     parser_redux.add_argument("-f", "--force", action="store_true",
                               help="Force restart of all OBs!")
+    parser_redux.add_argument("--no-int", action="store_true",
+                              help="Turn off all interactive interfaces")
     parser_redux.add_argument("--mbias", action="store_true",
                               help="Run bias only")
     parser_redux.add_argument("--mflat", action="store_true",
