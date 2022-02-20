@@ -2,14 +2,14 @@
 Automatically Classify and Reduce a given Data Set
 """
 
-from astropy.io import fits
 from collections import defaultdict
 import glob
 import numpy as np
 import os
 import sys
 
-from pynot import instrument
+from PyQt5.QtWidgets import QApplication
+
 from pynot.data import io
 from pynot.data import organizer as do
 from pynot.data import obs
@@ -18,12 +18,12 @@ from pynot.extraction import auto_extract
 from pynot import extract_gui
 from pynot.functions import get_options, get_version_number
 from pynot.wavecal import rectify, WavelengthError
-from pynot.identify_gui import create_pixtable
+from pynot.identify_gui import task_identify
 from pynot.scired import raw_correction, auto_fit_background, correct_cosmics
 from pynot.scombine import combine_2d
 from pynot.response import flux_calibrate, task_response
 from pynot.logging import Report
-from PyQt5.QtWidgets import QApplication
+from pynot.tasks import parse_tasks, WorkflowParsingError
 
 code_dir = os.path.dirname(os.path.abspath(__file__))
 calib_dir = os.path.join(code_dir, 'calib/')
@@ -56,7 +56,7 @@ class State(dict):
         return matches
 
 
-def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False, no_interactive=False, force_restart=False,
+def run_pipeline(options_fname, object_id=None, verbose=True, interactive=False, no_interactive=False, force_restart=False,
                  make_bias=False, make_flat=False, make_arcs=False, make_identify=False, make_response=False, calibs_only=False):
     log = Report(verbose)
     status = State()
@@ -69,7 +69,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
     user_options = get_options(options_fname)
     for section_name, section in user_options.items():
-        if isinstance(section, dict):
+        if isinstance(section, dict) and section_name != 'workflow':
             options[section_name].update(section)
         else:
             options[section_name] = section
@@ -137,6 +137,13 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
     log.add_linebreak()
 
 
+    # -- Parse tasks from the workflow
+    try:
+        task_manager = parse_tasks(options, log=log, verbose=verbose)
+    except WorkflowParsingError:
+        return
+
+
     # Start Calibration Tasks:
     output_base = obs.output_base_spec
     if not os.path.exists(os.path.join(output_base, 'arcs')):
@@ -146,81 +153,65 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
 
     # -- bias
-    if not database.has_tag('MBIAS') or make_bias:
-        file_filters = {}
-        task_output, log = task_bias(options['bias'], database, log=log, verbose=verbose,
-                                     output_dir=output_base,
-                                     **file_filters)
-        for tag, filelist in task_output.items():
-            database[tag] = filelist
-        io.save_database(database, dataset_fname)
+    if not database.has_tag('MBIAS') or make_bias or force_restart:
+        for task_pars in task_manager['bias']:
+            task_options = options['bias'].copy()
+            task_options.update(task_pars.pop('options', {}))
+            task_output, log = task_bias(task_options, database, log=log, verbose=verbose,
+                                         output_dir=output_base,
+                                         **task_pars)
+            for tag, filelist in task_output.items():
+                database[tag] = filelist
+            io.save_database(database, dataset_fname)
     else:
         log.write("Static calibrations for master bias already exist. Skipping")
 
 
     # -- sflat
-    if not database.has_tag('NORM_SFLAT') or make_flat:
-        task_output, log = task_sflat(options['flat'], database=database, log=log, verbose=verbose,
-                                      output_dir=output_base,
-                                      **file_filters)
-        for tag, filelist in task_output.items():
-            database[tag] = filelist
-        io.save_database(database, dataset_fname)
+    if not database.has_tag('NORM_SFLAT') or make_flat or force_restart:
+        for task_pars in task_manager['flat']:
+            task_options = options['flat'].copy()
+            task_options.update(task_pars.pop('options', {}))
+            task_output, log = task_sflat(task_options, database=database, log=log, verbose=verbose,
+                                          output_dir=output_base,
+                                          **task_pars)
+            for tag, filelist in task_output.items():
+                database[tag] = filelist
+            io.save_database(database, dataset_fname)
     else:
         log.write("Static calibrations for normalized flats already exist. Skipping")
 
 
     # -- Check arc line files:
-    if not database.has_tag('ARC_CORR') or make_arcs:
+    if not database.has_tag('ARC_CORR') or make_arcs or force_restart:
         database.pop('ARC_CORR', None)
-        task_output, log = task_prep_arcs(options, database, log=log, verbose=verbose,
-                                          output_dir=os.path.join(output_base, 'arcs'),
-                                          **file_filters)
-        for tag, arc_images in task_output.items():
-            database[tag] = arc_images
-        io.save_database(database, dataset_fname)
+        arc_images = list()
+        for task_pars in task_manager['arcs']:
+            task_options = task_pars.pop('options', {})
+            task_output, log = task_prep_arcs(task_options, database, log=log, verbose=verbose,
+                                              output_dir=os.path.join(output_base, 'arcs'),
+                                              **task_pars)
+            for tag, these_arcs in task_output.items():
+                database[tag] = these_arcs
+                arc_images += these_arcs
+            io.save_database(database, dataset_fname)
     else:
         log.write("Corrected arc lamp frames already exist. Skipping")
         arc_images = database['ARC_CORR']
 
 
     # -- initial identify
-    arc_images_for_grism = defaultdict(list)
-    for arc_fname in arc_images:
-        this_grism = instrument.get_grism(fits.getheader(arc_fname))
-        arc_images_for_grism[this_grism].append(arc_fname)
-
-    for grism_name, arc_filelist in arc_images_for_grism.items():
-        pixtab_fname = os.path.join(calib_dir, '%s_pixeltable.dat' % grism_name)
-        if os.path.exists(pixtab_fname) and not make_identify:
-            continue
-
-        log.write("Starting interactive definition of pixel table for %s" % grism_name)
-        try:
-            arc_fname = arc_filelist[0]
-            pixtab_fname = os.path.join(calib_dir, '%s_pixeltable.dat' % grism_name)
-            linelist_fname = ''
-            log.write("Input arc frame: %s" % arc_fname)
-
-            arc_base_fname = os.path.basename(arc_fname)
-            arc_base, ext = os.path.splitext(arc_base_fname)
-            output_pixtable = os.path.join(output_base, 'arcs', "pixtab_%s_%s.dat" % (arc_base, grism_name))
-            poly_order, saved_pixtab_fname, msg = create_pixtable(arc_fname, grism_name, output_pixtable,
-                                                                  pixtab_fname, linelist_fname,
-                                                                  order_wl=options['identify']['order_wl'],
-                                                                  app=app)
-            status["pixtab_%s_%s" % (arc_base, grism_name)] = output_pixtable
-            log.commit(msg)
-        except:
-            log.error("Identification of arc lines failed!")
-            log.fatal_error()
-            log.save()
-            print("Unexpected error:", sys.exc_info()[0])
-            raise
+    for task_pars in task_manager['identify']:
+        task_options = options['identify'].copy()
+        task_options.update(task_pars.pop('options', {}))
+        task_output, log = task_identify(task_options, database, app=app, log=log, verbose=verbose,
+                                         output_dir=output_base, make_identify=make_identify,
+                                         force_restart=force_restart, **task_pars)
+        status.update(task_output)
 
     # -- update status with all available pixtables:
     identify_all = options['identify']['all']
-    local_pixtables = glob.glob(os.path.join(output_base, 'arcs', "pixtab_*.dat"))
+    local_pixtables = glob.glob(os.path.join(output_base, "arcs", "pixtab_*.dat"))
     for fname in local_pixtables:
         pixtab_id = os.path.splitext(fname)[0].split('_')[1]
         status[pixtab_id] = fname
@@ -254,7 +245,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
     log.save()
 
     if calibs_only:
-        print("          - Static Calibrations Finished.")
+        print("          - Static Calibrations Finished.\n")
         return
 
 

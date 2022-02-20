@@ -149,7 +149,7 @@ def sort_spec_flat(file_list, date=False):
     return sorted_files
 
 
-def sort_arcs(file_list, date=False):
+def sort_arcs(file_list, date=False, grism_only=False):
     """
     Sort arc lapm frames by grism, slit and image size
     """
@@ -159,7 +159,10 @@ def sort_arcs(file_list, date=False):
         grism = instrument.get_grism(hdr)
         slit = instrument.get_slit(hdr).replace('_', '')
         size = "%ix%i" % (hdr['NAXIS1'], hdr['NAXIS2'])
-        file_id = "%s_%s_%s" % (grism, slit, size)
+        if grism_only:
+            file_id = grism
+        else:
+            file_id = "%s_%s_%s" % (grism, slit, size)
         if date:
             date_str = instrument.get_date(hdr)
             if 'T' in date_str:

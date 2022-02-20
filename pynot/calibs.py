@@ -81,7 +81,7 @@ def combine_bias_frames(bias_frames, output='', kappa=15, method='mean', overwri
         this_mask = np.abs(img - median_img0) > kappa*sig
         masked_bias.append(np.ma.masked_where(this_mask, img))
         mask += 1*this_mask
-    msg.append("          - Masking outlying pixels: kappa = %f" % kappa)
+    msg.append("          - Masking outlying pixels: kappa = %.2f" % kappa)
     msg.append("          - Total number of masked pixels: %i" % np.sum(mask > 0))
 
     if method.lower() == 'median':
@@ -92,6 +92,7 @@ def combine_bias_frames(bias_frames, output='', kappa=15, method='mean', overwri
         master_bias = np.ma.mean(masked_bias, 0).data
         Ncomb = len(bias) - mask
         master_bias[Ncomb == 0] = np.mean(master_bias[Ncomb != 0])
+    msg.append("          - Combination method: %s" % method)
     msg.append("          - Combined %i files" % len(bias))
     msg.append("          - Image Stats:")
     msg.append("          - Median = %.1f,  Std.Dev = %.1f" % (np.median(master_bias), 1.48*mad(master_bias)))
@@ -551,6 +552,9 @@ def task_bias(options, database, log=None, verbose=True, output_dir='', report_d
     tag = 'MBIAS'
     task_output = {tag: []}
     for file_id, input_list in bias_files.items():
+        output_id = options.pop('output', '')
+        if output_id:
+            file_id += '_'+output_id
         output_fname = os.path.join(output_dir, '%s_%s.fits' % (tag, file_id))
         report_fname = os.path.join(report_dir, '%s_%s_report.pdf' % (tag, file_id))
         _, output_msg = combine_bias_frames(input_list, output_fname, report_fname=report_fname,
@@ -579,6 +583,9 @@ def task_sflat(options, database, log=None, verbose=True, output_dir='', report_
     tag = 'NORM_SFLAT'
     task_output = {tag: []}
     for file_id, input_list in flat_files.items():
+        output_id = options.pop('output', '')
+        if output_id:
+            file_id += '_'+output_id
         # Match master bias file:
         raw_img = organizer.RawImage(input_list[0])
         master_bias = organizer.match_single_calib(raw_img, database, 'MBIAS', log, date=False)
