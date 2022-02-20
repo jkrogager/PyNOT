@@ -408,6 +408,10 @@ def main():
                               help="Run flat combination and normalization only")
     parser_redux.add_argument("--arcs", action="store_true",
                               help="Process arcs")
+    parser_redux.add_argument("-I", "--identify", action="store_true",
+                              help="Re-identify all grisms once")
+    parser_redux.add_argument("-C", "--calibs", action="store_true",
+                              help="Process only static calibrations: [bias, flats, arcs, response]")
 
     parser_break = tasks.add_parser('', help="")
 
@@ -560,7 +564,10 @@ def main():
                      force_restart=args.force,
                      make_bias=args.mbias,
                      make_flat=args.mflat,
-                     make_arcs=args.arcs)
+                     make_arcs=args.arcs,
+                     make_identify=args.identify,
+                     calibs_only=args.calibs,
+                     )
 
     elif task == 'bias':
         from pynot.calibs import combine_bias_frames

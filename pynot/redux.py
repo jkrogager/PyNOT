@@ -57,7 +57,7 @@ class State(dict):
 
 
 def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False, no_interactive=False, force_restart=False,
-                 make_bias=False, make_flat=False, make_arcs=False, make_identify=False, make_response=False):
+                 make_bias=False, make_flat=False, make_arcs=False, make_identify=False, make_response=False, calibs_only=False):
     log = Report(verbose)
     status = State()
 
@@ -185,26 +185,19 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
 
     # -- initial identify
-    # get list of unique grisms in dataset:
-    grism_list = list()
-    for sci_img in object_images:
-        grism_name = sci_img.grism
-        if grism_name not in grism_list:
-            grism_list.append(grism_name)
-
     arc_images_for_grism = defaultdict(list)
     for arc_fname in arc_images:
         this_grism = instrument.get_grism(fits.getheader(arc_fname))
         arc_images_for_grism[this_grism].append(arc_fname)
 
-    for grism_name in grism_list:
+    for grism_name, arc_filelist in arc_images_for_grism.items():
         pixtab_fname = os.path.join(calib_dir, '%s_pixeltable.dat' % grism_name)
         if os.path.exists(pixtab_fname) and not make_identify:
             continue
 
         log.write("Starting interactive definition of pixel table for %s" % grism_name)
         try:
-            arc_fname = arc_images_for_grism[grism_name][0]
+            arc_fname = arc_filelist[0]
             pixtab_fname = os.path.join(calib_dir, '%s_pixeltable.dat' % grism_name)
             linelist_fname = ''
             log.write("Input arc frame: %s" % arc_fname)
@@ -225,8 +218,8 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
             print("Unexpected error:", sys.exc_info()[0])
             raise
 
+    # -- update status with all available pixtables:
     identify_all = options['identify']['all']
-    # update status with all available pixtables:
     local_pixtables = glob.glob(os.path.join(output_base, 'arcs', "pixtab_*.dat"))
     for fname in local_pixtables:
         pixtab_id = os.path.splitext(fname)[0].split('_')[1]
@@ -260,10 +253,10 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
     print("            Consult the overview log: %s\n\n" % log.fname)
     log.save()
 
-
-    if any([make_bias, make_flat, make_arcs, make_response]):
+    if calibs_only:
         print("          - Static Calibrations Finished.")
         return
+
 
     # ------------------------------------------------------------------
     # -- Start Main Reduction:
