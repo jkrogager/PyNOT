@@ -15,16 +15,17 @@ from scipy import ndimage, signal
 import os
 from os.path import exists, basename
 
+from pynot.data import organizer as organizer
+from pynot.logging import Report
 from pynot import instrument
 from pynot.functions import mad, my_formatter, get_version_number
-from pynot.scired import trim_overscan
-from pynot.data.organizer import sort_spec_flat
-
+from pynot.scired import trim_overscan, correct_raw_file
+from pynot import reports
 
 __version__ = get_version_number()
 
 
-def combine_bias_frames(bias_frames, output='', kappa=15, method='mean', overwrite=True, mode='spec'):
+def combine_bias_frames(bias_frames, output='', kappa=15, method='mean', overwrite=True, mode='spec', report_fname=''):
     """Combine individual bias frames to create a 'master bias' frame.
     The combination is performed using robust sigma-clipping and
     median combination. Bad pixels are subsequently replaced by the
@@ -47,6 +48,9 @@ def combine_bias_frames(bias_frames, output='', kappa=15, method='mean', overwri
 
     method : string [default='mean']
         Method used for image combination (median/mean)
+
+    report_fname : string  [default='']
+        Filename of pdf diagnostic report
 
     Returns
     =======
@@ -89,8 +93,10 @@ def combine_bias_frames(bias_frames, output='', kappa=15, method='mean', overwri
         Ncomb = len(bias) - mask
         master_bias[Ncomb == 0] = np.mean(master_bias[Ncomb != 0])
     msg.append("          - Combined %i files" % len(bias))
+    msg.append("          - Image Stats:")
+    msg.append("          - Median = %.1f,  Std.Dev = %.1f" % (np.median(master_bias), 1.48*mad(master_bias)))
 
-    hdr = instrument.get_header(bias_frames[0])
+    hdr = bias_hdr
     hdr['NCOMBINE'] = len(bias_frames)
     if method.lower() == 'median':
         hdr.add_comment('Median combined Master Bias')
@@ -102,14 +108,19 @@ def combine_bias_frames(bias_frames, output='', kappa=15, method='mean', overwri
 
     fits.writeto(output, master_bias, header=hdr, overwrite=overwrite)
     msg.append(" [OUTPUT] - Saving combined Bias Image: %s" % output)
+
+    if report_fname:
+        reports.check_bias(bias, bias_frames, output, report_fname=report_fname)
+        msg.append(" [OUTPUT] - Saving Bias Report: %s" % report_fname)
     msg.append("")
     output_msg = "\n".join(msg)
 
     return output, output_msg
 
 
-def combine_flat_frames(raw_frames, output, mbias='', mode='spec', dispaxis=2,
-                        kappa=5, verbose=False, overwrite=True, method='mean'):
+def combine_flat_frames(raw_frames, output, mbias='', mode='spec', dispaxis=None,
+                        kappa=5, verbose=False, overwrite=True, method='mean', report_fname='',
+                        **kwargs):
     """Combine individual spectral flat frames to create a 'master flat' frame.
     The individual frames are normalized to the mode of the 1D collapsed spectral
     shape. Individual frames are clipped using a kappa-sigma-clipping on the mode
@@ -148,6 +159,9 @@ def combine_flat_frames(raw_frames, output, mbias='', mode='spec', dispaxis=2,
     overwrite : boolean  [default=True]
         Overwrite existing output file if True.
 
+    report_fname : string  [default='']
+        Filename of pdf diagnostic report
+
     Returns
     =======
     output : string
@@ -164,6 +178,13 @@ def combine_flat_frames(raw_frames, output, mbias='', mode='spec', dispaxis=2,
     else:
         msg.append("[WARNING] - No master bias frame provided!")
         bias = 0.
+
+    if dispaxis is None:
+        hdr = instrument.get_header(raw_frames[0])
+        dispaxis = instrument.get_dispaxis(hdr)
+        msg.append("          - Getting dispersion axis from file: %i" % dispaxis)
+    elif dispaxis not in [1, 2]:
+        raise ValueError("dispaxis must be either 1 or 2, not: %r" % dispaxis)
 
     flats = list()
     flat_peaks = list()
@@ -218,7 +239,7 @@ def combine_flat_frames(raw_frames, output, mbias='', mode='spec', dispaxis=2,
     else:
         msg.append("          - Combined %i files" % len(flats))
 
-    hdr = instrument.get_header(raw_frames[0])
+    # hdr = instrument.get_header(raw_frames[0])
     hdr['NCOMBINE'] = len(flats)
     if method.lower() == 'median':
         hdr.add_comment('Median combined Flat')
@@ -265,7 +286,7 @@ def detect_flat_edges(img, dispaxis=2, savgol_window=21, threshold=10, width=10)
 
 
 
-def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=2, order=24, savgol_window=51,
+def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=None, order=24, savgol_window=51,
                             med_window=5, edge_threshold=10, edge_window=21, edge_width=10, plot=True, overwrite=True, **kwargs):
     """
     Normalize spectral flat field for long-slit observations. Parameters are optimized
@@ -335,6 +356,12 @@ def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=2, order=24, 
     msg.append("          - Grism Name: %s" % grism)
     msg.append("          - Slit Name: %s" % slit_name)
 
+    if dispaxis is None:
+        dispaxis = instrument.get_dispaxis(hdr)
+        msg.append("          - Getting dispersion axis from file: %i" % dispaxis)
+    elif dispaxis not in [1, 2]:
+        raise ValueError("dispaxis must be either 1 or 2, not: %r" % dispaxis)
+
     # Get raw pixel array of spatial axis
     x = np.arange(flat.shape[dispaxis-1])
 
@@ -367,12 +394,13 @@ def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=2, order=24, 
     msg.append("          - Fitting each spatial row/column using Chebyshev polynomials combined with Savitzky--Golay filtering")
     msg.append("          - Polynomial order: %i" % order)
     msg.append("          - Savitzky--Golay filter width: %i" % savgol_window)
-    pad = savgol_window // 2
+    pad = savgol_window // 2 + 1
     x_fit = x[x1:x2]
     for num, row in enumerate(smoothed_flat):
-        filtered_row = signal.savgol_filter(row[x1:x2], savgol_window, 1)
+        filtered_row = signal.savgol_filter(row[x1:x2], savgol_window, 2)
         sig = 1.5*mad(row[x1:x2] - filtered_row)
-        mask = (row[x1:x2] - filtered_row) > -sig
+        # mask = (row[x1:x2] - filtered_row) > -sig
+        mask = np.abs(row[x1:x2] - filtered_row) < 2*sig
         # Exclude filter edges, half filter width:
         x_mask = x_fit[mask][pad:-pad]
         row_mask = filtered_row[mask][pad:-pad]
@@ -396,7 +424,8 @@ def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=2, order=24, 
         stat_region = flat_norm[x1:x2, :]
     else:
         stat_region = flat_norm[:, x1:x2]
-    noise = np.std(stat_region)
+    # noise = np.std(stat_region)
+    noise = mad(stat_region)*1.48
     data_range = (np.min(stat_region), np.max(stat_region), np.median(stat_region))
     msg.append("          - Standard deviation of 1D residuals: %.2f ADUs" % noise)
     msg.append("          - Normalized data range: min=%.2e  max=%.2e  median=%.2e" % data_range)
@@ -409,11 +438,11 @@ def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=2, order=24, 
         ax1_2d = fig2D.add_subplot(121)
         ax2_2d = fig2D.add_subplot(122)
         ax1_2d.imshow(flat, origin='lower')
-        ax1_2d.set_title("Raw Flat (%s - %s)" % (grism, slit_name))
+        ax1_2d.set_title("Combined Flat\n(%s - %s)" % (grism, slit_name))
         v1 = data_range[2] - 3*noise
         v2 = data_range[2] + 3*noise
         ax2_2d.imshow(flat_norm, origin='lower', vmin=v1, vmax=v2)
-        ax2_2d.set_title("Normalized Flat (%s - %s)" % (grism, slit_name))
+        ax2_2d.set_title("Normalized Flat\n(%s - %s)" % (grism, slit_name))
         ax2_2d.set_yticklabels("")
         if dispaxis == 2:
             ax1_2d.set_xlabel("Spatial Axis [pixels]", fontsize=11)
@@ -429,9 +458,11 @@ def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=2, order=24, 
         ax2_1d = fig1D.add_subplot(212)
 
         flat1D = np.nanmedian(flat, 2-dispaxis)
-        f1d = signal.savgol_filter(flat1D[x1:x2], savgol_window, 1)
-        x_mask = x_fit[pad:-pad]
-        row_mask = f1d[pad:-pad]
+        f1d = signal.savgol_filter(flat1D[x1:x2], savgol_window, 2)
+        sig1d = 1.5*mad(flat1D[x1:x2] - f1d)
+        mask = np.abs(flat1D[x1:x2] - f1d) < 2*sig1d
+        x_mask = x_fit[mask][pad:-pad]
+        row_mask = f1d[mask][pad:-pad]
         fit_row = np.polynomial.Chebyshev.fit(x_mask, row_mask, order, domain=[x_fit.min(), x_fit.max()])
         flat_model = fit_row(x_fit)
         # Remove edge effects in fitting, the filtered data are more robust:
@@ -455,10 +486,11 @@ def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=2, order=24, 
         ax1_1d.set_ylabel('Counts  [$10^{{{0:d}}}$ ADU]'.format(int(power)), fontsize=11)
 
         ax2_1d.set_ylabel('($F_{\\rm 1D} -$ model) / model', fontsize=11)
-        plot_noise = np.nanstd(residuals/flat_model)
-        ax2_1d.set_ylim(-5*plot_noise, 5*plot_noise)
+        plot_noise = 1.48*mad(residuals/flat_model)
+        ax2_1d.set_ylim(-10*plot_noise, 10*plot_noise)
         ax2_1d.set_xlim(x.min(), x.max())
         ax1_1d.set_xlim(x.min(), x.max())
+        ax1_1d.set_ylim(flat_model.min()-10*sig1d, flat_model.max()+10*sig1d)
 
         ax1_1d.minorticks_on()
         ax2_1d.minorticks_on()
@@ -498,36 +530,110 @@ def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=2, order=24, 
     return output, output_msg
 
 
+def task_bias(options, database, log=None, verbose=True, output_dir='', report_dir=reports.report_dir):
+    """
+    Define the entry point for the task pynot:bias. This will automatcally
+    """
+    if log is None:
+        log = Report(verbose)
+    log.write("Running task: Bias combination")
 
-def task_sflat(args):
+    if not os.path.exists(report_dir):
+        os.makedirs(report_dir)
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    bias_files = organizer.sort_bias(database['BIAS'])
+
+    tag = 'MBIAS'
+    task_output = {tag: []}
+    for file_id, input_list in bias_files.items():
+        output_fname = os.path.join(output_dir, '%s_%s.fits' % (tag, file_id))
+        report_fname = os.path.join(report_dir, '%s_%s_report.pdf' % (tag, file_id))
+        _, output_msg = combine_bias_frames(input_list, output_fname, report_fname=report_fname,
+                                            **options)
+        task_output[tag].append(output_fname)
+        log.commit(output_msg)
+        log.add_linebreak()
+    log.add_linebreak()
+    return task_output, log
+
+
+def task_sflat(options, database, log=None, verbose=True, output_dir='', report_dir=reports.report_dir):
     """
     Define the entry point for the main task of sflat, to be called by pynot.main
 
     args : command line arguments from argparse of pynot.main
     """
-    from pynot.data import io
+    if log is None:
+        log = Report(verbose)
+    log.write("Running task: Spectral flat field combination and normalization")
 
-    print("Running task: Spectral flat field combination and normalization")
-    if args.input.endswith('.pfc'):
-        database = io.load_database(args.input)
-        flat_files = sort_spec_flat(database['SPEC_FLAT'])
+    flat_files = organizer.sort_spec_flat(database['SPEC_FLAT'])
 
-    else:
-        input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
-        flat_files = sort_spec_flat(input_list)
-
+    tag = 'NORM_SFLAT'
+    task_output = {tag: []}
     for file_id, input_list in flat_files.items():
-        print("Working on files taken with:")
-        grism, _, slit, filt, size = file_id.split('_')
-        print("  GRISM = %s    SLIT = %s    FILTER = %s    %s pixels" % (grism, slit, filt, size))
-        flatcombine, log = combine_flat_frames(input_list, output='', mbias=args.bias, mode='spec',
-                                               dispaxis=args.axis, kappa=args.kappa, method=args.method)
-        print(log)
+        # Match master bias file:
+        raw_img = organizer.RawImage(input_list[0])
+        master_bias = organizer.match_single_calib(raw_img, database, 'MBIAS', log, date=False)
 
-        options = copy(vars(args))
-        vars_to_remove = ['task', 'input', 'output', 'axis', 'bias', 'kappa']
-        for varname in vars_to_remove:
-            options.pop(varname)
-        _, log = normalize_spectral_flat(flatcombine, output=args.output, dispaxis=args.axis, **options)
-        print(log)
-        print("")
+        output_fname = os.path.join(output_dir, 'FLAT_COMBINED_%s.fits' % file_id)
+        flatcombine, msg = combine_flat_frames(input_list, output=output_fname, mbias=master_bias,
+                                               mode='spec', **options)
+        log.commit(msg)
+        log.add_linebreak()
+
+        output_fname = os.path.join(output_dir, '%s_%s.fits' % (tag, file_id))
+        _, flat_msg = normalize_spectral_flat(flatcombine, output=output_fname,
+                                              fig_dir=report_dir, **options)
+        log.commit(flat_msg)
+        log.add_linebreak()
+        task_output[tag].append(output_fname)
+    return task_output, log
+
+
+def task_prep_arcs(options, database, log=None, verbose=True, output_dir='', report_dir=reports.report_dir):
+    """
+    Prepare all arc frames for analysis: apply bias and flat field corrections
+    """
+    if log is None:
+        log = Report(verbose)
+    log.write("Running task: Arc frame preparation")
+
+    arc_filelist = []
+    for tag in database.keys():
+        if 'ARC' in tag and 'CORR' not in tag:
+            arc_filelist += database[tag]
+
+    if len(arc_filelist) == 0:
+        log.error("No arc line calibration data found in the dataset!")
+        log.error("Check the classification table... object type 'ARC_HeNe', 'ARC_ThAr', 'ARC_HeAr' missing")
+        raise KeyError('No ARC files found in database!')
+
+    arc_files = organizer.sort_arcs(arc_filelist)
+    tag = 'ARC_CORR'
+    task_output = {tag: []}
+    for file_id, input_list in arc_files.items():
+        # find BIAS and FLAT
+        raw_img = organizer.RawImage(input_list[0])
+        master_bias = organizer.match_single_calib(raw_img, database, 'MBIAS', log, date=False)
+        norm_flat = organizer.match_single_calib(raw_img, database, 'NORM_SFLAT', log, date=False,
+                                                 grism=True, slit=True, filter=True)
+        current_fnames = list()
+        for arc_fname in input_list:
+            arc_basename = 'CORR_' + os.path.basename(arc_fname)
+            corrected_arc2d_fname = os.path.join(output_dir, arc_basename)
+            output_msg = correct_raw_file(arc_fname, bias_fname=master_bias, flat_fname=norm_flat,
+                                          output=corrected_arc2d_fname, overwrite=True)
+            log.commit(output_msg)
+            task_output[tag].append(corrected_arc2d_fname)
+            current_fnames.append(corrected_arc2d_fname)
+        # Create PDF diagnostic report
+        report_fname = os.path.join(report_dir, 'ARCS_%s_report.pdf' % file_id)
+        reports.check_arcs(current_fnames, report_fname)
+        log.add_linebreak()
+
+
+    return task_output, log

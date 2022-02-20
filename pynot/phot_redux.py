@@ -6,17 +6,18 @@ from astropy.io import fits
 from collections import defaultdict
 import os
 import sys
-import datetime
 import numpy as np
 
 from pynot import instrument
 from pynot.data import io
 from pynot.data import organizer as do
+from pynot.data import obs
 from pynot.phot import image_combine, create_fringe_image, source_detection, flux_calibration_sdss
 from pynot.calibs import combine_bias_frames, combine_flat_frames
 from pynot.functions import get_options, get_version_number
 from pynot.scired import raw_correction, correct_cosmics, trim_filter_edge, detect_filter_edge
 from pynot.wcs import correct_wcs
+from pynot.logging import Report
 
 from PyQt5.QtWidgets import QApplication
 
@@ -26,96 +27,8 @@ defaults_fname = os.path.join(calib_dir, 'default_options_img.yml')
 __version__ = get_version_number()
 
 
-class Report(object):
-    def __init__(self, verbose=False):
-        self.verbose = verbose
-        self.time = datetime.datetime.now()
-        self.fname = 'pynot_img_%s.log' % self.time.strftime('%d%b%Y-%Hh%Mm%S')
-        self.remarks = list()
-        self.lines = list()
-        self.header = """
-         PyNOT Data Processing Pipeline
-        ================================
-        version %s
-        %s
 
-        """ % (__version__, self.time.strftime("%b %d, %Y  %H:%M:%S"))
-        self.report = ""
-
-        if self.verbose:
-            print(self.header)
-
-    def clear(self):
-        self.lines = list()
-        self.remarks = list()
-
-    def set_filename(self, fname):
-        self.fname = fname
-
-    def commit(self, text):
-        if self.verbose:
-            print(text, end='', flush=True)
-        self.lines.append(text)
-
-    def error(self, text):
-        text = ' [ERROR]  - ' + text
-        if self.verbose:
-            print(text)
-        if text[-1] != '\n':
-            text += '\n'
-        self.lines.append(text)
-
-    def warn(self, text, force=False):
-        text = '[WARNING] - ' + text
-        if self.verbose or force:
-            print(text)
-        if text[-1] != '\n':
-            text += '\n'
-        self.lines.append(text)
-
-    def write(self, text, prefix='          - '):
-        text = prefix + text
-        if self.verbose:
-            print(text)
-        if text[-1] != '\n':
-            text += '\n'
-        self.lines.append(text)
-
-    def add_linebreak(self):
-        if self.verbose:
-            print("")
-        self.lines.append("\n")
-
-    def add_remark(self, text):
-        self.remarks.append(text)
-
-    def _make_report(self):
-        remark_str = ''.join(self.remarks)
-        lines_str = ''.join(self.lines)
-        self.report = '\n'.join([self.header, remark_str, lines_str])
-
-    def print_report(self):
-        self._make_report()
-        print(self.report)
-
-    def save(self):
-        self._make_report()
-        with open(self.fname, 'w') as output:
-            output.write(self.report)
-
-    def exit(self):
-        print(" - Pipeline terminated.")
-        print(" Consult the log: %s\n" % self.fname)
-        self.save()
-
-    def fatal_error(self):
-        print(" !! FATAL ERROR !!")
-        print(" Consult the log: %s\n" % self.fname)
-        self.save()
-
-
-
-def run_pipeline(options_fname, verbose=False):
+def run_pipeline(options_fname, verbose=False, force_restart=False):
     log = Report(verbose)
 
     global app
@@ -158,10 +71,19 @@ def run_pipeline(options_fname, verbose=False):
         log.fatal_error()
         return
 
-
     object_images = defaultdict(lambda: defaultdict(list))
     for sci_img in raw_image_list:
         object_images[sci_img.target_name][sci_img.filter].append(sci_img)
+
+    obd_fname = os.path.splitext(dataset_fname)[0] + '.obd'
+    obdb = obs.OBDatabase(obd_fname)
+    if os.path.exists(obd_fname):
+        log.write("Loaded OB database: %s" % obd_fname)
+    else:
+        log.write("Initiated OB database: %s" % obd_fname)
+    obdb.update_imaging(object_images)
+    log.write("Updating OB database")
+    log.add_linebreak()
 
     # get list of unique filters in dataset:
     filter_list = np.unique(sum([list(obj.keys()) for obj in object_images.values()], []))
@@ -181,7 +103,7 @@ def run_pipeline(options_fname, verbose=False):
             flat_images_for_filter[this_filter].append(flat_file)
 
     # All files are put in a folder: imaging/OBJNAME/filter/...
-    output_base = 'imaging'
+    output_base = obs.output_base_phot
     if not os.path.exists(output_base):
         os.mkdir(output_base)
 
@@ -269,6 +191,12 @@ def run_pipeline(options_fname, verbose=False):
         for filter_name, image_list in images_per_filter.items():
             # Create working directory:
             output_dir = os.path.join(output_obj_base, filter_name)
+            if obdb.data[output_dir] in ['DONE', 'SKIP'] and not force_restart:
+                log.write("Skipping OB: %s  (status=%s)" % (output_dir, obdb.data[output_dir]))
+                log.write("Change OB status to blank in the .obd file if you want to redo the reduction")
+                log.write("or run the pipeline with the '-f' option to force re-reduction of all OBs")
+                log.add_linebreak()
+                continue
             if not os.path.exists(output_dir):
                 os.mkdir(output_dir)
             log.write("Filter : %s" % filter_name)
@@ -345,14 +273,16 @@ def run_pipeline(options_fname, verbose=False):
                     log.fatal_error()
                     print("Unexpected error:", sys.exc_info()[0])
                     raise
+            elif options['skysub']['defringe'] and N_images <= 3:
+                log.warn("No fringe image can be created. Need at least 3 images.")
             else:
                 fringe_fname = ''
 
 
             # Combine individual images for a given filter:
             if len(image_list) > 50:
-                log.warning("Large amounts of memory needed for image combination!", force=True)
-                log.warning("A total of %i images will be combined." % len(image_list), force=True)
+                log.warn("Large amounts of memory needed for image combination!", force=True)
+                log.warn("A total of %i images will be combined." % len(image_list), force=True)
 
             log.write("Running task: Image Combination")
             comb_log_name = os.path.join(output_dir, 'filelist_%s.txt' % target_name)
@@ -422,5 +352,6 @@ def run_pipeline(options_fname, verbose=False):
                     log.write(fname)
                 log.add_linebreak()
 
+            obdb.update(output_dir, 'DONE')
 
     log.exit()

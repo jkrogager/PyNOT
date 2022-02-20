@@ -19,6 +19,7 @@ import astroalign as aa
 import sep
 
 from pynot import instrument
+from pynot.data import obs
 from pynot.fitsio import load_fits_image
 from pynot.functions import get_version_number, mad
 
@@ -118,6 +119,9 @@ def source_detection(fname, zeropoint=0., threshold=5.0, aperture=10.0, kwargs_b
     theta = objects['theta']
     kronrad, krflag = sep.kron_radius(data_sub, x, y, a, b, theta, 6.0)
     kronrad[kronrad < 1.] = 1.
+    bad = np.abs(theta) > np.pi/2
+    theta[bad] = np.pi/2
+    krflag[bad] = 999
     # Sum fluxes in ellipse apertures:
     flux, fluxerr, flag = sep.sum_ellipse(data_sub, x, y, a, b, theta, 2.5*kronrad, subpix=1)
     msg.append("          - Calculating Kron radii and fluxes within elliptical apertures")
@@ -586,7 +590,7 @@ def get_sdss_catalog(ra, dec, radius=4.):
     field_center = SkyCoord(ra, dec, frame='icrs', unit='deg')
     sdss_result = SDSS.query_region(field_center, radius*u.arcmin, photoobj_fields=fields)
     if sdss_result is not None:
-        sdss_result.write(catalog_fname, format='ascii.csv', overwrite=True)
+        sdss_result.write(os.path.join(obs.output_base_phot, catalog_fname), format='ascii.csv', overwrite=True)
     return sdss_result
 
 

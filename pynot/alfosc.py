@@ -103,6 +103,9 @@ def overscan():
     overscan_y = 50
     return (prescan_x, overscan_x, prescan_y, overscan_y)
 
+def get_ccd_extent():
+    return (2148, 2102)
+
 def get_detector_arrays(hdr):
     det_window = hdr['DETWIN1']
     xy_ranges = det_window.replace('[', '').replace(']', '')
@@ -132,6 +135,9 @@ def get_binning_from_hdr(hdr):
     ccd_setup = "%ix%i_%i" % (binx, biny, read)
     return ccd_setup
 
+def get_saturation_level():
+    # Get Saturation Level in Electrons
+    return 113500
 
 def get_binx(hdr):
     return hdr.get('DETXBIN')
@@ -234,7 +240,9 @@ def get_dispaxis(hdr):
         return None
 
 def get_gain(hdr):
-    return hdr.get('GAIN')
+    if 'CCDNAME' in hdr and hdr['CCDNAME'] == 'CCD14':
+        hdr['GAIN'] = 0.16
+    return hdr.get('GAIN', 0.)
 
 def get_readnoise(hdr):
     return hdr.get('RDNOISE')

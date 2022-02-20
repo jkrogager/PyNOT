@@ -189,6 +189,13 @@ def overscan():
     overscan_y = 12
     return (prescan_x, overscan_x, prescan_y, overscan_y)
 
+def get_ccd_extent():
+    return (2060, 2060)
+
+def get_saturation_level():
+    # Return Saturation Level in Electrons
+    return 88000
+
 def get_detector_arrays(hdr):
     nx = hdr['NAXIS1']
     ny = hdr['NAXIS2']
@@ -232,7 +239,7 @@ def get_observing_mode(hdr):
     """Determine the observing mode (either spectroscopy or imaging)"""
     if hdr['ESO DPR TECH'] == 'SPECTRUM':
         return 'SPECTROSCOPY'
-    elif hdr['ESO DPR TECH'] == 'IMAGE ':
+    elif hdr['ESO DPR TECH'] == 'IMAGE':
         return 'IMAGING'
     else:
         return None

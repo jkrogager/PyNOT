@@ -167,12 +167,18 @@ def main():
                              help="Minimze the output to terminal")
 
     parser_org = tasks.add_parser('classify', formatter_class=set_help_width(31),
-                                  help="Initiate a default parameter file")
+                                  help="Classify the files in `path`")
     parser_org.add_argument("path", type=str, nargs='+',
                             help="Path (or paths) to raw data to be classified")
     parser_org.add_argument("-o", "--output", type=str, default='dataset.pfc',
                             help="Filename of file classification table (*.pfc)")
+    parser_org.add_argument("-f", "--force", action="store_true",
+                            help="Force overwrite of the file classification table (*.pfc)")
 
+    parser_obd = tasks.add_parser('update-obs', formatter_class=set_help_width(31),
+                                  help="Update the OB database based on a classification table")
+    parser_obd.add_argument("pfc", type=str,
+                            help="File classification table (*.pfc)")
 
     # -- BIAS :: Bias Combination
     parser_bias = tasks.add_parser('bias', formatter_class=set_help_width(31),
@@ -222,10 +228,10 @@ def main():
                              help="List of filenames to correct")
     parser_corr.add_argument("--dir", type=str, default='',
                              help="Output directory")
-    parser_corr.add_argument("--bias", type=str, required=True,
-                             help="Filename of combined bias frame  [REQUIRED]")
+    parser_corr.add_argument("--bias", type=str, default='',
+                             help="Filename of combined bias frame. If not given, a constant of 0 is used")
     parser_corr.add_argument("--flat", type=str, default='',
-                             help="Filename of combined flat frame")
+                             help="Filename of combined flat frame. If not given, a constant of 1 is used")
     parser_corr.add_argument("--img", action='store_true',
                              help="Imaging mode")
 
@@ -392,6 +398,16 @@ def main():
                               help="Minimze the output to terminal")
     parser_redux.add_argument("-i", "--interactive", action="store_true",
                               help="Use interactive interface throughout")
+    parser_redux.add_argument("-f", "--force", action="store_true",
+                              help="Force restart of all OBs!")
+    parser_redux.add_argument("--no-int", action="store_true",
+                              help="Turn off all interactive interfaces")
+    parser_redux.add_argument("--mbias", action="store_true",
+                              help="Run bias only")
+    parser_redux.add_argument("--mflat", action="store_true",
+                              help="Run flat combination and normalization only")
+    parser_redux.add_argument("--arcs", action="store_true",
+                              help="Process arcs")
 
     parser_break = tasks.add_parser('', help="")
 
@@ -402,6 +418,8 @@ def main():
                              help="Input filename of pipeline configuration in YAML format")
     parser_phot.add_argument("-s", "--silent", action="store_false",
                              help="Minimze the output to terminal")
+    parser_phot.add_argument("-f", "--force", action="store_true",
+                             help="Force restart of all OBs!")
 
     parser_imtrim = tasks.add_parser('imtrim', formatter_class=set_help_width(30),
                                      help="Trim images")
@@ -508,6 +526,15 @@ def main():
     parser_use.add_argument('--list', action="store_true",
                             help='Display a list of the currently installed instruments')
 
+    parser_f2a = tasks.add_parser('fits2ascii', formatter_class=set_help_width(30),
+                                  help="Convert FITS spectrum to ASCII table format")
+    parser_f2a.add_argument('input', type=str,
+                            help='Input filename of FITS spectrum (either table or MEF)')
+    parser_f2a.add_argument('output', type=str,
+                            help='Output filename of the ASCII table')
+    parser_f2a.add_argument('--keys', type=str, nargs='+',
+                            help='List of keywords from the FITS header to include (ESO keywords must use . not space delimiter)')
+
     args = parser.parse_args()
 
 
@@ -519,13 +546,21 @@ def main():
     if task == 'init':
         initialize(args.path, args.mode, pfc_fname=args.output, pars_fname=args.pars, verbose=args.silent)
 
+    elif task == 'update-obs':
+        from pynot.data.obs import update_ob_database
+        update_ob_database(args.pfc)
+
     elif task == 'spex':
         from pynot.redux import run_pipeline
         # print_credits()
         run_pipeline(options_fname=args.params,
                      object_id=args.object,
                      verbose=args.silent,
-                     interactive=args.interactive)
+                     interactive=args.interactive,
+                     force_restart=args.force,
+                     make_bias=args.mbias,
+                     make_flat=args.mflat,
+                     make_arcs=args.arcs)
 
     elif task == 'bias':
         from pynot.calibs import combine_bias_frames
@@ -534,19 +569,19 @@ def main():
         _, log = combine_bias_frames(input_list, args.output, kappa=args.kappa, method=args.method)
 
     elif task == 'sflat':
-        # from pynot.calibs import combine_flat_frames, normalize_spectral_flat
-        # print("Running task: Spectral flat field combination and normalization")
-        # input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
-        # flatcombine, log = combine_flat_frames(input_list, output='', mbias=args.bias, mode='spec',
-        #                                        dispaxis=args.axis, kappa=args.kappa, method=args.method)
-        #
-        # options = copy(vars(args))
-        # vars_to_remove = ['task', 'input', 'output', 'axis', 'bias', 'kappa']
-        # for varname in vars_to_remove:
-        #     options.pop(varname)
-        # _, log = normalize_spectral_flat(flatcombine, args.output, dispaxis=args.axis, **options)
-        from pynot.calibs import task_sflat
-        task_sflat(args)
+        from pynot.calibs import combine_flat_frames, normalize_spectral_flat
+        print("Running task: Spectral flat field combination and normalization")
+        input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
+        flatcombine, log = combine_flat_frames(input_list, output='', mbias=args.bias, mode='spec',
+                                               dispaxis=args.axis, kappa=args.kappa, method=args.method)
+
+        options = copy(vars(args))
+        vars_to_remove = ['task', 'input', 'output', 'axis', 'bias', 'kappa']
+        for varname in vars_to_remove:
+            options.pop(varname)
+        _, log = normalize_spectral_flat(flatcombine, args.output, dispaxis=args.axis, **options)
+        # from pynot.calibs import task_sflat
+        # task_sflat(args)
 
     elif task == 'corr':
         from pynot.scired import correct_raw_file
@@ -575,7 +610,7 @@ def main():
             if args.dir != '':
                 output = os.path.join(args.dir, output)
             _ = correct_raw_file(fname, output=output, bias_fname=args.bias, flat_fname=args.flat,
-                                 overscan=50, overwrite=True, mode=mode)
+                                 overwrite=True, mode=mode)
             print(" - Image: %s  ->  %s" % (fname, output))
 
     elif task == 'identify':
@@ -710,7 +745,8 @@ def main():
     elif task == 'phot':
         from pynot.phot_redux import run_pipeline
         run_pipeline(options_fname=args.params,
-                     verbose=args.silent)
+                     verbose=args.silent,
+                     force_restart=args.force)
 
     elif task == 'imflat':
         print("Running task: Combination of Imaging Flat Fields")
@@ -830,17 +866,37 @@ def main():
         from pynot.data import io
 
         # Classify files:
-        # args.silent is set to "store_false", so by default it is true!
         database, message = do.classify(args.path)
+        print("")
+        print(message)
         if database is None:
-            print(message)
             return
 
         if not args.output.endswith('.pfc'):
-            args.output += '.pfc'
-        io.save_database(database, args.output)
-        print(message)
-        print(" [OUTPUT] - Saved file classification database: %s" % args.output)
+            pfc_fname = args.output + '.pfc'
+        else:
+            pfc_fname = args.output
+
+        if os.path.exists(pfc_fname):
+            print("          - File classification database already exists")
+            if args.force:
+                print("          - Overwriting the database! Are you sure?  [Y/n]")
+                user_input = input("          > ")
+                if user_input.lower() in ['y', 'yes', '']:
+                    pass
+                else:
+                    print("Aborting...")
+                    return
+            else:
+                previous_database = io.load_database(pfc_fname)
+                database = previous_database + database
+                print("          - Merging the databases")
+        io.save_database(database, pfc_fname)
+        print(" [OUTPUT] - Saved file classification database: %s" % pfc_fname)
+
+    elif task == 'fits2ascii':
+        from pynot.fitsio import fits_to_ascii
+        fits_to_ascii(args.input, args.output, args.keys)
 
     else:
         import pynot

@@ -7,10 +7,12 @@ import sys
 from glob import glob
 from astropy.io import fits
 from astropy.io.fits.file import AstropyUserWarning
+from astropy.time import Time
 import warnings
 
 from pynot.response import lookup_std_star
 from pynot import instrument
+from pynot.fitsio import verify_header_key
 
 # -- use os.path
 code_dir = os.path.dirname(os.path.abspath(__file__))
@@ -62,19 +64,108 @@ def match_date(files, date_mjd):
 
     return matches
 
+def match_response(sci_img, file_list, exact_date=False):
+    """
+    Find response function that matches the grism of the input `sci_img`
+    If `exact_date` is True, only return a match if the date matches exactly that of `sci_img`
+    Otherwise return the file that is closest in time.
+    """
+    target_grism = sci_img.grism
+    target_mjd = sci_img.mjd
+    matches = list()
+    date_diff = list()
+    for fname in file_list:
+        # These are PyNOT FITS files, so follows a slightly different Header Format
+        hdr = fits.getheader(fname)
+        this_grism = hdr['GRISM']
+        this_date = Time(hdr['DATE-OBS'])
+        if this_grism == target_grism:
+            matches.append(fname)
+            date_diff.append(this_date.mjd - target_mjd)
+
+    # Find target with smallest time difference
+    idx = np.argmin(np.abs(date_diff))
+    match_fname = matches[idx]
+    min_dt = date_diff[idx]
+    if exact_date and min_dt >= 1.:
+        # The exact dates is not matched!
+        match_fname = ""
+    return match_fname
+
+
+def match_single_calib(raw_img, database, tag, log, **kwargs):
+    calib_list = raw_img.match_files(database[tag], **kwargs)
+
+    if len(calib_list) > 1:
+        kwargs['get_closest_time'] = True
+        calib_list = raw_img.match_files(database[tag], **kwargs)
+
+    if len(calib_list) != 1:
+        log.error("Could not match filetype %s" % tag)
+        log.error("Check that the filetype exists in the PFC database")
+        raise KeyError("Could not match filetype %s" % tag)
+
+    return calib_list[0]
+
 
 def sort_spec_flat(file_list):
     """
-    Sort spectroscopic flat fields by grism, slit, filter and image size
+    Sort spectroscopic flat frames by grism, slit, filter and image size
     """
     sorted_files = defaultdict(list)
     for fname in file_list:
-        hdr = fits.getheader(fname)
+        hdr = instrument.get_header(fname)
         grism = instrument.get_grism(hdr)
-        slit = instrument.get_slit(hdr)
-        filter = instrument.get_filter(hdr)
+        slit = instrument.get_slit(hdr).replace('_', '')
+        filt_name = instrument.get_filter(hdr)
         size = "%ix%i" % (hdr['NAXIS1'], hdr['NAXIS2'])
-        file_id = "%s_%s_%s_%s" % (grism, slit, filter, size)
+        if filt_name.lower() in ['free', 'open', 'none']:
+            file_id = "%s_%s_%s" % (grism, slit, size)
+        else:
+            file_id = "%s_%s_%s_%s" % (grism, slit, filt_name, size)
+        sorted_files[file_id].append(fname)
+    return sorted_files
+
+
+def sort_arcs(file_list):
+    """
+    Sort arc lapm frames by grism, slit and image size
+    """
+    sorted_files = defaultdict(list)
+    for fname in file_list:
+        hdr = instrument.get_header(fname)
+        grism = instrument.get_grism(hdr)
+        slit = instrument.get_slit(hdr).replace('_', '')
+        size = "%ix%i" % (hdr['NAXIS1'], hdr['NAXIS2'])
+        file_id = "%s_%s_%s" % (grism, slit, size)
+        sorted_files[file_id].append(fname)
+    return sorted_files
+
+
+def sort_std(file_list):
+    sorted_files = defaultdict(lambda: defaultdict(list))
+    for fname in file_list:
+        hdr = instrument.get_header(fname)
+        target_name = instrument.get_target_name(hdr)
+        filt_name = instrument.get_filter(hdr)
+        grism = instrument.get_grism(hdr)
+        slit = instrument.get_slit(hdr).replace('_', '')
+        insID = "%s_%s" % (grism, slit)
+        if filt_name.lower() not in ['free', 'open', 'none']:
+            insID = "%s_%s" % (insID, filt_name)
+        sorted_files[target_name][insID].append(fname)
+    return sorted_files
+
+
+def sort_bias(file_list):
+    """
+    Sort spectroscopic bias frames by image size
+    """
+    sorted_files = defaultdict(list)
+    for fname in file_list:
+        hdr = instrument.get_header(fname)
+        size = "%ix%i" % (hdr['NAXIS1'], hdr['NAXIS2'])
+        file_id = size
         sorted_files[file_id].append(fname)
     return sorted_files
 
@@ -118,24 +209,6 @@ def get_unclassified_files(file_list, database):
         if fname not in database.file_database:
             missing_files.append(fname)
     return missing_files
-
-
-def verify_header_key(key):
-    """If given a string with spaces or dots convert to HIERARCH ESO format"""
-    check_ESO = False
-    key = key.strip()
-    if '.' in key:
-        key = key.replace('.', ' ')
-        check_ESO = True
-
-    if ' ' in key:
-        check_ESO = True
-
-    if check_ESO:
-        if not key.startswith('ESO'):
-            key = 'ESO %s' % key
-
-    return key
 
 
 def classify_file(fname, rules):
@@ -511,7 +584,7 @@ class RawImage(object):
     def set_filetype(self, filetype):
         self.filetype = filetype
 
-    def match_files(self, filelist, date=True, binning=True, shape=True, grism=False, slit=False, filter=False, get_closest_time=False):
+    def match_files(self, filelist, date=True, binning=True, shape=True, grism=False, slit=False, filter=False, get_closest_time=False, debug=False):
         """Return list of filenames that match the given criteria"""
         matches = list()
         # sort by:
@@ -519,38 +592,50 @@ class RawImage(object):
         for fname in filelist:
             this_hdr = fits.getheader(fname, 0)
             criteria = list()
+            criteria_name = list()
             this_mjd = instrument.get_mjd(this_hdr)
             if date:
                 # Match files from same night, midnight ± 9hr
                 dt = self.mjd - this_mjd
                 criteria.append(-0.4 < dt < +0.4)
+                criteria_name.append('name')
 
             if binning:
                 # Match files with same binning and readout speed:
                 this_binning = instrument.get_binning_from_hdr(this_hdr)
                 criteria.append(this_binning == self.binning)
+                criteria_name.append('binning')
 
             if shape:
                 # Match files with same image shape:
-                this_shape = fits.getdata(fname).shape
+                hdr = instrument.get_header(fname)
+                this_shape = (hdr['NAXIS2'], hdr['NAXIS1'])
+                if 'OVERSCAN' in hdr:
+                    # use original image shape before overscan-sub
+                    over_x = hdr['OVERSCAN_X']
+                    over_y = hdr['OVERSCAN_Y']
+                    this_shape = (this_shape[0]+over_y, this_shape[1]+over_x)
+
                 criteria.append(this_shape == self.shape)
+                criteria_name.append('shape')
 
             if grism:
                 # Match files with same grism:
-                # this_grism = this_hdr['ALGRNM']
                 this_grism = instrument.get_grism(this_hdr)
                 criteria.append(this_grism == self.grism)
+                criteria_name.append('grism')
 
             if slit:
                 # Match files with the same slit-width:
-                # this_slit = this_hdr['ALAPRTNM']
                 this_slit = instrument.get_slit(this_hdr)
                 criteria.append(this_slit == self.slit)
+                criteria_name.append('slit')
 
             if filter:
                 # Match files with the same filter:
                 this_filter = instrument.get_filter(this_hdr)
                 criteria.append(this_filter == self.filter)
+                criteria_name.append('filter')
 
             if np.all(criteria):
                 matches.append(fname)
@@ -563,11 +648,15 @@ class RawImage(object):
         return matches
 
 
-
 class TagDatabase(dict):
-    def __init__(self, file_database):
+    def __init__(self, file_database, inactive_files=None):
         # Convert file_database with file-classifications
         # to a tag_database containing a list of all files with a given tag:
+        if inactive_files is None:
+            inactive_files = {}
+
+        self.file_database = file_database
+        self.inactive_file_database = inactive_files
         tag_database = dict()
         for fname, tag in file_database.items():
             if tag in tag_database.keys():
@@ -575,27 +664,33 @@ class TagDatabase(dict):
             else:
                 tag_database[tag] = [fname]
 
+        self.inactive = defaultdict(list)
+        for fname, tag in inactive_files.items():
+            self.inactive[tag].append(fname)
+
         # And make this converted tag_database the basis of the TagDatabase class
         dict.__init__(self, tag_database)
-        self.file_database = file_database
 
     def __add__(self, other):
-        new_file_database = other.file_database
+        all_inactive_fnames = [fname.strip('#') for fname in self.inactive_file_database]
+        for fname, tag in other.file_database.items():
+            if fname in all_inactive_fnames:
+                pass
+            else:
+                self.file_database[fname] = tag
 
-        for key in self.file_database.keys():
-            new_file_database[key] = self.file_database[key]
+        for fname, tag in other.inactive_file_database.items():
+            self.inactive_file_database[fname] = tag
 
-        return TagDatabase(new_file_database)
+        return TagDatabase(self.file_database, self.inactive_file_database)
 
     def __radd__(self, other):
         if other == 0:
             return self
-
         else:
             return self.__add__(other)
 
     def has_tag(self, tag):
         if tag in self.keys():
             return True
-
         return False

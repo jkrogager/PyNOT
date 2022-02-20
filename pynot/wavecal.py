@@ -17,7 +17,7 @@ import warnings
 import spectres
 
 from pynot import instrument
-from pynot.functions import get_version_number, NN_mod_gaussian, get_pixtab_parameters
+from pynot.functions import get_version_number, NN_mod_gaussian, get_pixtab_parameters, mad
 
 __version__ = get_version_number()
 
@@ -192,8 +192,6 @@ def fit_2dwave_solution(pixtab2d, deg=5):
             print("degree:", deg)
             print("domain: %r  %r" % (col.min(), col.max()))
             raise
-        finally:
-            np.savetxt('pixtable_2d_dump.dat', pixtab2d)
 
         # Insert back into the fit_table
         fit_table2d[num] = cheb_polyfit(col)
@@ -436,8 +434,8 @@ def wavecal_1d(input_fname, pixtable_fname, *, output, order_wl=None, log=False,
         pix = tab['WAVE']
         flux1d = tab['FLUX']
         err1d = tab['ERR']
-        if 'APER_CEN' in hdr:
-            aper_cen = hdr['APER_CEN']
+        if 'OBJ_POS' in hdr:
+            aper_cen = hdr['OBJ_POS']
             msg.append("          - Extraction aperture along slit at pixel no. %i" % aper_cen)
             if pixtab_pars['loc'] != -1:
                 aperture_offset = np.abs(aper_cen - pixtab_pars['loc'])
@@ -508,19 +506,20 @@ def wavecal_1d(input_fname, pixtable_fname, *, output, order_wl=None, log=False,
 
 # ============== PLOTTING =====================================================
 
-def plot_2d_pixtable(arc2D_sub, pix, pixtab2d, fit_table2d, filename=''):
+def plot_2d_pixtable(arc2D_sub, pix, pixtab2d, fit_table2d, arc_fname, filename=''):
     fig = plt.figure()
     ax = fig.add_subplot(111)
     mad = np.nanmedian(np.abs(arc2D_sub - np.nanmedian(arc2D_sub)))
     ax.imshow(arc2D_sub, origin='lower', extent=(pix.min(), pix.max(), 1, arc2D_sub.shape[0]),
-              vmin=-3*mad, vmax=10*mad, cmap=plt.cm.gray_r, aspect='auto')
-    for i in np.arange(0, pixtab2d.shape[0], 5):
+              vmin=-3*mad, vmax=15*mad, cmap=plt.cm.gray_r, aspect='auto')
+    for i in np.arange(0, pixtab2d.shape[0], 10):
         row = pixtab2d[i]
-        ax.plot(row, np.ones_like(row)*(i+1), ls='', color='Blue', marker='.', alpha=0.3)
+        ax.plot(row, np.ones_like(row)*(i+1), ls='', color='Blue', marker='.', alpha=0.1)
     for col in fit_table2d.T:
         ax.plot(col, np.arange(arc2D_sub.shape[0]), lw=1, color='r', alpha=0.5)
     ax.set_xlim(pix.min(), pix.max())
     ax.set_ylim(1, arc2D_sub.shape[0])
+    ax.set_title("Reference arc frame: %s" % arc_fname, fontsize=10)
     if filename:
         fig.savefig(filename)
 
@@ -541,7 +540,7 @@ def format_table2D_residuals(pixtab2d, fit_table2d, ref_table):
     wavelengths = ref_table[:, 1]
     resid2D = pixtab2d - fit_table2d
     for wl, resid_col, col in zip(wavelengths, resid2D.T, fit_table2d.T):
-        line_resid = np.std(resid_col)
+        line_resid = 1.48*mad(resid_col)
         median_pix = np.median(col)
         delta_col = np.max(col) - np.min(col)
         resid_log.append([wl, median_pix, line_resid, delta_col])
@@ -617,9 +616,9 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
     msg.append("          - Wavelength solution is in reference system: %s" % ref_type)
     if found_all:
         order_wl = pixtab_pars['order_wl']
-        msg.append("          - Polynomial order for wavelength as function of pixels : %i" % order_wl)
     else:
         msg.append("[WARNING] - Not all parameters were loaded from the pixel table!")
+    msg.append("          - Polynomial order for wavelength as function of pixels : %i" % order_wl)
 
     if 'DISPAXIS' in hdr.keys():
         dispaxis = hdr['DISPAXIS']
@@ -670,7 +669,7 @@ def rectify(img_fname, arc_fname, pixtable_fname, output='', fig_dir='', order_b
 
     if plot:
         plot_fname = os.path.join(fig_dir, 'PixTable2D.pdf')
-        plot_2d_pixtable(arc2D_sub, pix_in, pixtab2d, fit_table2d, filename=plot_fname)
+        plot_2d_pixtable(arc2D_sub, pix_in, pixtab2d, fit_table2d, arc_fname, filename=plot_fname)
         msg.append("          - Plotting fitted arc line positions in 2D frame")
         msg.append(" [OUTPUT] - Saving figure: %s" % plot_fname)
 

@@ -62,13 +62,14 @@ def trim_overscan(img, hdr):
 
     # Get overscan from instrument:
     pre_x, over_x, pre_y, over_y = instrument.overscan()
+    Npix_x, Npix_y = instrument.get_ccd_extent()
 
     # Get detector pixel arrays from instrument:
     X, Y = instrument.get_detector_arrays(hdr)
 
-    img_region_x = (X >= pre_x) & (X <= 2148-over_x)
+    img_region_x = (X >= pre_x) & (X <= Npix_x-over_x)
     xlimits = img_region_x.nonzero()[0]
-    img_region_y = (Y >= pre_y) & (Y <= 2102-over_y)
+    img_region_y = (Y >= pre_y) & (Y <= Npix_y-over_y)
     ylimits = img_region_y.nonzero()[0]
     x1 = min(xlimits)
     x2 = max(xlimits)+1
@@ -88,6 +89,8 @@ def trim_overscan(img, hdr):
     hdr['NAXIS1'] = img_trim.shape[1]
     hdr['NAXIS2'] = img_trim.shape[0]
     hdr['OVERSCAN'] = 'TRIMMED'
+    hdr['OVERSCAN_X'] = (np.sum(~img_region_x), "Number of pixels removed along X-axis")
+    hdr['OVERSCAN_Y'] = (np.sum(~img_region_y), "Number of pixels removed along Y-axis")
     return img_trim, hdr
 
 
@@ -164,7 +167,7 @@ def trim_filter_edge(fname, x1, x2, y1, y2, output='', output_dir=''):
     return output_msg
 
 
-def fit_background_image(data, order_bg=3, xmin=0, xmax=None, kappa=5, fwhm_scale=1):
+def fit_background_image(data, order_bg=3, xmin=0, xmax=None, med_kernel=15, kappa=5, fwhm_scale=1, obj_kappa=20):
     """
     Fit background in 2D spectral data. The background is fitted along the spatial rows by a Chebyshev polynomium.
 
@@ -198,7 +201,7 @@ def fit_background_image(data, order_bg=3, xmin=0, xmax=None, kappa=5, fwhm_scal
         xmax = len(x) + xmax
     SPSF = np.nanmedian(data, 0)
     noise = 1.5*mad(SPSF)
-    peaks, properties = signal.find_peaks(SPSF, prominence=10*noise, width=3)
+    peaks, properties = signal.find_peaks(SPSF, prominence=obj_kappa*noise, width=3)
     mask = (x >= xmin) & (x <= xmax)
     for num, center in enumerate(peaks):
         width = properties['widths'][num]
@@ -206,21 +209,22 @@ def fit_background_image(data, order_bg=3, xmin=0, xmax=None, kappa=5, fwhm_scal
         x2 = center + width*fwhm_scale
         obj = (x >= x1) * (x <= x2)
         mask &= ~obj
+    N_masked_pixels = np.sum(~mask)
 
     bg2D = np.zeros_like(data)
     for i, row in enumerate(data):
         # Median filter the data to remove outliers:
-        med_row = median_filter(row, 15)
+        med_row = median_filter(row, med_kernel)
         noise = mad(row)*1.4826
         this_mask = mask * (np.abs(row - med_row) < kappa*noise)
         if np.sum(this_mask) > order_bg+1:
             bg_model = Chebyshev.fit(x[this_mask], row[this_mask], order_bg, domain=[x.min(), x.max()])
             bg2D[i] = bg_model(x)
 
-    return bg2D
+    return bg2D, N_masked_pixels
 
 
-def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, kappa=10, fwhm_scale=3, xmin=0, xmax=None, plot_fname='', **kwargs):
+def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, med_kernel=15, kappa=10, obj_kappa=20, fwhm_scale=3, xmin=0, xmax=None, plot_fname='', **kwargs):
     """
     Fit background in 2D spectral data. The background is fitted along the spatial rows by a Chebyshev polynomium.
 
@@ -244,12 +248,18 @@ def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, kappa=
     xmin, xmax : integer  [default=0, None]
         Mask out pixels below xmin and above xmax
 
+    obj_kappa : float  [default=20]
+        Threshold for automatic object detection to be masked out.
+
     fwhm_scale : float  [default=3]
         Number of FWHM below and above centroid of auto-detected trace
         that will be masked out during fitting.
 
+    med_kernel : int  [default=15]
+        Median filter width for defining masking of cosmic rays, CCD artefacts etc.
+
     kappa : float  [default=10]
-        Threshold for masking out cosmic rays etc.
+        Threshold for masking out cosmic rays, CCD artefacts etc.
 
     plot_fname : string  [default='']
         Filename of diagnostic plots. If nothing is given, do not plot.
@@ -279,7 +289,11 @@ def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, kappa=
 
     msg.append("          - Fitting background along the spatial axis with polynomium of order: %i" % order_bg)
     msg.append("          - Automatic masking of outlying pixels and object trace")
-    bg2D = fit_background_image(data, order_bg=order_bg, kappa=kappa, fwhm_scale=fwhm_scale, xmin=xmin, xmax=xmax)
+    bg2D, N_masked_pixels = fit_background_image(data, order_bg=order_bg,
+                                                 med_kernel=med_kernel, kappa=kappa,
+                                                 obj_kappa=obj_kappa, fwhm_scale=fwhm_scale,
+                                                 xmin=xmin, xmax=xmax)
+    msg.append("          - Number of pixels rejected: %i" % int(N_masked_pixels))
 
     if plot_fname:
         fig2D = plt.figure()
@@ -394,10 +408,12 @@ def correct_cosmics(input_fname, output_fname, niter=4, gain=None, readnoise=Non
                 msg.append("")
                 return "\n".join(msg)
 
-    crr_mask, sci = detect_cosmics(sci, gain=gain, readnoise=readnoise, niter=niter, pssl=sky_level,
-                                   sigclip=sigclip, sigfrac=sigfrac, objlim=objlim, satlevel=satlevel,
+    sci = (sci + sky_level) * gain
+    crr_mask, sci = detect_cosmics(sci, gain=gain, readnoise=readnoise, niter=niter,
+                                   sigclip=sigclip, sigfrac=sigfrac, objlim=objlim,
+                                   satlevel=instrument.get_saturation_level(),
                                    cleantype=cleantype)
-    # Corrected image is in ELECTRONS!! Convert back to ADUs:
+    # Corrected image is in ELECTRONS! Convert back to ADUs:
     sci = sci/gain - sky_level
 
     # Add comment to FITS header:
@@ -462,16 +478,21 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname='', output='', overwrite
         Log of status messages
     """
     msg = list()
-    mbias = fits.getdata(bias_fname)
-    # bias_hdr = instrument.get_header(bias_fname)
-    msg.append("          - Loaded combined bias image: %s" % bias_fname)
+    if bias_fname:
+        mbias = fits.getdata(bias_fname)
+        # bias_hdr = instrument.get_header(bias_fname)
+        msg.append("          - Loaded combined bias image: %s" % bias_fname)
+    else:
+        mbias = 0.
+        msg.append("          - No bias image. Using bias level = 0")
+
     if flat_fname:
         mflat = fits.getdata(flat_fname)
         mflat[mflat == 0] = 1
         msg.append("          - Loaded combined flat field image: %s" % flat_fname)
     else:
         mflat = 1.
-        msg.append("          - Not flat field image provided. No correction applied!")
+        msg.append("          - Not flat field image provided. Using flat level = 1")
 
     # Trim overscan of raw image:
     # - Trimming again of processed images doesn't change anything,
@@ -483,8 +504,6 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname='', output='', overwrite
     sci = (sci_raw - mbias)/mflat
 
     # Calculate error image:
-    if 'CCDNAME' in hdr and hdr['CCDNAME'] == 'CCD14':
-        hdr['GAIN'] = 0.16
     gain = instrument.get_gain(hdr)
     readnoise = instrument.get_readnoise(hdr)
     with warnings.catch_warnings():
@@ -503,10 +522,12 @@ def raw_correction(sci_raw, hdr, bias_fname, flat_fname='', output='', overwrite
     hdr['AUTHOR'] = 'PyNOT version %s' % __version__
 
     mask = np.zeros_like(sci, dtype=int)
-    msg.append("          - Empty pixel mask created")
+    mask[err_NaN] = 4
+    msg.append("          - Pixel mask created")
     mask_hdr = fits.Header()
     mask_hdr.add_comment("0 = Good Pixels")
     mask_hdr.add_comment("1 = Cosmic Ray Hits")
+    mask_hdr.add_comment("4 = NaN error from base CDD processing")
     for key in ['CRPIX1', 'CRPIX2', 'CRVAL1', 'CRVAL2', 'CTYPE1', 'CTYPE2', 'CUNIT1', 'CUNIT2']:
         if key in hdr:
             mask_hdr[key] = hdr[key]

@@ -508,6 +508,7 @@ class ImageData(object):
         data_temp = fits.getdata(fname)
         self.data = data_temp.astype(np.float64)
         self.shape = self.data.shape
+        self.mask = None
         try:
             self.error = fits.getdata(fname, 1)
         except:
@@ -521,8 +522,11 @@ class ImageData(object):
             self.header = hdu[0].header
             if len(hdu) > 1:
                 imghdr = hdu[1].header
-                if hdu[1].name not in ['ERR', 'MASK']:
+                if hdu[1].name not in ['ERR', 'MASK', 'QUAL']:
                     self.header.update(imghdr)
+            for unit in hdu:
+                if unit.name in ['MASK', 'QUAL', 'DQ']:
+                    self.mask = unit.data
 
         if 'DISPAXIS' in self.header:
             dispaxis = self.header['DISPAXIS']
@@ -531,6 +535,7 @@ class ImageData(object):
             self.wl = get_wavelength_from_header(self.header, dispaxis)
             self.data = self.data.T
             self.error = self.error.T
+            self.mask = self.mask.T
             self.shape = self.data.shape
             self.wl_unit = self.header.get('CUNIT2')
         else:
@@ -543,12 +548,15 @@ class ImageData(object):
 
 
 class Spectrum(object):
-    def __init__(self, wl=None, data=None, error=None, mask=None, hdr={}, bg=None, wl_unit='', flux_unit=''):
+    def __init__(self, wl=None, data=None, error=None, mask=None, hdr=None, bg=None, wl_unit='', flux_unit=''):
         self.wl = wl
         self.data = data
         self.error = error
         self.mask = mask
-        self.hdr = hdr
+        if hdr is None:
+            self.hdr = fits.Header()
+        else:
+            self.hdr = hdr
         self.background = bg
         self.wl_unit = wl_unit
         self.flux_unit = flux_unit
@@ -1105,7 +1113,11 @@ class ExtractGUI(QtWidgets.QMainWindow):
             prim_HDU = fits.PrimaryHDU(data=data2d, header=prim_hdr)
             err_HDU = fits.ImageHDU(data=self.image2d.error, header=prim_hdr, name='ERR')
             sky_HDU = fits.ImageHDU(data=bg_model, header=sky_hdr, name='SKY')
-            HDU_list = fits.HDUList([prim_HDU, err_HDU, sky_HDU])
+            hdus = [prim_HDU, err_HDU, sky_HDU]
+            if self.image2d.mask is not None:
+                mask_HDU = fits.ImageHDU(data=self.image2d.mask, name='MASK')
+                hdus.append(mask_HDU)
+            HDU_list = fits.HDUList(hdus)
             HDU_list.writeto(path, overwrite=True, output_verify='silentfix')
 
     def save_spectrum_bg(self):
@@ -1163,10 +1175,15 @@ class ExtractGUI(QtWidgets.QMainWindow):
                 col_flux = fits.Column(name='FLUX', array=spectrum.data, format='D', unit=spectrum.flux_unit)
                 col_err = fits.Column(name='ERR', array=spectrum.error, format='D', unit=spectrum.flux_unit)
                 col_sky = fits.Column(name='SKY', array=spectrum.background, format='D', unit=spectrum.flux_unit)
+                if spectrum.mask is None:
+                    mask1d = np.zeros_like(spectrum.data, dtype=bool)
+                else:
+                    mask1d = spectrum.mask
+                col_mask = fits.Column(name='MASK', array=mask1d, format='L')
                 tab_hdr = spectrum.hdr.copy()
                 for key in keywords_to_remove:
                     tab_hdr.remove(key, ignore_missing=True)
-                tab = fits.BinTableHDU.from_columns([col_wl, col_flux, col_err, col_sky], header=tab_hdr)
+                tab = fits.BinTableHDU.from_columns([col_wl, col_flux, col_err, col_mask, col_sky], header=tab_hdr)
                 tab.name = 'OBJ%i' % (num+1)
                 hdu.append(tab)
             hdu.writeto(fname, overwrite=True, output_verify='silentfix')
@@ -1986,7 +2003,10 @@ class ExtractGUI(QtWidgets.QMainWindow):
             bg2d = self.background.model2d
             img2d = self.image2d.data - bg2d
             V = self.image2d.error**2
-            M = np.ones_like(img2d)
+            if self.image2d.mask is None:
+                M = np.ones_like(img2d)
+            else:
+                M = ~(self.image2d.mask > 0)
 
             with warnings.catch_warnings():
                 P = P / np.sum(P, axis=0)
@@ -1999,11 +2019,12 @@ class ExtractGUI(QtWidgets.QMainWindow):
                     err1d = np.sqrt(np.sum(M*P, axis=0) / np.sum(M*P**2/V, axis=0))
                 err1d = fix_nans(err1d)
                 bg1d = np.sum(M*P*bg2d, axis=0) / np.sum(M*P**2, axis=0)
+                mask1d = np.sum((1-M)*P, axis=0) / np.sum((1-M)*P**2, axis=0) > 0
 
             wl = self.image2d.wl
             spec_hdr = self.image2d.header.copy()
-            spec_hdr['APER_CEN'] = model.cen
-            spec1d = Spectrum(wl=wl, data=data1d, error=err1d, hdr=spec_hdr,
+            spec_hdr['OBJ_POS'] = (np.round(model.cen, 2), "Median extraction position along slit [pixels]")
+            spec1d = Spectrum(wl=wl, data=data1d, error=err1d, hdr=spec_hdr, mask=mask1d,
                               wl_unit=self.image2d.wl_unit, flux_unit=self.image2d.flux_unit)
             spec1d.background = bg1d
             data1d_list.append(spec1d)
@@ -2455,6 +2476,7 @@ class SaveWindow(QtWidgets.QDialog):
         err = spectrum.error
         hdr = spectrum.hdr
         bg = spectrum.background
+        mask = spectrum.mask
 
         fname = self.fname_editor.text()
         file_format = self.format_group.checkedId()
@@ -2467,17 +2489,17 @@ class SaveWindow(QtWidgets.QDialog):
         if file_format == 0:
             if fname[-5:] != '.fits':
                 fname = fname + '.fits'
-            saved, msg = save_fits_spectrum(fname, wl, flux, err, hdr, bg, aper=model2d)
+            saved, msg = save_fits_spectrum(fname, wl, flux, err, hdr, bg, aper=model2d, mask=mask)
             self.saved = saved
         elif file_format == 1:
             if fname[-5:] != '.fits':
                 fname = fname + '.fits'
-            saved, msg = save_fitstable_spectrum(fname, wl, flux, err, hdr, bg, aper=model2d)
+            saved, msg = save_fitstable_spectrum(fname, wl, flux, err, hdr, bg, aper=model2d, mask=mask)
             self.saved = saved
         elif file_format == 2:
             if fname[-4:] != '.dat':
                 fname = fname + '.dat'
-            saved, msg = save_ascii_spectrum(fname, wl, flux, err, hdr, bg)
+            saved, msg = save_ascii_spectrum(fname, wl, flux, err, hdr, bg, mask=mask)
             self.saved = saved
         else:
             self.saved = False
