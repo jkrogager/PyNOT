@@ -537,6 +537,7 @@ def task_bias(options, database, log=None, verbose=True, output_dir='', report_d
     """
     if log is None:
         log = Report(verbose)
+    log.add_linebreak()
     log.write("Running task: Bias combination")
 
     if not os.path.exists(report_dir):
@@ -574,6 +575,7 @@ def task_sflat(options, database, log=None, verbose=True, output_dir='', report_
     """
     if log is None:
         log = Report(verbose)
+    log.add_linebreak()
     log.write("Running task: Spectral flat field combination and normalization")
 
     # Sort output by date if the option 'date' is in kwargs:
@@ -611,6 +613,7 @@ def task_prep_arcs(options, database, log=None, verbose=True, output_dir='', rep
     """
     if log is None:
         log = Report(verbose)
+    log.add_linebreak()
     log.write("Running task: Arc frame preparation")
 
     arc_filelist = []

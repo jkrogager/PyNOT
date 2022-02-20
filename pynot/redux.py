@@ -222,18 +222,29 @@ def run_pipeline(options_fname, object_id=None, verbose=True, interactive=False,
 
 
     # -- response
-    if not database.has_tag('RESPONSE') or make_response:
+    if not database.has_tag('RESPONSE') or make_response or force_restart:
         if database.has_tag('SPEC_FLUX-STD'):
-            task_output, log = task_response(options, database, status, log=log, verbose=verbose, app=app,
-                                             output_dir=os.path.join(output_base, 'std'))
+            for task_pars in task_manager['response']:
+                task_options = options.copy()
+                opts = task_pars.pop('options', {})
+                for section_name, section in opts.items():
+                    if isinstance(section, dict):
+                        task_options[section_name].update(section)
+                    else:
+                        task_options[section_name] = section
+
+                task_output, log = task_response(task_options, database, status, log=log, verbose=verbose, app=app,
+                                                 output_dir=os.path.join(output_base, 'std'),
+                                                 **task_pars)
+            for tag, response_files in task_output.items():
+                database[tag] = response_files
+            io.save_database(database, dataset_fname)
         else:
             task_output = {}
             log.warn("No data for file type: SPEC_FLUX-STD")
             log.warn("Could not determine instrument response function.")
             log.warn("Spectra will not be flux-calibrated")
-        for tag, response_files in task_output.items():
-            database[tag] = response_files
-        io.save_database(database, dataset_fname)
+
     else:
         log.write("Static calibrations for response functions already exist. Skipping")
 

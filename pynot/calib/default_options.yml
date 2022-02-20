@@ -59,14 +59,14 @@ skysub:
   xmax:        null          # Mask out pixels above xmax
 
 extract:
-  interactive:  False         # Extract the 1D spectrum using a graphical user interface?
+  interactive:  False        # Extract the 1D spectrum using a graphical user interface?
   model_name:   'moffat'     # Profile type for optimal extraction 'moffat' or 'gaussian', otherwise 'tophat'
   dx:           25           # Fit the spectral trace for every `dx` pixels along dispersion axis
   width_scale:  2            # If model_name is 'tophat', this scales the width in terms of FWHM below and above the centroid
   xmin:         0            # Exclude pixels above this index for the fitting and object identification [dispersion axis]
   xmax:         null         # Exclude pixels below this index for the fitting and object identification [dispersion axis]
   ymin:         0            # Exclude pixels above this index for the fitting and object identification [spatial axis]
-  ymax:         null           # Exclude pixels below this index for the fitting and object identification [spatial axis]
+  ymax:         null         # Exclude pixels below this index for the fitting and object identification [spatial axis]
   order_center: 3            # Polynomial order used to fit the centroid along the spectral trace
   order_width:  0            # Polynomial order used to fit the width of the spectral trace
   w_cen:        15           # Kernel width of median filter for trace position
@@ -78,5 +78,7 @@ extract:
 response:
   order:        3            # Spline degree for smoothing the response function [1 ≤ order ≤ 5]
   smoothing:    0.02         # Smoothing scale of the spline interpolation.
-  interactive:  False         # Interactively filter and fit the response function
+  med_filter:   5            # Median filter width for removing outlying response points
+  kappa:        2            # Threshold for the median filtering to remove outlying response points
+  interactive:  False        # Interactively filter and fit the response function
   force:        False        # Overwrite existing response function?

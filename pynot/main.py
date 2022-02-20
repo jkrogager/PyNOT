@@ -408,6 +408,8 @@ def main():
                               help="Run flat combination and normalization only")
     parser_redux.add_argument("--arcs", action="store_true",
                               help="Process arcs")
+    parser_redux.add_argument("--response", action="store_true",
+                              help="Recalculate the response functions")
     parser_redux.add_argument("-I", "--identify", action="store_true",
                               help="Re-identify all grisms once")
     parser_redux.add_argument("-C", "--calibs", action="store_true",
@@ -566,6 +568,7 @@ def main():
                      make_flat=args.mflat,
                      make_arcs=args.arcs,
                      make_identify=args.identify,
+                     make_response=args.response,
                      calibs_only=args.calibs,
                      )
 

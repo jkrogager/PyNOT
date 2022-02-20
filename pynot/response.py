@@ -655,12 +655,13 @@ def process_std_flux(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat_f
     return bgsub2d_fname, log
 
 
-def task_response(options, database, status, log=None, verbose=True, app=None, output_dir=''):
+def task_response(options, database, status, log=None, verbose=True, app=None, output_dir='', **kwargs):
     """
     Reduce the standard stars and determine the response function
     """
     if log is None:
         log = Report(verbose)
+    log.add_linebreak()
     log.write("Running task: Response function")
 
     if len(database['SPEC_FLUX-STD']) == 0:
@@ -670,9 +671,14 @@ def task_response(options, database, status, log=None, verbose=True, app=None, o
 
     tag = 'RESPONSE'
     task_output = {tag: []}
-    flux_std_files = organizer.sort_std(database['SPEC_FLUX-STD'])
+    input_files = database.get_files('SPEC_FLUX-STD', **kwargs)
+    date = 'date' in kwargs
+    flux_std_files = organizer.sort_std(input_files, date=date)
     for target_name, files_per_target in flux_std_files.items():
         for insID, input_list in files_per_target.items():
+            output_id = options.pop('output', '')
+            if output_id:
+                insID += '_'+output_id
             raw_img = organizer.RawImage(input_list[0])
             hdr = instrument.get_header(input_list[0])
 
@@ -780,12 +786,12 @@ def task_response(options, database, status, log=None, verbose=True, app=None, o
 
             # Median filter the points:
             log.write("Median filter and smooth the data points to remove outliers")
-            med_flux_tab = median_filter(flux0, 5)
+            med_flux_tab = median_filter(flux0, options['response']['med_filter'])
             med_flux_tab = gaussian_filter1d(med_flux_tab, 1)
             noise = mad(flux0 - med_flux_tab)*1.5
-            good = np.abs(flux0 - med_flux_tab) < 2*noise
-            good[:3] = True
-            good[-3:] = True
+            good = np.abs(flux0 - med_flux_tab) < options['response']['kappa']*noise
+            # good[:3] = True
+            # good[-3:] = True
 
             # Load Extinction Table:
             wl_ext, A0 = np.loadtxt(instrument.extinction_fname, unpack=True)
