@@ -50,6 +50,13 @@ coverage.xml
 *.cover
 .hypothesis/
 .pytest_cache/
+tests/dataset.pfc
+tests/dataset.obd
+tests/*.log
+tests/spectra
+tests/imaging
+tests/reports
+tests/*.yml
 
 # Translations
 *.mo
