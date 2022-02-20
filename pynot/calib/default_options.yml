@@ -2,11 +2,21 @@
 
 dataset:                     # The PyNOT File Classification (*.pfc)
 
-# [Static Calibrations]
-# Note: these will be applied to all objects in the pipeline!
-mbias:                       # Static master bias frame
-mflat:                       # Static normalized flat field (only for single grism and slit!!!)
-# [-------------------]
+# [Workflow Manager]
+# workflow:
+#
+# - bias:
+#
+# - flat:
+#
+# - arcs:
+#
+# - identify:
+#
+# - response:
+#
+# - science:
+
 
 # [Recipe Options]
 bias:

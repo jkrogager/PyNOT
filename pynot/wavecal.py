@@ -514,9 +514,9 @@ def plot_2d_pixtable(arc2D_sub, pix, pixtab2d, fit_table2d, arc_fname, filename=
               vmin=-3*mad, vmax=15*mad, cmap=plt.cm.gray_r, aspect='auto')
     for i in np.arange(0, pixtab2d.shape[0], 10):
         row = pixtab2d[i]
-        ax.plot(row, np.ones_like(row)*(i+1), ls='', color='Blue', marker='.', alpha=0.1)
+        ax.plot(row, np.ones_like(row)*(i+1), ls='', color='Blue', marker='.', alpha=0.2)
     for col in fit_table2d.T:
-        ax.plot(col, np.arange(arc2D_sub.shape[0]), lw=1, color='r', alpha=0.5)
+        ax.plot(col, np.arange(arc2D_sub.shape[0]), lw=1, color='r', alpha=0.6)
     ax.set_xlim(pix.min(), pix.max())
     ax.set_ylim(1, arc2D_sub.shape[0])
     ax.set_title("Reference arc frame: %s" % arc_fname, fontsize=10)

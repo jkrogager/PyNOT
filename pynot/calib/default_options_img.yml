@@ -2,12 +2,23 @@
 
 dataset:                     # The PyNOT File Classification (*.pfc)
 
-# [Static Calibrations]
-# Note: these will be applied to all objects in the pipeline!
-mbias:                       # Static master bias frame
-# [--------------------------]
+# [Workflow Manager]
+# workflow:
+#
+# - bias:
+#
+# - flat:
+#
+# - arcs:
+#
+# - identify:
+#
+# - response:
+#
+# - science:
 
 clean:         True          # Remove temporary images (CCD processed before trimming)
+
 # [Recipe Options]
 bias:
   kappa:  15                 # Threshold for sigma clipping in bias combiniation

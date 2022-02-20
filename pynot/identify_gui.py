@@ -34,6 +34,48 @@ code_dir = os.path.dirname(os.path.abspath(__file__))
 calib_dir = os.path.join(code_dir, 'calib/')
 
 
+def create_pixtable(arc_image, grism_name, output_pixtable, ref_pixtable_name, linelist_fname, order_wl=4, air=False, loc=-1, app=None):
+    """
+    arc_image : str
+        Filename of arc image
+
+    grism_name : str
+        Grism name, ex: al-gr4  (for ALFOSC grism#4)
+    """
+
+    # Launch App:
+    if app is None:
+        app = QtWidgets.QApplication(sys.argv)
+    gui = GraphicInterface(arc_image,
+                           grism_name=grism_name,
+                           pixtable=ref_pixtable_name,
+                           linelist_fname=linelist_fname,
+                           output=output_pixtable,
+                           order_wl=order_wl,
+                           air=air, loc=loc,
+                           locked=True)
+    gui.show()
+    app.exit(app.exec_())
+
+    if os.path.exists(output_pixtable) and gui.message == 'ok':
+        # The GUI exited successfully
+        order_wl = int(gui.poly_order.text())
+        msg = " [OUTPUT] - Successfully saved line identifications: %s\n" % output_pixtable
+
+        if not os.path.exists(ref_pixtable_name):
+            # move output_pixtable to pixtable_name:
+            copy_command = "cp %s %s" % (output_pixtable, ref_pixtable_name)
+            os.system(copy_command)
+    else:
+        msg = " [ERROR]  - Something went wrong in line identification of %s\n" % grism_name
+        order_wl = None
+        output_pixtable = None
+
+    del gui
+
+    return order_wl, output_pixtable, msg
+
+
 def task_identify(options, database, app=None, log=None, verbose=True, output_dir='',
                   make_identify=False, force_restart=False, air=False, loc=-1, **kwargs):
     """

@@ -410,6 +410,8 @@ def main():
                               help="Process arcs")
     parser_redux.add_argument("--response", action="store_true",
                               help="Recalculate the response functions")
+    parser_redux.add_argument("--science", action="store_true",
+                              help="Restart the science reduction")
     parser_redux.add_argument("-I", "--identify", action="store_true",
                               help="Re-identify all grisms once")
     parser_redux.add_argument("-C", "--calibs", action="store_true",
@@ -570,6 +572,7 @@ def main():
                      make_identify=args.identify,
                      make_response=args.response,
                      calibs_only=args.calibs,
+                     restart_science=args.science
                      )
 
     elif task == 'bias':
