@@ -511,10 +511,14 @@ class GraphicInterface(QMainWindow):
                     imghdr = hdu[1].header
                     primhdr.update(imghdr)
             dispaxis = instrument.get_dispaxis(primhdr)
+            grism_name = instrument.get_grism(primhdr)
             if dispaxis:
                 self.dispaxis = dispaxis
+                self.grism_name = grism_name
+                self.setWindowTitle('PyNOT: Identify Arc Lines  |  Grism: %s' % grism_name)
             else:
                 self.arc_fname = ''
+                self.grism_name = ''
                 error_msg = 'Could not get the dispersion axis!\n Invalid format for slit: %s' % instrument.get_slit(primhdr)
                 QMessageBox.critical(None, 'Invalid Aperture', error_msg)
                 return
