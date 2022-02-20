@@ -57,7 +57,7 @@ class State(dict):
 
 
 def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False, no_interactive=False, force_restart=False,
-                 make_bias=False, make_flat=False, make_arcs=False, make_response=False):
+                 make_bias=False, make_flat=False, make_arcs=False, make_identify=False, make_response=False):
     log = Report(verbose)
     status = State()
 
@@ -148,7 +148,8 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
     # -- bias
     if not database.has_tag('MBIAS') or make_bias:
         file_filters = {}
-        task_output, log = task_bias(options['bias'], database, log=log, verbose=verbose, output_dir=output_base,
+        task_output, log = task_bias(options['bias'], database, log=log, verbose=verbose,
+                                     output_dir=output_base,
                                      **file_filters)
         for tag, filelist in task_output.items():
             database[tag] = filelist
@@ -159,7 +160,9 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
     # -- sflat
     if not database.has_tag('NORM_SFLAT') or make_flat:
-        task_output, log = task_sflat(options['flat'], database=database, log=log, verbose=verbose, output_dir=output_base)
+        task_output, log = task_sflat(options['flat'], database=database, log=log, verbose=verbose,
+                                      output_dir=output_base,
+                                      **file_filters)
         for tag, filelist in task_output.items():
             database[tag] = filelist
         io.save_database(database, dataset_fname)
@@ -171,7 +174,8 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
     if not database.has_tag('ARC_CORR') or make_arcs:
         database.pop('ARC_CORR', None)
         task_output, log = task_prep_arcs(options, database, log=log, verbose=verbose,
-                                          output_dir=os.path.join(output_base, 'arcs'))
+                                          output_dir=os.path.join(output_base, 'arcs'),
+                                          **file_filters)
         for tag, arc_images in task_output.items():
             database[tag] = arc_images
         io.save_database(database, dataset_fname)
@@ -195,7 +199,7 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
     for grism_name in grism_list:
         pixtab_fname = os.path.join(calib_dir, '%s_pixeltable.dat' % grism_name)
-        if os.path.exists(pixtab_fname):
+        if os.path.exists(pixtab_fname) and not make_identify:
             continue
 
         log.write("Starting interactive definition of pixel table for %s" % grism_name)

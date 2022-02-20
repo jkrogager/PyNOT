@@ -43,17 +43,20 @@ def occurence(inlist):
         single_values.append((e0, Ne))
     return single_values
 
+def make_filter_function(func, target):
+    if target is True or target.lower() == 'any':
+        return lambda x: True
 
-def filter_files(flist, func, target):
     target = target.strip()
     if target.startswith('/') and target.endswith('/'):
         target = target[1:-1]
         pattern = re.compile(target)
-        def criterion(x):
-            return len(pattern.findall(func(x))) > 0
+        return lambda x: len(pattern.findall(func(x))) > 0
     else:
-        def criterion(x):
-            return func(x) == target
+        return lambda x: func(x) == target
+
+def filter_files(flist, func, target):
+    criterion = make_filter_function(func, target)
     return list(filter(criterion, flist))
 
 
@@ -122,7 +125,7 @@ def match_single_calib(raw_img, database, tag, log, **kwargs):
     return calib_list[0]
 
 
-def sort_spec_flat(file_list):
+def sort_spec_flat(file_list, date=False):
     """
     Sort spectroscopic flat frames by grism, slit, filter and image size
     """
@@ -137,11 +140,16 @@ def sort_spec_flat(file_list):
             file_id = "%s_%s_%s" % (grism, slit, size)
         else:
             file_id = "%s_%s_%s_%s" % (grism, slit, filt_name, size)
+        if date:
+            date_str = instrument.get_date(hdr)
+            if 'T' in date_str:
+                date_str = date_str.split('T')[0]
+            file_id += "_%s" % date_str
         sorted_files[file_id].append(fname)
     return sorted_files
 
 
-def sort_arcs(file_list):
+def sort_arcs(file_list, date=False):
     """
     Sort arc lapm frames by grism, slit and image size
     """
@@ -152,11 +160,16 @@ def sort_arcs(file_list):
         slit = instrument.get_slit(hdr).replace('_', '')
         size = "%ix%i" % (hdr['NAXIS1'], hdr['NAXIS2'])
         file_id = "%s_%s_%s" % (grism, slit, size)
+        if date:
+            date_str = instrument.get_date(hdr)
+            if 'T' in date_str:
+                date_str = date_str.split('T')[0]
+            file_id += "_%s" % date_str
         sorted_files[file_id].append(fname)
     return sorted_files
 
 
-def sort_std(file_list):
+def sort_std(file_list, date=False):
     sorted_files = defaultdict(lambda: defaultdict(list))
     for fname in file_list:
         hdr = instrument.get_header(fname)
@@ -167,11 +180,16 @@ def sort_std(file_list):
         insID = "%s_%s" % (grism, slit)
         if filt_name.lower() not in ['free', 'open', 'none']:
             insID = "%s_%s" % (insID, filt_name)
+        if date:
+            date_str = instrument.get_date(hdr)
+            if 'T' in date_str:
+                date_str = date_str.split('T')[0]
+            insID += "_%s" % date_str
         sorted_files[target_name][insID].append(fname)
     return sorted_files
 
 
-def sort_bias(file_list):
+def sort_bias(file_list, date=False):
     """
     Sort spectroscopic bias frames by image size
     """
@@ -180,6 +198,11 @@ def sort_bias(file_list):
         hdr = instrument.get_header(fname)
         size = "%ix%i" % (hdr['NAXIS1'], hdr['NAXIS2'])
         file_id = size
+        if date:
+            date_str = instrument.get_date(hdr)
+            if 'T' in date_str:
+                date_str = date_str.split('T')[0]
+            file_id += "_%s" % date_str
         sorted_files[file_id].append(fname)
     return sorted_files
 

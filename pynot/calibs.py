@@ -544,7 +544,9 @@ def task_bias(options, database, log=None, verbose=True, output_dir='', report_d
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    bias_files = organizer.sort_bias(database.get_files('BIAS', **kwargs))
+    # Sort output by date if the option 'date' is in kwargs:
+    date = 'date' in kwargs
+    bias_files = organizer.sort_bias(database.get_files('BIAS', **kwargs), date=date)
 
     tag = 'MBIAS'
     task_output = {tag: []}
@@ -570,7 +572,9 @@ def task_sflat(options, database, log=None, verbose=True, output_dir='', report_
         log = Report(verbose)
     log.write("Running task: Spectral flat field combination and normalization")
 
-    flat_files = organizer.sort_spec_flat(database.get_files('SPEC_FLAT', **kwargs))
+    # Sort output by date if the option 'date' is in kwargs:
+    date = 'date' in kwargs
+    flat_files = organizer.sort_spec_flat(database.get_files('SPEC_FLAT', **kwargs), date=date)
 
     tag = 'NORM_SFLAT'
     task_output = {tag: []}
@@ -612,7 +616,9 @@ def task_prep_arcs(options, database, log=None, verbose=True, output_dir='', rep
         log.error("Check the classification table... object type 'ARC_HeNe', 'ARC_ThAr', 'ARC_HeAr' missing")
         raise KeyError('No ARC files found in database!')
 
-    arc_files = organizer.sort_arcs(arc_filelist)
+    # Sort output by date if the option 'date' is in kwargs:
+    date = 'date' in kwargs
+    arc_files = organizer.sort_arcs(arc_filelist, date=date)
     tag = 'ARC_CORR'
     task_output = {tag: []}
     for file_id, input_list in arc_files.items():
