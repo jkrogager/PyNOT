@@ -34,7 +34,7 @@ rectify:
   log:         False         # Use logarithmic binning in wavelength?
   N_out:       null          # No. of output pixels along dispersion axis. If null is given, use No. of pixels in input image.
   interpolate: True          # Perform interpolation or apply central wavelength solution to full 2D range
-  fit_window:  20            # Fitting window in pixels around each arc line to determine centroid  (optimized for grism 4)
+  fit_window:  10            # Fitting window in pixels around each arc line to determine centroid  (optimized for grism 4)
   plot:        True          # Make diagnostic plots?
   edge_kappa:  10            # Significance threshold for edge detection of arc lines
 

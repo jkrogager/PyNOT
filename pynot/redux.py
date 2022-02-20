@@ -147,7 +147,9 @@ def run_pipeline(options_fname, object_id=None, verbose=False, interactive=False
 
     # -- bias
     if not database.has_tag('MBIAS') or make_bias:
-        task_output, log = task_bias(options['bias'], database=database, log=log, verbose=verbose, output_dir=output_base)
+        file_filters = {}
+        task_output, log = task_bias(options['bias'], database, log=log, verbose=verbose, output_dir=output_base,
+                                     **file_filters)
         for tag, filelist in task_output.items():
             database[tag] = filelist
         io.save_database(database, dataset_fname)

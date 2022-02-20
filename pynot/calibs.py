@@ -530,7 +530,7 @@ def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=None, order=2
     return output, output_msg
 
 
-def task_bias(options, database, log=None, verbose=True, output_dir='', report_dir=reports.report_dir):
+def task_bias(options, database, log=None, verbose=True, output_dir='', report_dir=reports.report_dir, **kwargs):
     """
     Define the entry point for the task pynot:bias. This will automatcally
     """
@@ -544,7 +544,7 @@ def task_bias(options, database, log=None, verbose=True, output_dir='', report_d
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    bias_files = organizer.sort_bias(database['BIAS'])
+    bias_files = organizer.sort_bias(database.get_files('BIAS', **kwargs))
 
     tag = 'MBIAS'
     task_output = {tag: []}
@@ -560,7 +560,7 @@ def task_bias(options, database, log=None, verbose=True, output_dir='', report_d
     return task_output, log
 
 
-def task_sflat(options, database, log=None, verbose=True, output_dir='', report_dir=reports.report_dir):
+def task_sflat(options, database, log=None, verbose=True, output_dir='', report_dir=reports.report_dir, **kwargs):
     """
     Define the entry point for the main task of sflat, to be called by pynot.main
 
@@ -570,7 +570,7 @@ def task_sflat(options, database, log=None, verbose=True, output_dir='', report_
         log = Report(verbose)
     log.write("Running task: Spectral flat field combination and normalization")
 
-    flat_files = organizer.sort_spec_flat(database['SPEC_FLAT'])
+    flat_files = organizer.sort_spec_flat(database.get_files('SPEC_FLAT', **kwargs))
 
     tag = 'NORM_SFLAT'
     task_output = {tag: []}
@@ -594,7 +594,7 @@ def task_sflat(options, database, log=None, verbose=True, output_dir='', report_
     return task_output, log
 
 
-def task_prep_arcs(options, database, log=None, verbose=True, output_dir='', report_dir=reports.report_dir):
+def task_prep_arcs(options, database, log=None, verbose=True, output_dir='', report_dir=reports.report_dir, **kwargs):
     """
     Prepare all arc frames for analysis: apply bias and flat field corrections
     """
@@ -605,7 +605,7 @@ def task_prep_arcs(options, database, log=None, verbose=True, output_dir='', rep
     arc_filelist = []
     for tag in database.keys():
         if 'ARC' in tag and 'CORR' not in tag:
-            arc_filelist += database[tag]
+            arc_filelist += database.get_files(tag, **kwargs)
 
     if len(arc_filelist) == 0:
         log.error("No arc line calibration data found in the dataset!")

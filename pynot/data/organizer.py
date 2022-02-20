@@ -9,6 +9,7 @@ from astropy.io import fits
 from astropy.io.fits.file import AstropyUserWarning
 from astropy.time import Time
 import warnings
+import re
 
 from pynot.response import lookup_std_star
 from pynot import instrument
@@ -41,6 +42,19 @@ def occurence(inlist):
         n += inlist == e0
         single_values.append((e0, Ne))
     return single_values
+
+
+def filter_files(flist, func, target):
+    target = target.strip()
+    if target.startswith('/') and target.endswith('/'):
+        target = target[1:-1]
+        pattern = re.compile(target)
+        def criterion(x):
+            return len(pattern.findall(func(x))) > 0
+    else:
+        def criterion(x):
+            return func(x) == target
+    return list(filter(criterion, flist))
 
 
 def match_date(files, date_mjd):
@@ -694,3 +708,40 @@ class TagDatabase(dict):
         if tag in self.keys():
             return True
         return False
+
+    def get_files(self, tag, grism=None, slit=None, filter=None, date=None, target=None, **kwargs):
+        file_list = self.get(tag, [])
+        if grism:
+            file_list = filter_files(file_list, get_grism, grism)
+        if filter:
+            file_list = filter_files(file_list, get_filter, filter)
+        if slit:
+            file_list = filter_files(file_list, get_slit, slit)
+        if date:
+            file_list = filter_files(file_list, get_date, date)
+        if target:
+            file_list = filter_files(file_list, get_target, target)
+        return file_list
+
+def get_target(fname):
+    hdr = fits.getheader(fname)
+    return instrument.get_object(hdr)
+
+def get_grism(fname):
+    hdr = fits.getheader(fname)
+    return instrument.get_grism(hdr)
+
+def get_slit(fname):
+    hdr = fits.getheader(fname)
+    return instrument.get_slit(hdr)
+
+def get_filter(fname):
+    hdr = fits.getheader(fname)
+    return instrument.get_filter(hdr)
+
+def get_date(fname):
+    hdr = fits.getheader(fname)
+    date = instrument.get_date(hdr)
+    if 'T' in date:
+        date = date.split('T')[0]
+    return date
