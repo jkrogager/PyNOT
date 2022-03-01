@@ -110,10 +110,7 @@ def run_pipeline(options_fname, verbose=False, force_restart=False):
     # Combine Bias Frames matched for CCD setup:
     master_bias_fname = os.path.join(output_base, 'MASTER_BIAS.fits')
     bias_frames = raw_image_list[0].match_files(database['BIAS'], date=False)
-    if options['mbias']:
-        master_bias_fname = options['mbias']
-        log.write("Using static master bias frame: %s" % options['mbias'])
-    elif len(bias_frames) < 3:
+    if len(bias_frames) < 3:
         log.error("Must have at least 3 bias frames to combine, not %i" % len(bias_frames))
         log.error("otherwise provide a static 'master bias' frame!")
         log.fatal_error()
