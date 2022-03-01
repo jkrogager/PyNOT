@@ -154,9 +154,9 @@ if __name__ == '__main__':
 
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
-        print(" -  Created output directory:  %s" % output_dir)
+        print(" -  Created output directory:  %s\n" % output_dir)
     filetree = build_file_tree(source_dir)
-    print(" -  Created file tree of source directory:  %s" % source_dir)
+    print(" -  Created file tree of source directory:  %s\n" % source_dir)
 
     for root, files in filetree.items():
         if root == './':

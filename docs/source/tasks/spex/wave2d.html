@@ -9,6 +9,11 @@ wave2d
                   										<h1>PyNOT : wave2d</h1>
                   									</header>
 
+                                    <p class="code">
+                                      pynot wave2d  sci_image.fits arc_ref.fits  --table&nbsp;pixtable.dat  --output&nbsp;rectifited_image.fits
+                                    </p>
+                                    <br><br>
+
                   									<p>
                   										This task will take a science image and apply a transformation to remove image distortions along the spatial axis. These distortions are most visible in the associated arc line image where the emission lines of the calibration lamp show up as curved lines instead of straight lines. The task <code>wave2d</code> performs the following sub-tasks:
 
@@ -117,6 +122,19 @@ wave2d
                   									<h2 id="summary"> Overview of parameters</h2>
 
                   									<dl>
+                                    <dt>input</dt>
+                  											<dd>Input FITS image to rectify</dd>
+                                    <dt>arc</dt>
+                  											<dd>Reference arc line image</dd>
+                                    <dt>table</dt>
+                      									<dd>Pixel table of identified reference arc lines (from <a href="identify.html">pynot:identify</a>)</dd>
+                                    <dt>output</dt>
+                      									<dd>Output filename of rectified FITS image</dd>
+                                    </dl>
+
+                                    <u>Optional Arguments:</u>
+
+                                    <dl>
                   									<dt>order_bg:    5</dt>
                   											<dd>Polynomial order for background subtraction of calibration lamp continuum</dd>
                   								  <dt>order_2d:    3    </dt>

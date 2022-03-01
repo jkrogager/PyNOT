@@ -1,1 +1,9 @@
 The documentation has been moved to my github website: jkrogager.github.io/pynot/
+
+Edit the source descriptions in source/ and compile the full site by running build_html.py
+
+Links to the tasks will be structured into the sidebar automatically.
+
+Note that the duplicate tasks `bias` and `corr` are defined under tasks/spex/
+and linked to tasks/phot/
+
