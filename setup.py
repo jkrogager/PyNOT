@@ -28,6 +28,8 @@ programming_language = 'Programming Language :: Python :: 3'
 std_filelist = glob.glob('pynot/calib/std/*.dat')
 std_filelist += ['tcs_namelist.txt']
 
+calib_files = glob.glob('')
+
 setup(
     name='PyNOT-redux',
 
@@ -104,8 +106,8 @@ setup(
     # installed, specify them here.  If using Python 2.6 or less, then these
     # have to be included in MANIFEST.in as well.
     package_data={
-        'pynot/calib': ['ThAr_linelist.dat',
-                        'alfosc_filters.dat',
+        'pynot/calib': ['alfosc_filters.dat',
+                        'efosc_filters.dat'
                         'default_options.yml',
                         'default_options_img.yml',
                         'HeNe_linelist.dat',
@@ -118,7 +120,7 @@ setup(
 
         'pynot/calib/std': std_filelist,
 
-        'pynot/data': ['alfosc.rules'],
+        'pynot/data': ['alfosc.rules', 'efosc.rules'],
 
         'pynot/data/help': ['welcome_msg_extract.html',
                             'welcome_msg_identify.html',
