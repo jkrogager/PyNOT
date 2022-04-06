@@ -181,9 +181,15 @@ def combine_flat_frames(raw_frames, output, mbias='', mode='spec', dispaxis=None
         bias = 0.
 
     if dispaxis is None:
-        hdr = instrument.get_header(raw_frames[0])
-        dispaxis = instrument.get_dispaxis(hdr)
-        msg.append("          - Getting dispersion axis from file: {!s}".format(dispaxis))
+        if mode == 'spec':
+            hdr = instrument.get_header(raw_frames[0])
+            dispaxis = instrument.get_dispaxis(hdr)
+            msg.append("          - Getting dispersion axis from file: {!s}".format(dispaxis))
+
+        if dispaxis is None and mode == 'spec':
+            raise ValueError("dispaxis must be either 1 or 2 for `mode=spec`")
+
+
     elif dispaxis not in [1, 2]:
         raise ValueError("dispaxis must be either 1 or 2, not: %r" % dispaxis)
 
