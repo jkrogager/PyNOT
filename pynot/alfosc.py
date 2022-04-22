@@ -213,9 +213,9 @@ def get_mjd(hdr):
 
 def get_observing_mode(hdr):
     """Determine the observing mode (either spectroscopy or imaging)"""
-    if hdr['OBS_MODE'] == 'SPECTROSCOPY':
+    if hdr['OBS_MODE'].strip().upper() == 'SPECTROSCOPY':
         return 'SPECTROSCOPY'
-    elif hdr['OBS_MODE'] == 'IMAGING ':
+    elif hdr['OBS_MODE'].strip().upper() == 'IMAGING':
         return 'IMAGING'
     else:
         return None
