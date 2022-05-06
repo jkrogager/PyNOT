@@ -5,7 +5,7 @@ from functools import reduce
 import warnings
 
 from pynot.functions import get_version_number
-from pynot.fitsio import load_fits_spectrum, save_fitstable_spectrum
+from pynot.fitsio import load_fits_spectrum, save_fitstable_spectrum, save_fits_spectrum
 from pynot.txtio import load_ascii_spectrum
 
 
@@ -286,7 +286,7 @@ def combine_2d(files, output=None, method='mean', scale=False, extended=False, d
         hdr['CD1_1'] = np.diff(final_space)[0]
 
     hdr['NCOMBINE'] = len(int_flux)
-    hdr['EXPTIME'] = np.sum(exp_times)
+    hdr['EXPTIME'] = (np.sum(exp_times), "Sum of integration time for all exposures")
     hdr['DATAMIN'] = np.nanmin(final_flux*rescale)
     hdr['DATAMAX'] = np.nanmax(final_flux*rescale)
     hdr['EXTNAME'] = 'DATA'
@@ -313,7 +313,7 @@ def combine_2d(files, output=None, method='mean', scale=False, extended=False, d
 
 
 
-def combine_1d(files, output=None, method='mean', scale=False):
+def combine_1d(files, output=None, method='mean', scale=False, table_output=True):
     """Combine a list of 1d-spectra using either median or mean combination.
     For median combination, only the overlapping parts of the spectra will be
     combined. The mean combination uses a weighted average over the entire
@@ -334,6 +334,8 @@ def combine_1d(files, output=None, method='mean', scale=False):
     scale : bool   [default=False]
         Scale the individual spectra to their mean values?
 
+    table_output : bool   [default=True]
+        Use FITS table for the output format? Otherwise use a MultiExtension Fits File
     """
 
     wl_all = list()
@@ -386,7 +388,7 @@ def combine_1d(files, output=None, method='mean', scale=False):
     avg_pix_size = np.mean([np.mean(np.diff(this_wl)) for this_wl in wl_all])
     if same_size and (wl_diff_lower < avg_pix_size) and (wl_diff_upper < avg_pix_size):
         msg.append("          - Combining with no interpolation!")
-        final_wl = wl[0]
+        final_wl = wl_all[0]
         int_flux = list()
         int_var = list()
         int_mask = mask_all
@@ -445,7 +447,7 @@ def combine_1d(files, output=None, method='mean', scale=False):
             final_flux = np.nanmedian(int_flux, axis=0)
             final_var = np.nansum(int_var, axis=0)/len(int_flux)
             final_err = np.sqrt(final_var)
-            final_mask = np.nansum(int_mask, axis=0) > 0
+            final_mask = 1 * (np.nansum(int_mask, axis=0) > 0)
 
         else:
             msg.append("          - Combination method: inverse variance weighting")
@@ -455,7 +457,7 @@ def combine_1d(files, output=None, method='mean', scale=False):
             final_flux = np.nansum(M*int_flux*weight, 0) / np.nansum(M*weight, 0)
             final_var = 1. / np.nansum(M*weight, 0)
             final_err = np.sqrt(final_var)
-            final_mask = np.nansum(int_mask, axis=0) > 0
+            final_mask = 1 * (np.nansum(int_mask, axis=0) > 0)
 
     if output is None:
         obj_name = hdr.get('OBJECT')
@@ -467,8 +469,12 @@ def combine_1d(files, output=None, method='mean', scale=False):
     else:
         fname = output
 
-    save_fitstable_spectrum(fname, final_wl, final_flux, final_err, hdr, mask=final_mask)
-    msg.append(" [OUTPUT] - Saving the combined spectrum as a FITS table: %s" % output)
+    if table_output:
+        save_fitstable_spectrum(fname, final_wl, final_flux, final_err, hdr, mask=final_mask)
+        msg.append(" [OUTPUT] - Saving the combined spectrum as a FITS table: %s" % output)
+    else:
+        save_fits_spectrum(fname, final_wl, final_flux, final_err, hdr, mask=final_mask)
+        msg.append(" [OUTPUT] - Saving the combined spectrum as a MultiExtension FITS file: %s" % output)
 
     output_msg = "\n".join(msg)
 
