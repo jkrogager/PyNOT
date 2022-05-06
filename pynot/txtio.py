@@ -44,7 +44,7 @@ mask_column_names = ['mask']
 
 def load_ascii_spectrum(fname):
     output_msg = ""
-    data = Table.read(fname, format='ascii')
+    data = Table.read(fname, format='ascii', comment='#')
     wl, flux, err, sky, mask = (None, None, None, None, None)
     if len(data.colnames) < 3:
         err_msg = "Less than 3 columns identified! Must provide wave, flux and err..."
