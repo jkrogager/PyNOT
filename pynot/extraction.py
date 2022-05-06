@@ -140,7 +140,7 @@ def fit_trace(img2D, x, y, model_name='moffat', dx=50, kappa=10., ymin=5, ymax=-
 
     # Detect peaks:
     noise = mad(spsf)*1.48
-    peaks, properties = find_peaks(spsf, prominence=kappa*noise, width=3)
+    peaks, properties = find_peaks(spsf, prominence=kappa*noise, width=2)
     prominences = properties['prominences']
     msg.append("          - Automatically identifying objects in the image...")
 
@@ -298,6 +298,8 @@ def create_2d_profile(img2D, model_name='moffat', dx=25, width_scale=2, kappa_de
             w_sig = 1./sig_err**2
             sig_med, mask_sig = median_filter_data(sig, kappa_width, w_width)
             mask_sig &= (x_binned > xmin) & (x_binned < xmax)
+            mask_sig &= (sig != 20)
+            mask_sig &= np.isfinite(w_sig)
             sig_fit = Chebyshev.fit(x_binned[mask_sig], sig[mask_sig], deg=order_width, domain=domain, w=w_sig[mask_sig])
             info_dict['sig'] = sig
             info_dict['sig_err'] = sig_err
@@ -323,10 +325,14 @@ def create_2d_profile(img2D, model_name='moffat', dx=25, width_scale=2, kappa_de
             b_err[b_err == 0] = 100.
             w_b = 1./b_err**2
             mask_a &= (x_binned > xmin) & (x_binned < xmax)
+            mask_a &= (a != 20)
+            mask_a &= np.isfinite(w_a)
             mask_b &= (x_binned > xmin) & (x_binned < xmax)
+            mask_b &= (b != 20)
+            mask_b &= np.isfinite(w_b)
 
-            a_fit = Chebyshev.fit(x_binned[mask_a], a[mask_a], deg=order_width, domain=domain)  # , w=w_a[mask_a])
-            b_fit = Chebyshev.fit(x_binned[mask_b], b[mask_b], deg=order_width, domain=domain)  # , w=w_b[mask_b])
+            a_fit = Chebyshev.fit(x_binned[mask_a], a[mask_a], deg=order_width, domain=domain, w=w_a[mask_a])
+            b_fit = Chebyshev.fit(x_binned[mask_b], b[mask_b], deg=order_width, domain=domain, w=w_b[mask_b])
             info_dict['a'] = a
             info_dict['a_err'] = a_err
             info_dict['mask_a'] = mask_a
@@ -373,14 +379,17 @@ def plot_diagnostics(pdf, spec1D, err1D, info_dict, width_scale=2):
     x = np.arange(len(info_dict['fit_mu']))
     for par, ax in zip(pars, axes):
         mask = info_dict['mask_'+par]
+        mask &= (info_dict[par+'_err'] != 100)
         ax.errorbar(info_dict['x_binned'][mask], info_dict[par][mask], info_dict[par+'_err'][mask],
                     marker='s', color='0.2', ls='', markersize=4)
         ax.plot(info_dict['x_binned'][~mask], info_dict[par][~mask], marker='x', color='crimson', ls='')
         ax.plot(x, info_dict['fit_'+par], color='RoyalBlue', lw=1.5, alpha=0.9)
         med = np.nanmedian(info_dict[par][mask])
         std = 1.5*mad(info_dict[par][mask])
-        ymin = max(0, med-10*std)
-        ymax = med+10*std
+        ymin = max(0, med - 10*std)
+        ymax = med + 10*std
+        if par in ['a', 'b', 'sig']:
+            ymax = min(20, ymax)
         if 'fwhm' in info_dict:
             lower = info_dict['fit_'+par] - width_scale*info_dict['fwhm']
             upper = info_dict['fit_'+par] + width_scale*info_dict['fwhm']
@@ -523,12 +532,19 @@ def auto_extract(fname, output, dispaxis=1, *, N=None, pdf_fname=None, model_nam
         err2D = err2D.T
         mask2D = mask2D.T
 
-    spectra, ext_msg = auto_extract_img(img2D, err2D, N=N, pdf_fname=pdf_fname, mask=mask2D,
-                                        model_name=model_name, dx=dx, width_scale=width_scale,
+    spectra, ext_msg = auto_extract_img(img2D, err2D, N=N,
+                                        pdf_fname=pdf_fname,
+                                        mask=mask2D,
+                                        model_name=model_name,
+                                        dx=dx,
+                                        width_scale=width_scale,
                                         xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax,
                                         order_center=order_center, order_width=order_width,
-                                        w_cen=w_cen, kappa_cen=kappa_cen, w_width=w_width, kappa_width=kappa_width,
-                                        kappa_det=kappa_det)
+                                        w_cen=w_cen, w_width=w_width,
+                                        kappa_cen=kappa_cen,
+                                        kappa_width=kappa_width,
+                                        kappa_det=kappa_det,
+                                        )
     msg.append(ext_msg)
 
     hdu = fits.HDUList()

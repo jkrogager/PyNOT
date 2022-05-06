@@ -13,6 +13,7 @@
    - combine_flat_frames
    - normalize_spectral_flat
    - fit_background
+   - correct_cosmics
    - science_reduction_2d
 """
 
