@@ -131,3 +131,4 @@ dmypy.json
 .pyre/
 test/implement_identify/identify_gui.py
 pynot/.instrument.cfg
+.DS_Store
