@@ -74,7 +74,7 @@ def match_catalogs(coords, refs):
     return np.array(matched)
 
 
-def get_gaia_catalog(ra, dec, radius=4., limit=500, catalog_fname='', database='edr3'):
+def get_gaia_catalog(ra, dec, radius=4., limit=2000, catalog_fname='', database='edr3'):
     """
     ra and dec: units of degrees
     radius: units of arcmin
