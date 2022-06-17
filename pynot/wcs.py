@@ -82,7 +82,7 @@ def get_gaia_catalog(ra, dec, radius=4., limit=2000, catalog_fname='', database=
     """
     from astroquery.gaia import Gaia
     query_args = {'limit': limit, 'ra': ra, 'dec': dec, 'radius': radius/60., 'dr': database}
-    query = """SELECT TOP {limit} ra, dec, phot_g_mean_mag FROM gaia{dr}.gaia_source
+    query = """SELECT TOP {limit} ra, dec, phot_g_mean_mag, bp_rp FROM gaia{dr}.gaia_source
     WHERE CONTAINS(POINT('ICRS', gaia{dr}.gaia_source.ra, gaia{dr}.gaia_source.dec),
                    CIRCLE('ICRS', {ra}, {dec}, {radius}))=1;""".format(**query_args)
     job = Gaia.launch_job_async(query, dump_to_file=True,
