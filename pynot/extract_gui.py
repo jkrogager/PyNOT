@@ -33,6 +33,7 @@ import warnings
 from pynot.functions import fix_nans, mad, tophat, NN_moffat, NN_gaussian
 from pynot.welcome import WelcomeMessage
 from pynot.fitsio import save_fits_spectrum, save_fitstable_spectrum
+from pynot.txtio import save_ascii_spectrum
 
 code_dir = os.path.dirname(os.path.abspath(__file__))
 v_file = os.path.join(code_dir, 'VERSION')
@@ -50,25 +51,25 @@ def run_gui(input_fname, output_fname, app=None, **ext_kwargs):
     del gui
 
 
-def save_ascii_spectrum(fname, wl, flux, err, hdr, bg=None):
-    """Write spectrum to an ascii text file with header saved to separate text file."""
-    if bg is not None:
-        data_table = np.column_stack([wl, flux, err, bg])
-        fmt = "%12.4f  % .3e  %.3e  %.3e"
-        col_names = "# Wavelength       Flux        Error      Sky"
-    else:
-        data_table = np.column_stack([wl, flux, err])
-        fmt = "%12.4f  % .3e  %.3e"
-        col_names = "# Wavelength       Flux        Error"
-
-    basename, ext = os.path.splitext(fname)
-    header_fname = basename + '_hdr.txt'
-
-    with open(fname, 'w') as output:
-        output.write(col_names + "\n")
-        np.savetxt(output, data_table, fmt=fmt)
-    hdr.tofile(header_fname, sep='\n', endcard=False, padding=False, overwrite=True)
-    return True, "File saved successfully"
+# def save_ascii_spectrum(fname, wl, flux, err, hdr, bg=None):
+#     """Write spectrum to an ascii text file with header saved to separate text file."""
+#     if bg is not None:
+#         data_table = np.column_stack([wl, flux, err, bg])
+#         fmt = "%12.4f  % .3e  %.3e  %.3e"
+#         col_names = "# Wavelength       Flux        Error      Sky"
+#     else:
+#         data_table = np.column_stack([wl, flux, err])
+#         fmt = "%12.4f  % .3e  %.3e"
+#         col_names = "# Wavelength       Flux        Error"
+#
+#     basename, ext = os.path.splitext(fname)
+#     header_fname = basename + '_hdr.txt'
+#
+#     with open(fname, 'w') as output:
+#         output.write(col_names + "\n")
+#         np.savetxt(output, data_table, fmt=fmt)
+#     hdr.tofile(header_fname, sep='\n', endcard=False, padding=False, overwrite=True)
+#     return True, "File saved successfully"
 
 
 def get_FWHM(y, x=None):
@@ -2489,17 +2490,17 @@ class SaveWindow(QtWidgets.QDialog):
         if file_format == 0:
             if fname[-5:] != '.fits':
                 fname = fname + '.fits'
-            saved, msg = save_fits_spectrum(fname, wl, flux, err, hdr, bg, aper=model2d, mask=mask)
+            saved, msg = save_fits_spectrum(fname, wl, flux, err, hdr, bg, aper=model2d, mask=1*mask)
             self.saved = saved
         elif file_format == 1:
             if fname[-5:] != '.fits':
                 fname = fname + '.fits'
-            saved, msg = save_fitstable_spectrum(fname, wl, flux, err, hdr, bg, aper=model2d, mask=mask)
+            saved, msg = save_fitstable_spectrum(fname, wl, flux, err, hdr, bg, aper=model2d, mask=1*mask)
             self.saved = saved
         elif file_format == 2:
             if fname[-4:] != '.dat':
                 fname = fname + '.dat'
-            saved, msg = save_ascii_spectrum(fname, wl, flux, err, hdr, bg, mask=mask)
+            saved, msg = save_ascii_spectrum(fname, wl, flux, err, hdr, bg, mask=1*mask)
             self.saved = saved
         else:
             self.saved = False

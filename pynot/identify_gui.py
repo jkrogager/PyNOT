@@ -590,20 +590,31 @@ class GraphicInterface(QtWidgets.QMainWindow):
                 if len(hdu) > 1:
                     imghdr = hdu[1].header
                     primhdr.update(imghdr)
-            dispaxis = instrument.get_dispaxis(primhdr)
-            grism_name = instrument.get_grism(primhdr)
+            try:
+                dispaxis = instrument.get_dispaxis(primhdr)
+                grism_name = instrument.get_grism(primhdr)
+            except KeyError:
+                dispaxis = None
+                grism_name = ''
+
             if dispaxis:
                 self.dispaxis = dispaxis
                 self.grism_name = grism_name
                 self.setWindowTitle('PyNOT: Identify Arc Lines  |  Grism: %s' % grism_name)
+                print("Warning - problem in the header of the image!")
             else:
-                self.arc_fname = ''
-                self.grism_name = ''
-                error_msg = 'Could not get the dispersion axis!\n Invalid format for slit: %s' % instrument.get_slit(primhdr)
-                QtWidgets.QMessageBox.critical(None, 'Invalid Aperture', error_msg)
-                return
+                # self.arc_fname = ''
+                # self.grism_name = ''
+                # error_msg = 'Could not get the dispersion axis!\n Invalid format for slit: %s' % instrument.get_slit(primhdr)
+                # QtWidgets.QMessageBox.critical(None, 'Invalid Aperture', error_msg)
+                # return
+                self.setWindowTitle('PyNOT: Identify Arc Lines')
 
-            linelist_fname = instrument.auto_linelist(primhdr)
+            try:
+                linelist_fname = instrument.auto_linelist(primhdr)
+            except KeyError:
+                print("Warning - problem in the header of the image!")
+                linelist_fname = None
             if linelist_fname:
                 self.load_linelist_fname(linelist_fname)
 

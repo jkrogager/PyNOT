@@ -119,7 +119,10 @@ def create_pixel_array(hdr, axis):
     if axis not in [1, 2]:
         raise ValueError("Dispersion Axis must be 1 (X-axis) or 2 (Y-axis)!")
     p = hdr['CRVAL%i' % axis]
-    s = hdr['CDELT%i' % axis]
+    if 'CDELT%i' % axis in hdr:
+        s = hdr['CDELT%i' % axis]
+    else:
+        s = hdr['CD%i_%i' % (axis, axis)]
     r = hdr['CRPIX%i' % axis]
     N = hdr['NAXIS%i' % axis]
     pix_array = p + s*(np.arange(N) - (r - 1))
