@@ -104,7 +104,7 @@ def make_default_configuration(current):
     instruments, _ = get_installed_instruments()
     all_instruments = {}
     for name, module_file in instruments.items():
-        all_instruments[name] = os.path.basena(module_file)
+        all_instruments[name] = os.path.basename(module_file)
     cfg['all_instruments'] = all_instruments
     return cfg
 
