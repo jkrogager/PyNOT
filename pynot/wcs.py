@@ -292,10 +292,10 @@ def correct_wcs(img_fname, sep_fname, output='', fig_fname='', max_num=60, min_n
 
 
     # -- Update image:
-    with fits.open(img_fname) as hdu_list:
+    with fits.open(img_fname, mode='update') as hdu_list:
         hdu_list['DATA'].header = hdr
         hdu_list['ERR'].header.update(wcs_keys)
-        hdu_list.writeto(output_fname, overwrite=True)
+        # hdu_list.writeto(output_fname, overwrite=True)
 
     msg.append(" [OUTPUT] - Saving WCS calibrated image: %s" % output_fname)
     msg.append("")
