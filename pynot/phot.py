@@ -754,11 +754,10 @@ def flux_calibration_sdss(img_fname, sep_fname, fig_fname='', q_lim=0.8, kappa=3
     msg.append(" [OUTPUT] - Saving diagnostic figure: %s" % fig_fname)
 
     # -- Update header in FITS image:
-    with fits.open(img_fname) as hdu_list:
+    with fits.open(img_fname, mode='update') as hdu_list:
         hdu_list['DATA'].header.add_comment("Self-calibration of mag. zero point using SDSS")
         hdu_list['DATA'].header['MAG_ZP'] = (np.round(zp, 3), "Magnitude zero point (AB mag)")
         hdu_list['DATA'].header['ZP_ERR'] = (np.round(zp_err, 3), "Uncertainty on magnitude zero point (AB mag)")
-        hdu_list.writeto(img_fname, overwrite=True)
 
     msg.append(" [OUTPUT] - Updating header of input image: %s" % img_fname)
     msg.append("          - MAG_ZP  = %10.3f / %s" % (zp, "Magnitude zero point (AB mag)"))
