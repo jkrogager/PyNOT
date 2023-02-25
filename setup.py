@@ -22,7 +22,7 @@ mypackage_root_dir = path.dirname(path.abspath(__file__))
 with open(path.join(mypackage_root_dir, 'pynot', 'VERSION')) as v_file:
     version = v_file.read().strip()
 
-python_version_requirement = '<3.10'
+python_version_requirement = '>3.7'
 programming_language = 'Programming Language :: Python :: 3'
 
 std_filelist = glob.glob('pynot/calib/std/*.dat')
