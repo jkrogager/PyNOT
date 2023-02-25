@@ -419,8 +419,6 @@ def main():
     parser_redux.add_argument("-C", "--calibs", action="store_true",
                               help="Process only static calibrations: [bias, flats, arcs, response]")
 
-    parser_break = tasks.add_parser('', help="")
-
     # Imaging Redux:
     parser_phot = tasks.add_parser('phot', formatter_class=set_help_width(30),
                                    help="Run the full imaging pipeline")
