@@ -15,10 +15,15 @@ bias
 									<br><br>
 
 									<p>
-										This task takes a list of a bias images and combines them into a master combined bias frame. The command line task accepts wildcards, an explicit list of files, or a file containing a list of files. The combination is performed using a sigma-clipped mean or median. The threshold of the clipping and the method can be controlled by the <code>kappa</code> and <code>method</code> arguments.
+										This task takes a list of a bias images and combines them into a master combined bias frame.
+										The command line task accepts wildcards, an explicit list of files, or a file containing a
+										list of files. The combination is performed using a sigma-clipped mean or median.
+										The threshold of the clipping and the method can be controlled by the <code>kappa</code>
+										and <code>method</code> arguments.
 									</p>
 
-									The easiest way to generate the input for <code>pynot bias</code> is to source it from the file classification table:
+									The easiest way to generate the input for <code>pynot bias</code> is to source it from the file
+									classification table:
 									<br><br>
 									<p class="code">
 										%] cat dataset.pfc | grep BIAS > bias.list<br>
