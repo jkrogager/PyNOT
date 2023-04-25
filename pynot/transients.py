@@ -2,6 +2,8 @@ from astropy.wcs import WCS
 from astropy.io import fits
 from astropy.table import Table
 from astropy.utils.exceptions import AstropyWarning
+from astropy.coordinates import SkyCoord
+import astropy.units as u
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -18,12 +20,29 @@ def mad(x):
 
 
 def find_sources_without_gaia(sep_cat, gaia, limit=1.5):
+    """
+    Find sources without a match in Gaia assuming a matching radius
+    
+    sep_cat : astropy.table.Table
+        A Table containing source photometry from the image.
+        Must contain the columns ra and dec in degrees.
+    
+    gaia : astropy.table.Table
+        A Table containing source photometry from the Gaia catalog.
+        Must contain the columns ra and dec in degrees.
+    
+    limit : float  [default=1.5]
+        The matching radius in arcsec.
+    
+    Returns
+        astropy.table.Table of the sources with no match in Gaia
+    """
     no_match_list = list()
-    refs = np.array([gaia['ra'], gaia['dec']]).T
+    pos_gaia = SkyCoord(gaia['ra']*u.deg, gaia['dec']*u.deg, frame='icrs')
     for row in sep_cat:
-        xy = np.array([row['ra'], row['dec']])
-        dist = np.sqrt(np.sum((refs - xy)**2, axis=1))
-        if np.min(dist) < limit/3600.:
+        pos = SkyCoord(row['ra']*u.deg, row['dec']*u.deg, frame='icrs')
+        dist = pos.separation(pos_gaia)
+        if np.min(dist) < limit*u.arcsec:
             pass
         else:
             no_match_list.append(np.array(row))
