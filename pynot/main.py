@@ -552,12 +552,26 @@ def main():
                                    help="Append new data to FITS file or create error image")
     parser_fapp.add_argument('input', type=str,
                             help='Input filename of FITS image to which the new data will be appended')
-    parser_fapp.add_argument('--data', type=str, default='',
+    parser_fapp.add_argument('data', type=str,
                             help='Filename of the image to append to the `input` FITS file')
     parser_fapp.add_argument('-n', '--name', type=str, default='',
                             help='Name of the new FITS extension.')
-    parser_fapp.add_argument('-c', '--create', action='store_true',
-                            help='Create an error extension based on the primary HDU of the `inout` file')
+    parser_fapp.add_argument('-x', '--ext', type=int, default=0,
+                            help='Extension number of the data file which is appended to the `input` file')
+
+    parser_delext = tasks.add_parser('remove-ext', formatter_class=set_help_width(30),
+                                     help="Remove a given extension of a FITS file")
+    parser_delext.add_argument('input', type=str,
+                               help='Input filename of FITS image to which the new data will be appended')
+    parser_delext.add_argument('ext', type=str,
+                               help='Extension number or name to remove')
+
+    parser_adderr = tasks.add_parser('add-error', formatter_class=set_help_width(30),
+                                     help="Create and append error image for a single HDU FITS file")
+    parser_adderr.add_argument('input', type=str,
+                               help='Input filename of FITS image to which the new data will be appended')
+    parser_adderr.add_argument('-f', '--force', action='store_true',
+                               help='Overwrite existing error extension (if name is `ERR`)')
 
     args = parser.parse_args()
 
@@ -939,10 +953,17 @@ def main():
         fits_to_ascii(args.input, args.output, args.keys)
 
     elif task == 'append-ext':
-        from pynot.fitsio import fits_append
-        if not args.create and args.data == '':
-            print(" Invalid input! If '--create' is not set, '--data' must be given!")
-        fits_append(args.input, args.data, name=args.name, create_error=args.create)
+        from pynot.fitsio import append_extension
+        log = append_extension(args.input, args.data, name=args.name, data_ext=args.ext)
+
+    elif task == 'remove-ext':
+        from pynot.fitsio import remove_extension
+        log = remove_extension(args.input, args.ext)
+    
+    elif task == 'add-error':
+        from pynot.fitsio import create_error_image
+        log = create_error_image(args.input, overwrite=args.force)
+    
     else:
         import pynot
         print("Running PyNOT for instrument: %s\n" % pynot.instrument.name)
