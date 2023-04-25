@@ -5,6 +5,8 @@ import warnings
 from astropy.io import fits
 import numpy as np
 
+from pynot.functions import mad
+
 
 class MultipleSpectraWarning(Warning):
     """Throw warning when several FITS Table extensions or multiple IRAF objects are present"""
@@ -448,3 +450,30 @@ def fits_to_ascii(fname, output, keys=None):
     with open(output, 'w') as out:
         out.write(tbl_header)
         np.savetxt(out, data, fmt="%.4f  %+.4e  %.4e  %i")
+
+
+def fits_append(base_fname, data_fname, name='', create_error=False):
+    """
+    Append the HDU in `data_fname` to the `base_fname` FITS file
+    
+    name : string
+        Name of the new extension
+    
+    create_error : bool  [default=False]
+        Estimate an error image by analysing the statistics of the `base_fname` file.
+        Assumes that the first extension of the `base_fname` file is the data image.
+    """
+    if create_error:
+        data = fits.getdata(base_fname)
+        new_hdr = fits.getheader(base_fname)
+        noise = mad(data) * 1.48
+        var = np.fabs(data) + noise**2
+        new_data = np.sqrt(var)
+        name = 'ERR'
+    else:
+        new_data = fits.getdata(data_fname)
+        new_hdr = fits.getheader(data_fname)
+    
+    with fits.open(base_fname, mode='update') as hdu:
+        ext = fits.ImageHDU(new_data, header=new_hdr, name=name)
+        hdu.append(ext)
