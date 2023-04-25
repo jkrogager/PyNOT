@@ -19,10 +19,10 @@ def mad(x):
 
 def find_sources_without_gaia(sep_cat, gaia, limit=1.5):
     no_match_list = list()
-    refs = np.array([gaia['ra'], gaia['dec']]).T
     for row in sep_cat:
-        xy = np.array([row['ra'], row['dec']])
-        dist = np.sqrt(np.sum((refs - xy)**2, axis=1))
+        x, y = row['ra'], row['dec']
+        dist = pyasl.getAngDist(x, y, gaia['ra'], gaia['dec'])
+        
         if np.min(dist) < limit/3600.:
             pass
         else:
