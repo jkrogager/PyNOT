@@ -4,6 +4,9 @@ __author__ = "Jens-Kristian Krogager"
 import warnings
 from astropy.io import fits
 import numpy as np
+import os
+
+from pynot.functions import mad
 
 
 class MultipleSpectraWarning(Warning):
@@ -448,3 +451,88 @@ def fits_to_ascii(fname, output, keys=None):
     with open(output, 'w') as out:
         out.write(tbl_header)
         np.savetxt(out, data, fmt="%.4f  %+.4e  %.4e  %i")
+
+
+def append_extension(base_fname, data_fname, name='', data_ext=0):
+    """
+    Append the HDU in `data_fname` to the `base_fname` FITS file
+    
+    name : string
+        Name of the new extension
+    
+    create_error : bool  [default=False]
+        Estimate an error image by analysing the statistics of the `base_fname` file.
+        Assumes that the first extension of the `base_fname` file is the data image.
+    """
+    new_data = fits.getdata(data_fname, data_ext)
+    new_hdr = fits.getheader(data_fname, data_ext)
+    log = []
+    with fits.open(base_fname, mode='update') as hdu:
+        if name in hdu:
+            log.append("[WARNING] - Extension with name '%s' already exists!" % name)
+        ext = fits.ImageHDU(new_data, header=new_hdr, name=name)
+        hdu.append(ext)
+    log.append("          - Successfully appended extension %i of file: %s" % (data_ext, data_fname))
+    log.append("          - to the file: %s" % (base_fname))
+    output_msg = '\n'.join(log)
+    return output_msg
+
+
+def remove_extension(base_fname, ext):
+    """
+    Remove a given extension of the `base_fname` FITS file
+    
+    base_fname : string
+        Filename of the FITS file to modify
+
+    ext : int or string
+        Name of the extension to remove from the input file
+    """
+    log = []
+    with fits.open(base_fname) as hdu:
+        if ext.isnumeric():
+            ext = int(ext)
+            if ext >= len(hdu):
+                log.append(" [ERROR]  - Extension %i does not exist!" % ext)
+                return "\n".join(log)
+            hdu.pop(ext)
+        else:
+            if ext in hdu:
+                val = hdu[ext]
+                idx = hdu.index(val)
+                hdu.pop(idx)
+            else:
+                log.append(" [ERROR]  - Extension '%s' does not exist!" % ext)
+                return "\n".join(log)
+        hdu.writeto('_pynot_tmp.fits')
+    os.system("mv _pynot_tmp.fits %s" % base_fname)
+    log.append("          - Successfully removed extension %s of file: %s" % (ext, base_fname))
+    return '\n'.join(log)
+
+
+def create_error_image(base_fname, overwrite=False):
+    """
+    Create an error image based on the data in the `base_fname` FITS file
+    
+    overwrite : bool  [default=False]
+        Overwrite existing error image in the input file.
+        Only if the existing extension name is `ERR`.
+    """
+    
+    data = fits.getdata(base_fname)
+    new_hdr = fits.getheader(base_fname)
+    noise = mad(data) * 1.48
+    var = np.fabs(data) + noise**2
+    new_data = np.sqrt(var)
+    name = 'ERR'
+    ext = fits.ImageHDU(new_data, header=new_hdr, name=name)
+    with fits.open(base_fname, mode='update') as hdu:
+        if 'ERR' in hdu:
+            if overwrite:
+                hdu['ERR'] = ext
+            else:
+                return " [ERROR]  - ERR image extension already exists! Use option `-f` to overwrite"
+        else:
+            hdu.append(ext)
+    output_msg = "          - Successfully created an error image"
+    return output_msg

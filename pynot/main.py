@@ -15,6 +15,7 @@ import os
 import sys
 import numpy as np
 import warnings
+import distutils
 
 from pynot.functions import get_options, get_option_descr, get_version_number
 
@@ -54,6 +55,8 @@ def set_default_pars(parser, *, section, default_type, ignore_pars=[], mode='spe
 
         if val is None:
             value_type = default_type
+        if isinstance(val, bool):
+            value_type = lambda x: bool(distutils.util.strtobool(x))
         else:
             value_type = type(val)
 
@@ -479,12 +482,14 @@ def main():
                                   help="Perform WCS calibration")
     parser_wcs.add_argument("input", type=str,
                             help="Input image to analyse")
-    parser_wcs.add_argument("table", type=str,
+    parser_wcs.add_argument("table", type=str, default='auto', nargs='?',
                             help="Source identification table from SEP (_phot.fits)")
     parser_wcs.add_argument('-o', "--output", type=str, default='',
                             help="Filename of WCS calibrated image (.fits)")
     parser_wcs.add_argument("--fig", type=str, default='',
                             help="Filename of diagnostic figure (.pdf)")
+    parser_wcs.add_argument("-d", "--debug", action='store_true',
+                            help="Enable debugging mode with additional diagnostic plots")
     set_default_pars(parser_wcs, section='wcs', default_type=int, mode='img')
 
 
@@ -542,6 +547,31 @@ def main():
                             help='Output filename of the ASCII table')
     parser_f2a.add_argument('--keys', type=str, nargs='+',
                             help='List of keywords from the FITS header to include (ESO keywords must use . not space delimiter)')
+
+    parser_fapp = tasks.add_parser('append-ext', formatter_class=set_help_width(30),
+                                   help="Append new data to FITS file or create error image")
+    parser_fapp.add_argument('input', type=str,
+                            help='Input filename of FITS image to which the new data will be appended')
+    parser_fapp.add_argument('data', type=str,
+                            help='Filename of the image to append to the `input` FITS file')
+    parser_fapp.add_argument('-n', '--name', type=str, default='',
+                            help='Name of the new FITS extension.')
+    parser_fapp.add_argument('-x', '--ext', type=int, default=0,
+                            help='Extension number of the data file which is appended to the `input` file')
+
+    parser_delext = tasks.add_parser('remove-ext', formatter_class=set_help_width(30),
+                                     help="Remove a given extension of a FITS file")
+    parser_delext.add_argument('input', type=str,
+                               help='Input filename of FITS image to which the new data will be appended')
+    parser_delext.add_argument('ext', type=str,
+                               help='Extension number or name to remove')
+
+    parser_adderr = tasks.add_parser('add-error', formatter_class=set_help_width(30),
+                                     help="Create and append error image for a single HDU FITS file")
+    parser_adderr.add_argument('input', type=str,
+                               help='Input filename of FITS image to which the new data will be appended')
+    parser_adderr.add_argument('-f', '--force', action='store_true',
+                               help='Overwrite existing error extension (if name is `ERR`)')
 
     args = parser.parse_args()
 
@@ -782,7 +812,11 @@ def main():
         else:
             print(" Invalid input! Either '--flat' or '--edges' must be set!")
             return
-        input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
+        if args.input.endswith('.fits'):
+            input_list = [args.input]
+        else:
+            input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
+
         for fname in input_list:
             print("  Trimming image: %s" % fname)
             trim_filter_edge(fname, *image_region, output_dir=args.dir)
@@ -827,7 +861,13 @@ def main():
         vars_to_remove = ['task', 'input', 'output', 'fig', 'table']
         for varname in vars_to_remove:
             options.pop(varname)
-        log = correct_wcs(args.input, args.table, output_fname=args.output, fig_fname=args.fig, **options)
+        if args.table == 'auto':
+            from pynot.phot import source_detection
+            phot_table, _, log = source_detection(args.input)
+            print(log)
+        else:
+            phot_table = args.table
+        log = correct_wcs(args.input, phot_table, output=args.output, fig_fname=args.fig, **options)
 
 
     elif task == 'autozp':
@@ -912,6 +952,18 @@ def main():
         from pynot.fitsio import fits_to_ascii
         fits_to_ascii(args.input, args.output, args.keys)
 
+    elif task == 'append-ext':
+        from pynot.fitsio import append_extension
+        log = append_extension(args.input, args.data, name=args.name, data_ext=args.ext)
+
+    elif task == 'remove-ext':
+        from pynot.fitsio import remove_extension
+        log = remove_extension(args.input, args.ext)
+    
+    elif task == 'add-error':
+        from pynot.fitsio import create_error_image
+        log = create_error_image(args.input, overwrite=args.force)
+    
     else:
         import pynot
         print("Running PyNOT for instrument: %s\n" % pynot.instrument.name)

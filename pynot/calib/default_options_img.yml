@@ -66,11 +66,11 @@ sep-extract:
   segmentation_map: True     # Create a segmentation map?
 
 wcs:
-  max_num:          60       # Maximum number of targets used to fit the WCS solution.
-  min_num:          10       # Minimum number of targets required.
+  min_num:          6        # Minimum number of targets required.
   G_lim:            15       # Bright limit of Gaia sources. Reject targets brighter than G < G_lim
   q_lim:            0.8      # Reject elliptical sources with axis ratio < `q_lim`
-  kappa:             3       # Threshold for projected distance filtering.
+  p_kde:            0.5      # Probability threshold for projected vector filtering.
+  kde_factor:       0.1      # Smoothing scale for the Gaussian kernel density estimator.
 
 sdss_flux:
   q_lim:            0.8      # Reject elliptical sources with axis ratio < `q_lim`
