@@ -132,3 +132,4 @@ dmypy.json
 test/implement_identify/identify_gui.py
 pynot/.instrument.cfg
 .DS_Store
+.DS_Store
