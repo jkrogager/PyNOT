@@ -100,7 +100,7 @@ def get_gaia_catalog(ra, dec, radius=4., limit=2000, catalog_fname='', database=
 
 
 
-def correct_wcs(img_fname, sep_fname, output='', fig_fname='', min_num=6, G_lim=15, q_lim=0.8, kde_factor=0.1,
+def correct_wcs(img_fname, sep_fname, output='', fig_fname='', min_num=6, G_lim=5, q_lim=0.8, kde_factor=0.1,
                 p_kde=0.5, debug=False):
     """
     WCS calibration using Gaia
@@ -125,7 +125,7 @@ def correct_wcs(img_fname, sep_fname, output='', fig_fname='', min_num=6, G_lim=
     min_num : int  [default=6]
         Minimum number of targets required.
 
-    G_lim : float  [default=15]
+    G_lim : float  [default=5]
         Bright limit of Gaia sources. Reject targets brighter than G < G_lim as these are
         very likely saturated in the ALFOSC image.
 
@@ -264,8 +264,8 @@ def correct_wcs(img_fname, sep_fname, output='', fig_fname='', min_num=6, G_lim=
         plt.plot(dist[mask], theta[mask], 'ro', alpha=0.5)
         plt.axvline(peak_dist, color='r', ls=':', alpha=0.5)
         plt.axhline(peak_theta, color='r', ls=':', alpha=0.5)
-        plt.xlabel("Source distance (arcsec)")
-        plt.ylabel("Source orientation, $\\theta$ (radians)")
+        plt.xlabel("Offset (arcsec)")
+        plt.ylabel("Offset orientation, $\\theta$ (radians)")
         plt.show()
     
     matched_sep = matched_sep[mask]
@@ -322,6 +322,7 @@ def correct_wcs(img_fname, sep_fname, output='', fig_fname='', min_num=6, G_lim=
     wcs_offset = np.median(dist)
     msg.append("          - WCS precision: %.3f arcsec" % wcs_resid)
     msg.append("          - average WCS offset: %.3f arcsec" % wcs_offset)
+    msg.append("[WARNING] - Large WCS offset!")
 
 
     # Update photometric table:
@@ -339,6 +340,7 @@ def correct_wcs(img_fname, sep_fname, output='', fig_fname='', min_num=6, G_lim=
             else:
                 hdu_list['DATA'].header = hdr
             hdu_list['ERR'].header.update(wcs_keys)
+        output = img_fname
     else:
         with fits.open(img_fname) as hdu_list:
             if 'DATA' not in hdu_list:
