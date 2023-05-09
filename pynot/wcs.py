@@ -284,7 +284,6 @@ def correct_wcs(img_fname, sep_fname, output='', fig_fname='', min_num=6, G_lim=
     hdr.update(wcs_keys)
     hdr.add_comment("PyNOT: WCS calibration using Gaia %s" % gaia_dr.upper())
     hdr['RADESYSa'] = 'ICRS'
-    hdr['RADECSYS'] = 'ICRS'
     msg.append("          - Updating WCS information")
 
 
