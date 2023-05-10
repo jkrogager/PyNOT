@@ -101,7 +101,7 @@ def get_gaia_catalog(ra, dec, radius=4., limit=2000, catalog_fname='', database=
 
 
 def correct_wcs(img_fname, sep_fname, output='', fig_fname='', min_num=6, G_lim=5, q_lim=0.8, kde_factor=0.1,
-                p_kde=0.5, debug=False):
+                p_kde=0.5, debug=False, plot=False):
     """
     WCS calibration using Gaia
 
@@ -141,6 +141,9 @@ def correct_wcs(img_fname, sep_fname, output='', fig_fname='', min_num=6, G_lim=
         Threshold for projected vector filtering. The clustering of sources in the distance-orientation space
         is estimated using a kernel density estimator with a smoothing scale of `kde_factor`.
         A given source is rejected if its KDE probability is less than this threshold.
+    
+    plot : bool  [default=False]
+        Plot a diagnostic plot of the identified sources after WCS alignment?
 
     Returns
     -------
@@ -288,25 +291,26 @@ def correct_wcs(img_fname, sep_fname, output='', fig_fname='', min_num=6, G_lim=
 
 
     # -- Plot solution:
-    plt.close('all')
-    warnings.simplefilter('ignore', category=AstropyWarning)
-    wcs_new = WCS(hdr)
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection=wcs_new)
-    med_val = np.median(img)
-    ax.imshow(img, vmin=med_val-1*mad(img), vmax=med_val+10*mad(img),
-              origin='lower', cmap=plt.cm.gray_r)
-    ax.scatter(matched_ref[:, 0], matched_ref[:, 1],
-               transform=ax.get_transform('fk5'), edgecolor='r', facecolor='none', s=50)
-    if debug:
-        ax.scatter(matched_sep[:, 0], matched_sep[:, 1],
-                   transform=ax.get_transform('fk5'), edgecolor='green', facecolor='none', s=10, alpha=0.7)
-        for i, r in zip(matched_sep, matched_ref):
-            ax.plot([i[0], r[0]], [i[1], r[1]], 'k', alpha=0.5, transform=ax.get_transform('fk5'))
-    ax.set_xlabel("Right Ascension")
-    ax.set_ylabel("Declination")
-    fig.savefig(fig_fname)
-    msg.append(" [OUTPUT] - Saving WCS solution figure: %s" % fig_fname)
+    if plot:
+        plt.close('all')
+        warnings.simplefilter('ignore', category=AstropyWarning)
+        wcs_new = WCS(hdr)
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection=wcs_new)
+        med_val = np.median(img)
+        ax.imshow(img, vmin=med_val-1*mad(img), vmax=med_val+10*mad(img),
+                origin='lower', cmap=plt.cm.gray_r)
+        ax.scatter(matched_ref[:, 0], matched_ref[:, 1],
+                transform=ax.get_transform('fk5'), edgecolor='r', facecolor='none', s=50)
+        if debug:
+            ax.scatter(matched_sep[:, 0], matched_sep[:, 1],
+                    transform=ax.get_transform('fk5'), edgecolor='green', facecolor='none', s=10, alpha=0.7)
+            for i, r in zip(matched_sep, matched_ref):
+                ax.plot([i[0], r[0]], [i[1], r[1]], 'k', alpha=0.5, transform=ax.get_transform('fk5'))
+        ax.set_xlabel("Right Ascension")
+        ax.set_ylabel("Declination")
+        fig.savefig(fig_fname)
+        msg.append(" [OUTPUT] - Saving WCS solution figure: %s" % fig_fname)
 
 
     # -- Calculate Dispersion in WCS Solution:

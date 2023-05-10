@@ -71,6 +71,7 @@ wcs:
   q_lim:            0.8      # Reject elliptical sources with axis ratio < `q_lim`
   p_kde:            0.5      # Probability threshold for projected vector filtering.
   kde_factor:       0.1      # Smoothing scale for the Gaussian kernel density estimator.
+  plot:             False    # Make a diagnostic plot of the WCS alignment?
 
 sdss_flux:
   q_lim:            0.8      # Reject elliptical sources with axis ratio < `q_lim`
