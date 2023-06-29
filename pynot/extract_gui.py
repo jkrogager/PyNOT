@@ -1785,15 +1785,15 @@ class ExtractGUI(QtWidgets.QMainWindow):
                     for line in model.point_lines[parname]:
                         line.remove()
                     l1, = ax.plot(model.x_binned[mask], model.points[parname][mask],
-                                  color=model.color, marker='o', ls='', mec=color_shade(model.color), picker=True, pickradius=6)
+                                  color=model.color, marker='o', ls='', mec=color_shade(model.color), picker=True, pickradius=10)
                     l2, = ax.plot(model.x_binned[~mask], model.points[parname][~mask],
-                                  color=model.color, marker='o', ls='', alpha=0.3, picker=True, pickradius=6)
+                                  color=model.color, marker='o', ls='', alpha=0.3, picker=True, pickradius=10)
                     l3, = ax.plot(model.x_binned[~mask], model.points[parname][~mask],
                                   color='k', marker='x', ls='')
                     model.point_lines[parname] = [l1, l2, l3]
                     if parname == 'mu':
                         l4, = self.axis_2d.plot(model.x_binned[mask], model.points[parname][mask],
-                                                color=model.color, marker='o', ls='', alpha=0.5, picker=True, pickradius=6)
+                                                color=model.color, marker='o', ls='', alpha=0.5, picker=True, pickradius=10)
                         model.point_lines[parname].append(l4)
 
                     if not model.active:
@@ -1834,20 +1834,20 @@ class ExtractGUI(QtWidgets.QMainWindow):
 
             for model in self.trace_models:
                 parameters = model.get_parnames()
-                for ax, parname in zip(self.axes_points, parameters):
+                for axnum, (ax, parname) in enumerate(zip(self.axes_points, parameters), 1):
                     ax.tick_params(axis='both', which='major', labelsize=10)
                     mask = model.get_mask(parname)
                     # -- Plot traced points:
                     l1, = ax.plot(model.x_binned[mask], model.points[parname][mask],
-                                  color=model.color, marker='o', ls='', mec=color_shade(model.color), picker=True, pickradius=6)
+                                  color=model.color, marker='o', ls='', mec=color_shade(model.color), picker=True, pickradius=10)
                     l2, = ax.plot(model.x_binned[~mask], model.points[parname][~mask],
-                                  color=model.color, marker='o', ls='', alpha=0.3, picker=True, pickradius=6)
+                                  color=model.color, marker='o', ls='', alpha=0.3, picker=True, pickradius=10)
                     l3, = ax.plot(model.x_binned[~mask], model.points[parname][~mask],
                                   color='k', marker='x', ls='')
                     model.point_lines[parname] = [l1, l2, l3]
                     if parname == 'mu':
                         l4, = self.axis_2d.plot(model.x_binned[mask], model.points[parname][mask],
-                                                color=model.color, marker='o', ls='', alpha=0.3, picker=True, pickradius=6)
+                                                color=model.color, marker='o', ls='', alpha=0.3, picker=True, pickradius=10)
                         model.point_lines[parname].append(l4)
                     # -- Plot fit to points:
                     if len(model.fit['mu']) > 0:
@@ -1856,7 +1856,7 @@ class ExtractGUI(QtWidgets.QMainWindow):
                         model.fit_lines[parname] = lf
                     if not model.fixed:
                         ax.set_ylabel("%s" % model.get_unicode_name(parname))
-                    if not ax.is_last_row():
+                    if not axnum == len(self.axes_points):
                         ax.set_xticklabels("")
         self.canvas_points.figure.tight_layout()
         self.update_xmask_in_points()
@@ -2044,13 +2044,13 @@ class ExtractGUI(QtWidgets.QMainWindow):
                     # -- find a way to update the data instead...
             model.plot_1d = self.axis_1d.errorbar(spec1d.wl, spec1d.data, spec1d.error,
                                                   color=model.color, lw=1., elinewidth=0.5)
-            good_pixels = spec1d.data > 5*spec1d.error
+            good_pixels = spec1d.data > 5 * spec1d.error
             if np.sum(good_pixels) < 3:
                 data_min = 0.
-                data_max = 2*np.nanmean(spec1d.data[50:-50])
+                data_max = 2 * np.nanmean(spec1d.data[50:-50])
             else:
-                data_min = -3*np.nanmean(spec1d.error[good_pixels])
-                data_max = 1.2*np.nanmax(spec1d.data[good_pixels])
+                data_min = -3 * np.nanmedian(spec1d.error[good_pixels])
+                data_max = 2. * np.nanmedian(spec1d.data[good_pixels])
             ylims.append([data_min, data_max])
             listItem = self.list_widget.item(num)
             if listItem.checkState() == 2:
