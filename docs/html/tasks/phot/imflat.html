@@ -36,9 +36,55 @@
                                       <h1>PyNOT : imflat</h1>
                                     </header>
 
-                                    <p class="warning">
-                                    Nothing here yet! Stay tuned... :)
-                                    </p>
+									<h2 class="code">
+										pynot imflat  flat.list  --output MASTER_FLAT.fits
+									</h2>
+									<br><br>
+
+									<p>
+										The <code>imflat</code> task takes a list of a flat images and combines them into a master combined flat frame.
+										The command line task accepts wildcards, an explicit list of files, or a file containing a
+										list of files. The combination is performed using a sigma-clipped mean or median.
+										The threshold of the clipping and the method can be controlled by the <code>kappa</code>
+										and <code>method</code> arguments. Each individual flat frame is normalized by its median value.
+									</p>
+
+									The easiest way to generate the input for <code>pynot imflat</code> is to source it from the file
+									classification table for each photometric filter:
+									<br><br>
+									<p class="code">
+										%] cat dataset.pfc | grep IMG_FLAT | grep SDSS_r > flat_r.list<br>
+										%] pynot imflat flat_r.list --output master_flat_r.fits --method median
+									</p>
+									<br><br>
+
+									Alternatively the input can be passed as an explicit list:
+									<br><br>
+									<p class="code">
+										%] pynot imflat data/flat1.fits data/flat2.fits data/flat3.fits --output master_flat.fits
+									</p>
+									or using wildcards:
+									<p class="code">
+										%] pynot imflat data/flat*.fits --output master_flat.fits
+									</p>
+									<br><br>
+
+									<h2 id="summary"> Overview of parameters</h2>
+
+									<dl>
+									<dt>input</dt>
+											<dd>List of flat images to combine (command line accepts a list of files and wildcards)</dd>
+									</dl>
+
+                  <u>Optional Arguments:</u>
+									<dl>
+									<dt>bias:    0</dt>
+										<dd>Filename of the combined bias frame. (If no file is given, a value of 0 is assumed)</dd>
+									<dt>method:    median</dt>
+										<dd>Method for image combination (options: median/mean)</dd>
+                                    <dt>kappa:     15</dt>
+									    <dd>Threshold for sigma clipping in bias combiniation</dd>
+									</dl>
 
 								</section>
 
@@ -77,7 +123,7 @@
                                         <li><a href="../../tasks/spex/flux2.html">flux2</a></li>
                                         <li><a href="../../tasks/spex/identify.html">identify</a></li>
                                         <li><a href="../../tasks/spex/response.html">response</a></li>
-                                        <li><a href="../../tasks/spex/scombine.html">sflat</a></li>
+                                        <li><a href="../../tasks/spex/scombine.html">scombine</a></li>
                                         <li><a href="../../tasks/spex/sflat.html">sflat</a></li>
                                         <li><a href="../../tasks/spex/skysub.html">skysub</a></li>
                                         <li><a href="../../tasks/spex/wave1d.html">wave1d</a></li>
