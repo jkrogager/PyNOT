@@ -70,8 +70,9 @@ def format_task_options(task_actions):
 
 
 def format_task_usage(task_usage):
-    full_usage = task_usage.replace('  ', '').replace('\n', '')
+    full_usage = task_usage.replace('\n', '')
     full_usage = full_usage.removeprefix('usage: ')
+    full_usage = ' '.join([item for item in full_usage.split() if item])
     items = full_usage.split()
     only_positionals = []
     for item in items:
