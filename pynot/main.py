@@ -149,7 +149,7 @@ def initialize(path, mode, pfc_fname='dataset.pfc', pars_fname='options.yml', ve
     print("   ]%% pynot %s  %s\n" % (mode, pars_fname))
 
 
-def main():
+def main(inspect=False):
 
     parser = ArgumentParser(prog='pynot')
     tasks = parser.add_subparsers(dest='task')
@@ -323,15 +323,11 @@ def main():
                             help="Input filename")
     parser_crr.add_argument("-o", "--output", type=str, required=True,
                             help="Output filename of cleaned image [REQUIRED]")
-    parser_crr.add_argument('-n', "--niter", type=int, default=4,
+    parser_crr.add_argument('-n', "--niter", type=int, default=2,
                             help="Number of iterations")
-    parser_crr.add_argument("--gain", type=float, default=0.16,
-                            help="Detector gain  (e-/ADU)")
-    parser_crr.add_argument("--readnoise", type=float, default=4.3,
-                            help="Detector read noise (e-)")
     # Define parameters based on default values:
     set_default_pars(parser_crr, section='crr', default_type=int,
-                     ignore_pars=['niter', 'gain', 'readnoise'])
+                     ignore_pars=['niter'])
 
 
     # -- flux1d :: Flux calibration of 1D spectrum
@@ -551,13 +547,13 @@ def main():
     parser_fapp = tasks.add_parser('append-ext', formatter_class=set_help_width(30),
                                    help="Append new data to FITS file or create error image")
     parser_fapp.add_argument('input', type=str,
-                            help='Input filename of FITS image to which the new data will be appended')
+                             help='Input filename of FITS image to which the new data will be appended')
     parser_fapp.add_argument('data', type=str,
-                            help='Filename of the image to append to the `input` FITS file')
+                             help='Filename of the image to append to the `input` FITS file')
     parser_fapp.add_argument('-n', '--name', type=str, default='',
-                            help='Name of the new FITS extension.')
+                             help='Name of the new FITS extension.')
     parser_fapp.add_argument('-x', '--ext', type=int, default=0,
-                            help='Extension number of the data file which is appended to the `input` file')
+                             help='Extension number of the data file which is appended to the `input` file')
 
     parser_delext = tasks.add_parser('remove-ext', formatter_class=set_help_width(30),
                                      help="Remove a given extension of a FITS file")
@@ -572,6 +568,9 @@ def main():
                                help='Input filename of FITS image to which the new data will be appended')
     parser_adderr.add_argument('-f', '--force', action='store_true',
                                help='Overwrite existing error extension (if name is `ERR`)')
+
+    if inspect:
+        return parser
 
     args = parser.parse_args()
 

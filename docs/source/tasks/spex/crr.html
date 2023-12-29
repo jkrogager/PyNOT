@@ -2,13 +2,16 @@ crr
 <head>
 <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
 <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3.0.1/es5/tex-mml-chtml.js"></script>
-<link rel="stylesheet" href="/Users/krogager/coding/website/jkrogager.github.io/pynot/assets/css/main.css"/>
+<link rel="stylesheet" href="/Users/krogager/coding/jkrogager.github.io/pynot/assets/css/main.css"/>
 </head>
 
                                     <header class="main">
                                       <h1>PyNOT : crr</h1>
                                     </header>
-
-                                    <p class="warning">
-                                    Nothing here yet! Stay tuned... :)
+                  
+                                    <p>
+                                      This task takes an image (corrected or not) and performs a cosmic ray rejection by using a Laplacian
+                                      kernel detection algorithm (van Dokkum 2001) implemented in Python as the package <i>astroscrappy</i>. 
+                                      The output of the task is a corrected image with an additional mask extension indicating which pixels
+                                      have been flagged (0 if good or 1 if flagged as a cosmic ray hit).
                                     </p>

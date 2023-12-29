@@ -37,7 +37,7 @@ def get_option_descr(opt_fname):
 
         try:
             key, val = line.split(':')[:2]
-        except:
+        except Exception:
             continue
 
         base_indent = get_indent(key)
@@ -51,7 +51,9 @@ def get_option_descr(opt_fname):
             i = 0
             while get_indent(sub_lines[i]) == indent:
                 sub_line = sub_lines[i]
-                par, value = sub_line.split(':')[:2]
+                items = sub_line.split(':')
+                par = items[0]
+                value = ':'.join(items[1:])
                 par = par.strip()
                 if '#' in value:
                     comment = value.split('#')[1]

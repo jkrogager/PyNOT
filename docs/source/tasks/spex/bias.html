@@ -2,17 +2,12 @@ bias
 <head>
 <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
 <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3.0.1/es5/tex-mml-chtml.js"></script>
-<link rel="stylesheet" href="/Users/krogager/coding/website/jkrogager.github.io/pynot/assets/css/main.css"/>
+<link rel="stylesheet" href="/Users/krogager/coding/jkrogager.github.io/pynot/assets/css/main.css"/>
 </head>
 
 									<header class="main">
 									  <h1>PyNOT : bias</h1>
 									</header>
-
-									<h2 class="code">
-										pynot bias  bias.list
-									</h2>
-									<br><br>
 
 									<p>
 										This task takes a list of a bias images and combines them into a master combined bias frame.
@@ -41,20 +36,3 @@ bias
 										%] pynot bias data/bias*.fits --output master_bias.fits
 									</p>
 									<br><br>
-
-									<h2 id="summary"> Overview of parameters</h2>
-
-									<dl>
-									<dt>input</dt>
-											<dd>List of bias images to combine (command line accepts a list of files and wildcards)</dd>
-									</dl>
-
-                  <u>Optional Arguments:</u>
-									<dl>
-									<dt>output:  MASTER_BIAS.fits</dt>
-											<dd>Output filename</dd>
-									<dt>method:    median</dt>
-											<dd>Method for image combination (options: median/mean)</dd>
-								  <dt>kappa:     15</dt>
-									    <dd>Threshold for sigma clipping in bias combiniation</dd>
-									</dl>

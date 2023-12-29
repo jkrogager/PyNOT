@@ -2,17 +2,12 @@ corr
 <head>
 <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
 <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3.0.1/es5/tex-mml-chtml.js"></script>
-<link rel="stylesheet" href="/Users/krogager/coding/website/jkrogager.github.io/pynot/assets/css/main.css"/>
+<link rel="stylesheet" href="/Users/krogager/coding/jkrogager.github.io/pynot/assets/css/main.css"/>
 </head>
 
 									<header class="main">
 									  <h1>PyNOT : corr</h1>
 									</header>
-
-									<h2 class="code">
-										pynot corr  imgage.list  --bias bias.fits  --flat flat.fits
-									</h2>
-									<br><br>
 
 									<p>
 										This task takes a list of images together with a combined bias frame and a combined flat frame
@@ -53,22 +48,3 @@ corr
 									<p class="code">
 										%] pynot corr data/file.fits --bias master_bias.fits --flat master_flat_r.fits --img
 									</p>
-
-									<h2 id="summary"> Overview of parameters</h2>
-
-									<dl>
-									<dt>input</dt>
-											<dd>List of filenames to correct (command line accepts a list of files and wildcards)</dd>
-									</dl>
-
-                  <u>Optional Arguments:</u>
-									<dl>
-									<dt>output:  ./</dt>
-										<dd>Output Directory</dd>
-									<dt>bias:    </dt>
-										<dd>Filename of combined bias frame. If not given, a constant of 0 is used</dd>
-								    <dt>flat:     </dt>
-									    <dd>Filename of combined flat frame. If not given, a constant of 1 is used</dd>
-								    <dt>img:     </dt>
-									    <dd>Command line option used for imaging files. For spectroscopy this is not needed.</dd>
-									</dl>

@@ -39,7 +39,52 @@
                                     <p class="warning">
                                     Nothing here yet! Stay tuned... :)
                                     </p>
+<h2> Example </h2>
+<h2 class="code">
+pynot sep input
+</h2>
+<br>
+Full example of command line syntax: 
+<p class="code">
+pynot sep [-h] [-z ZERO] [--bw BW] [--bh BH] [--fw FW] [--fh FH] [--fthresh FTHRESH] [--aperture APERTURE] [--threshold THRESHOLD] [--minarea MINAREA] [--deblend_nthresh DEBLEND_NTHRESH] [--deblend_cont DEBLEND_CONT] [--clean CLEAN] [--clean_param CLEAN_PARAM] [--segmentation_map SEGMENTATION_MAP] input
+</p>
+<br><br>
 
+<h2 id="summary"> Overview of parameters </h2>
+<dl>
+<dt>input</dt>
+    <dd>Input image to analyse</dd>
+</dl><u> Optional Arguments: </u>
+<dl>
+<dt>--zero (-z):  0.0</dt>
+    <dd>Magnitude zeropoint, default is 0 (instrument mags)</dd>
+<dt>--bw:  64</dt>
+    <dd>Width of background boxes in pixels</dd>
+<dt>--bh:  64</dt>
+    <dd>Height of background boxes in pixels</dd>
+<dt>--fw:  3</dt>
+    <dd>Background filter width in boxes</dd>
+<dt>--fh:  3</dt>
+    <dd>Background filter height in boxes</dd>
+<dt>--fthresh:  0.0</dt>
+    <dd>Background filter threshold</dd>
+<dt>--aperture:  10.0</dt>
+    <dd>Circular aperture radius in pixels</dd>
+<dt>--threshold:  5.0</dt>
+    <dd>Detection threshold (sigma)</dd>
+<dt>--minarea:  15</dt>
+    <dd>Minimum number of pixels required for an object</dd>
+<dt>--deblend_nthresh:  32</dt>
+    <dd>Number of thresholds used for object deblending</dd>
+<dt>--deblend_cont:  0.005</dt>
+    <dd>Minimum contrast ratio used for object deblending. Disable deblending by setting to 1.0</dd>
+<dt>--clean:  True</dt>
+    <dd>Perform cleaning?</dd>
+<dt>--clean_param:  1.0</dt>
+    <dd>Cleaning parameter (see SExtractor manual)</dd>
+<dt>--segmentation_map:  True</dt>
+    <dd>Create a segmentation map?</dd>
+</dl>
 								</section>
 
 						</div>
@@ -77,7 +122,7 @@
                                         <li><a href="../../tasks/spex/flux2.html">flux2</a></li>
                                         <li><a href="../../tasks/spex/identify.html">identify</a></li>
                                         <li><a href="../../tasks/spex/response.html">response</a></li>
-                                        <li><a href="../../tasks/spex/scombine.html">sflat</a></li>
+                                        <li><a href="../../tasks/spex/scombine.html">scombine</a></li>
                                         <li><a href="../../tasks/spex/sflat.html">sflat</a></li>
                                         <li><a href="../../tasks/spex/skysub.html">skysub</a></li>
                                         <li><a href="../../tasks/spex/wave1d.html">wave1d</a></li>

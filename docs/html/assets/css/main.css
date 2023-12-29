@@ -1826,6 +1826,7 @@ dl dt {
   display: block;
   font-weight: 600;
   color: #375da1;
+  font-family: "Courier New", monospace;
   /* margin: 0 0 1em 0; */
 }
 dl dd {

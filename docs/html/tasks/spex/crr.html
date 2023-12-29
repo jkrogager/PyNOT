@@ -35,11 +35,47 @@
                                     <header class="main">
                                       <h1>PyNOT : crr</h1>
                                     </header>
-
-                                    <p class="warning">
-                                    Nothing here yet! Stay tuned... :)
+                  
+                                    <p>
+                                      This task takes an image (corrected or not) and performs a cosmic ray rejection by using a Laplacian
+                                      kernel detection algorithm (van Dokkum 2001) implemented in Python as the package <i>astroscrappy</i>. 
+                                      The output of the task is a corrected image with an additional mask extension indicating which pixels
+                                      have been flagged (0 if good or 1 if flagged as a cosmic ray hit).
                                     </p>
+<h2> Example </h2>
+<h2 class="code">
+pynot crr -o OUTPUT input
+</h2>
+<br>
+Full example of command line syntax: 
+<p class="code">
+pynot crr [-h] -o OUTPUT [-n NITER] [--gain GAIN] [--readnoise READNOISE] [--sigclip SIGCLIP] [--sigfrac SIGFRAC] [--objlim OBJLIM] [--cleantype CLEANTYPE] input
+</p>
+<br><br>
 
+<h2 id="summary"> Overview of parameters </h2>
+<dl>
+<dt>input</dt>
+    <dd>Input filename</dd>
+<dt>--output (-o)</dt>
+    <dd>Output filename of cleaned image [REQUIRED]</dd>
+</dl><u> Optional Arguments: </u>
+<dl>
+<dt>--niter (-n):  2</dt>
+    <dd>Number of iterations</dd>
+<dt>--gain:  None</dt>
+    <dd>Detector gain, e-/ADU. Read from the header by default</dd>
+<dt>--readnoise:  None</dt>
+    <dd>Detector read-out noise, e-. Read from the header by default</dd>
+<dt>--sigclip:  4.5</dt>
+    <dd>Laplacian-to-noise limit for cosmic ray detection. Lower values will flag more pixels as cosmics</dd>
+<dt>--sigfrac:  0.3</dt>
+    <dd>Fractional detection limit for neighboring pixels</dd>
+<dt>--objlim:  5.0</dt>
+    <dd>Minimum contrast. Increase this value if cores of bright stars/skylines are flagged as cosmics</dd>
+<dt>--cleantype:  'meanmask'</dt>
+    <dd>Cleaning filter (5x5): {'median', 'medmask', 'meanmask', 'idw'}, see astroscrappy for details</dd>
+</dl>
 								</section>
 
 						</div>
@@ -77,7 +113,7 @@
                                         <li><a href="../../tasks/spex/flux2.html">flux2</a></li>
                                         <li><a href="../../tasks/spex/identify.html">identify</a></li>
                                         <li><a href="../../tasks/spex/response.html">response</a></li>
-                                        <li><a href="../../tasks/spex/scombine.html">sflat</a></li>
+                                        <li><a href="../../tasks/spex/scombine.html">scombine</a></li>
                                         <li><a href="../../tasks/spex/sflat.html">sflat</a></li>
                                         <li><a href="../../tasks/spex/skysub.html">skysub</a></li>
                                         <li><a href="../../tasks/spex/wave1d.html">wave1d</a></li>

@@ -1,10 +1,11 @@
-import glob
 import os
 from collections import defaultdict
 
+import docparser
+
+
 class HTMLFormatError(Exception):
     pass
-
 
 
 def get_title(text):
@@ -37,10 +38,11 @@ def clean_page(text):
 
 
 ## TARGET                # ROOT_PATH     # TASK_PATH
-#index.html              ./             ./tasks/
-#tasks/spex/wave2d.html  ../../         ../../tasks/spex/test.html
+# index.html              ./             ./tasks/
+# tasks/spex/wave2d.html  ../../         ../../tasks/spex/test.html
 def filter_html_files():
     pass
+
 
 def build_file_tree(source_dir):
     tree = {}
@@ -82,7 +84,6 @@ def get_link_title(fname, source_dir='source'):
     if display_field == '':
         raise ValueError("No sidebar name entry found in first line of %s!" % fname)
     return display_field
-
 
 
 def build_sidebar(*, target, filetree, source_dir='source'):
@@ -143,6 +144,9 @@ def build_sidebar(*, target, filetree, source_dir='source'):
     return sidebar_html
 
 
+# ----------------
+# -- Main Function
+# ----------------
 
 if __name__ == '__main__':
     source_dir = 'source'
@@ -157,6 +161,10 @@ if __name__ == '__main__':
         print(" -  Created output directory:  %s\n" % output_dir)
     filetree = build_file_tree(source_dir)
     print(" -  Created file tree of source directory:  %s\n" % source_dir)
+
+    parser_docs = docparser.compile_parser_docs()
+    tasks_docs = parser_docs['tasks']
+    tasks_usage = parser_docs['usage']
 
     for root, files in filetree.items():
         if root == './':
@@ -175,18 +183,27 @@ if __name__ == '__main__':
             with open(abs_fname) as task_file:
                 html_section = task_file.read()
             
-            sidebar_name = get_link_title(fname, source_dir)
+            task_name = get_link_title(fname, source_dir)
             title = get_title(html_section)
+            if task_name in tasks_docs:
+                task_options = docparser.format_task_options(tasks_docs[task_name])
+                usage = docparser.format_task_usage(tasks_usage[task_name])
+            elif task_name == 'PyNOT : init':
+                task_options = docparser.format_task_options(tasks_docs['init'])
+                usage = docparser.format_task_usage(tasks_usage['init'])
+            else:
+                task_options = ''
+                usage = ''
+
             elements = dict()
             elements['title'] = title
-            elements['section'] = clean_page(html_section)
+            elements['section'] = clean_page(html_section) + usage + task_options
             elements['root_path'] = root_path
             elements['sidebar'] = build_sidebar(target=fname,
                                                 filetree=filetree,
                                                 source_dir=source_dir)
             print(" -- Page title: <h1> %s </h1>" % title)
-            print(" -- Sidebar entry: %s" % sidebar_name)
-            #print(" -- Relative path to root: %s" % root_path)
+            print(" -- Sidebar entry: %s" % task_name)
     
             page_html = page_template.format(**elements)
             with open(output_fname, 'w') as output:

@@ -2,17 +2,12 @@ wave2d
 <head>
 <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
 <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3.0.1/es5/tex-mml-chtml.js"></script>
-<link rel="stylesheet" href="/Users/krogager/coding/website/jkrogager.github.io/pynot/assets/css/main.css"/>
+<link rel="stylesheet" href="/Users/krogager/coding/jkrogager.github.io/pynot/assets/css/main.css"/>
 </head>
 
                                     <header class="main">
                   										<h1>PyNOT : wave2d</h1>
                   									</header>
-
-                                    <p class="code">
-                                      pynot wave2d  sci_image.fits arc_ref.fits  --table&nbsp;pixtable.dat  --output&nbsp;rectifited_image.fits
-                                    </p>
-                                    <br><br>
 
                   									<p>
                   										This task will take a science image and apply a transformation to remove image distortions along the spatial axis. These distortions are most visible in the associated arc line image where the emission lines of the calibration lamp show up as curved lines instead of straight lines. The task <code>wave2d</code> performs the following sub-tasks:
@@ -38,7 +33,7 @@ wave2d
                   									</p>
 
                   									<figure>
-                  										<img width="50%" src="../images/rectify/rectify_arc2d_limits.png" alt=""/>
+                  										<img width="50%" src="../../images/rectify/rectify_arc2d_limits.png" alt=""/>
                   										<figcaption>
                   											Fig. 1 &ndash; Bias and overscan subtracted arc lamp image. The white dashed lines mark the edges of the exposed area on the CCD.
                   										</figcaption>
@@ -49,7 +44,7 @@ wave2d
                   									</p>
 
                   									<figure>
-                  										<img class="scaled" src="../images/rectify/rectify_rotate_spectra.png" alt=""/>
+                  										<img class="scaled" src="../../images/rectify/rectify_rotate_spectra.png" alt=""/>
                   										<figcaption>
                   											Fig. 2 &ndash; Trimmed and rotated arc line image (left) with three spectra from different rows (right). The red, black and blue spectra correspond to the three colored slices along rows in the 2D image on the left. A few emission lines have been identified in the central spectrum and their positions along the dispersion axis are projected to the other plots (as dotted lines). This clearly illustrated the curvature leading to offsets in wavelength as function of image columns.
                   										</figcaption>
@@ -81,7 +76,7 @@ wave2d
                   									</p>
 
                   									<figure>
-                  										<img width="80%" src="../images/rectify/rectify_linefitting.png" alt=""/>
+                  										<img width="80%" src="../../images/rectify/rectify_linefitting.png" alt=""/>
 
                   										<figcaption>
                   											Fig. 3 &ndash; Zoom-in region around one arc line (left). The small black points indicate the fitted line position for each row (only every 5 row is shown for visual vlarity). The points have been fitted with a Chebyshev polynomium in order to obtain a smooth function shown by the red line. The <b>top right</b> panel shows the fitted positions of the emission line per spatial row. Black points again show the position for each row and the red line shows the fitted polynomium. The <b>bottom right</b> panel shows the residuals after subtracting the best-fit polonymium.
@@ -93,7 +88,7 @@ wave2d
                   									</p>
 
                   									<figure>
-                  										<img width="60%" src="../images/rectify/rectify_2d_pixtab.png" alt=""/>
+                  										<img width="60%" src="../../images/rectify/rectify_2d_pixtab.png" alt=""/>
 
                   										<figcaption>
                   											Fig. 4 &ndash; An example of the diagnostic 2D pixel table plot from PyNOT-wave2d. The input arc line image has been trimmed and rotated (gray-scale background image). Each arc line identified by the PyNOT-identify task ( &lambda;<sub>1</sub> , ... , &lambda;<sub>7</sub> ) has been traced along the spatial axis (blue points) and the best-fit predicted positions are shown as the red line.
@@ -118,37 +113,3 @@ wave2d
 
                   									</p>
 
-
-                  									<h2 id="summary"> Overview of parameters</h2>
-
-                  									<dl>
-                                    <dt>input</dt>
-                  											<dd>Input FITS image to rectify</dd>
-                                    <dt>arc</dt>
-                  											<dd>Reference arc line image</dd>
-                                    <dt>table</dt>
-                      									<dd>Pixel table of identified reference arc lines (from <a href="identify.html">pynot:identify</a>)</dd>
-                                    <dt>output</dt>
-                      									<dd>Output filename of rectified FITS image</dd>
-                                    </dl>
-
-                                    <u>Optional Arguments:</u>
-
-                                    <dl>
-                  									<dt>order_bg:    5</dt>
-                  											<dd>Polynomial order for background subtraction of calibration lamp continuum</dd>
-                  								  <dt>order_2d:    3    </dt>
-                  									    <dd> Polynomial order for spatial reconstruction of arc lines</dd>
-                  									<dt>log:         False</dt>
-                  									    <dd> Use logarithmic binning in wavelength?</dd>
-                  								  <dt>N_out:       null </dt>
-                  									    <dd> No. of output pixels along dispersion axis. If null is given, use No. of pixels in input image.</dd>
-                  								  <dt>interpolate: True </dt>
-                  									    <dd> Perform interpolation or apply central wavelength solution to full 2D range</dd>
-                  								  <dt>fit_window:  20   </dt>
-                  									    <dd> Fitting window in pixels around each arc line to determine centroid  (optimized for grism 4)</dd>
-                  								  <dt>plot:        True </dt>
-                  									    <dd> Make diagnostic plots?</dd>
-                  								  <dt>edge_kappa:  10   </dt>
-                  									    <dd> Significance threshold for edge detection of arc lines</dd>
-                  									</dl>
