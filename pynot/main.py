@@ -551,13 +551,13 @@ def main(inspect=False):
     parser_fapp = tasks.add_parser('append-ext', formatter_class=set_help_width(30),
                                    help="Append new data to FITS file or create error image")
     parser_fapp.add_argument('input', type=str,
-                            help='Input filename of FITS image to which the new data will be appended')
+                             help='Input filename of FITS image to which the new data will be appended')
     parser_fapp.add_argument('data', type=str,
-                            help='Filename of the image to append to the `input` FITS file')
+                             help='Filename of the image to append to the `input` FITS file')
     parser_fapp.add_argument('-n', '--name', type=str, default='',
-                            help='Name of the new FITS extension.')
+                             help='Name of the new FITS extension.')
     parser_fapp.add_argument('-x', '--ext', type=int, default=0,
-                            help='Extension number of the data file which is appended to the `input` file')
+                             help='Extension number of the data file which is appended to the `input` file')
 
     parser_delext = tasks.add_parser('remove-ext', formatter_class=set_help_width(30),
                                      help="Remove a given extension of a FITS file")
