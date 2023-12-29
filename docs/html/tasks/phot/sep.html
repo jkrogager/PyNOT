@@ -40,6 +40,42 @@
                                     Nothing here yet! Stay tuned... :)
                                     </p>
 
+
+<h2 id="summary"> Overview of parameters </h2>
+<dl>
+<dt>input</dt>
+    <dd>Input image to analyse</dd>
+</dl><u> Optional Arguments: </u>
+<dl>
+<dt>--zero (-z):  0.0</dt>
+    <dd>Magnitude zeropoint, default is 0 (instrument mags)</dd>
+<dt>--bw:  64</dt>
+    <dd>Width of background boxes in pixels</dd>
+<dt>--bh:  64</dt>
+    <dd>Height of background boxes in pixels</dd>
+<dt>--fw:  3</dt>
+    <dd>Background filter width in boxes</dd>
+<dt>--fh:  3</dt>
+    <dd>Background filter height in boxes</dd>
+<dt>--fthresh:  0.0</dt>
+    <dd>Background filter threshold</dd>
+<dt>--aperture:  10.0</dt>
+    <dd>Circular aperture radius in pixels</dd>
+<dt>--threshold:  5.0</dt>
+    <dd>Detection threshold (sigma)</dd>
+<dt>--minarea:  15</dt>
+    <dd>Minimum number of pixels required for an object</dd>
+<dt>--deblend_nthresh:  32</dt>
+    <dd>Number of thresholds used for object deblending</dd>
+<dt>--deblend_cont:  0.005</dt>
+    <dd>Minimum contrast ratio used for object deblending. Disable deblending by setting to 1.0</dd>
+<dt>--clean:  True</dt>
+    <dd>Perform cleaning?</dd>
+<dt>--clean_param:  1.0</dt>
+    <dd>Cleaning parameter (see SExtractor manual)</dd>
+<dt>--segmentation_map:  True</dt>
+    <dd>Create a segmentation map?</dd>
+</dl>
 								</section>
 
 						</div>

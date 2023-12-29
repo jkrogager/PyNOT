@@ -40,6 +40,34 @@
                                     Nothing here yet! Stay tuned... :)
                                     </p>
 
+
+<h2 id="summary"> Overview of parameters </h2>
+<dl>
+<dt>input</dt>
+    <dd>Input image to analyse</dd>
+</dl><u> Optional Arguments: </u>
+<dl>
+<dt>table</dt>
+    <dd>Source identification table from SEP (_phot.fits)</dd>
+<dt>--output (-o):  ''</dt>
+    <dd>Filename of WCS calibrated image (.fits)</dd>
+<dt>--fig:  ''</dt>
+    <dd>Filename of diagnostic figure (.pdf)</dd>
+<dt>--debug (-d):  False</dt>
+    <dd>Enable debugging mode with additional diagnostic plots</dd>
+<dt>--min_num:  6</dt>
+    <dd>Minimum number of targets required.</dd>
+<dt>--G_lim:  5</dt>
+    <dd>Bright limit of Gaia sources. Reject targets brighter than G < G_lim</dd>
+<dt>--q_lim:  0.8</dt>
+    <dd>Reject elliptical sources with axis ratio < `q_lim`</dd>
+<dt>--p_kde:  0.5</dt>
+    <dd>Probability threshold for projected vector filtering.</dd>
+<dt>--kde_factor:  0.1</dt>
+    <dd>Smoothing scale for the Gaussian kernel density estimator.</dd>
+<dt>--plot:  False</dt>
+    <dd>Make a diagnostic plot of the WCS alignment?</dd>
+</dl>
 								</section>
 
 						</div>

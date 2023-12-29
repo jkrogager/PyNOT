@@ -69,23 +69,20 @@
 									</p>
 									<br><br>
 
-									<h2 id="summary"> Overview of parameters</h2>
 
-									<dl>
-									<dt>input</dt>
-											<dd>List of bias images to combine (command line accepts a list of files and wildcards)</dd>
-									</dl>
-
-                  <u>Optional Arguments:</u>
-									<dl>
-									<dt>output:  MASTER_BIAS.fits</dt>
-											<dd>Output filename</dd>
-									<dt>method:    median</dt>
-											<dd>Method for image combination (options: median/mean)</dd>
-								  <dt>kappa:     15</dt>
-									    <dd>Threshold for sigma clipping in bias combiniation</dd>
-									</dl>
-
+<h2 id="summary"> Overview of parameters </h2>
+<dl>
+<dt>input</dt>
+    <dd>Input file containing list of image filenames to combine</dd>
+</dl><u> Optional Arguments: </u>
+<dl>
+<dt>--output (-o):  'MASTER_BIAS.fits'</dt>
+    <dd>Output filename of combined bias frame  (default = MASTER_BIAS.fits)</dd>
+<dt>--kappa:  15</dt>
+    <dd>Threshold for sigma clipping</dd>
+<dt>--method:  'mean'</dt>
+    <dd>Method for image combination</dd>
+</dl>
 								</section>
 
 						</div>
