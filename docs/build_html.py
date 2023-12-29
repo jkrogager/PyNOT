@@ -37,8 +37,8 @@ def clean_page(text):
 
 
 ## TARGET                # ROOT_PATH     # TASK_PATH
-#index.html              ./             ./tasks/
-#tasks/spex/wave2d.html  ../../         ../../tasks/spex/test.html
+# index.html              ./             ./tasks/
+# tasks/spex/wave2d.html  ../../         ../../tasks/spex/test.html
 def filter_html_files():
     pass
 
@@ -186,7 +186,7 @@ if __name__ == '__main__':
                                                 source_dir=source_dir)
             print(" -- Page title: <h1> %s </h1>" % title)
             print(" -- Sidebar entry: %s" % sidebar_name)
-            #print(" -- Relative path to root: %s" % root_path)
+            # print(" -- Relative path to root: %s" % root_path)
     
             page_html = page_template.format(**elements)
             with open(output_fname, 'w') as output:
