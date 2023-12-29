@@ -20,35 +20,3 @@ crr
                                       The output of the task is a corrected image with an additional mask extension indicating which pixels
                                       have been flagged (0 if good or 1 if flagged as a cosmic ray hit).
                                     </p>
-                  
-                                    <h2 id="summary"> Overview of parameters</h2>
-                  
-                                    <dl>
-                                    <dt>input</dt>
-                                        <dd>Input file name of the FITS image</dd>
-                                    <dt>--output (-o)</dt>
-                                        <dd>File name of the corrected FITS image</dd>
-                                    </dl>
-                  
-                                    <u>Optional Arguments:</u>
-                                    <dl>
-                                    <dt>niter (-n):    4</dt>
-                                        <dd>Number of iterations</dd>
-                                    <dt>gain:</dt>
-                                        <dd>Detector gain (e-/ADU), read from the FITS header by default</dd>
-                                    <dt>readnoise:</dt>
-                                        <dd>Detector read noise (e-), read from the FITS header by default</dd>
-                                    <dt>sigclip:     4.5</dt>
-                                        <dd>Laplacian-to-noise limit for cosmic ray detection.
-                                          Lower values will flag more pixels as cosmics</dd>
-                                    <dt>sigfrac:     0.3</dt>
-                                        <dd>Fractional detection limit for neighboring pixels</dd>
-                                    <dt>objlim:     5.0</dt>
-                                        <dd>Minimum contrast. Increase this value if cores of bright stars/skylines are flagged
-                                          as cosmics</dd>
-                                    <dt>cleantype:    meanmask</dt>
-                                        <dd>Cleaning filter (5x5): {'median', 'medmask', 'meanmask', 'idw'}, see astroscrappy
-                                          for details</dd>
-                                    </dl>
-
-                  
