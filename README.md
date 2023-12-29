@@ -54,6 +54,7 @@ Three of the tasks have slightly special behavior:
 
 ## Documentation
 
+You can see the documentation on the [PyNOT Website](https://jkrogager.github.io/pynot/).
 The full documentation is currently being compiled... stay tuned.
 
 
