@@ -149,7 +149,7 @@ def initialize(path, mode, pfc_fname='dataset.pfc', pars_fname='options.yml', ve
     print("   ]%% pynot %s  %s\n" % (mode, pars_fname))
 
 
-def main():
+def main(inspect=False):
 
     parser = ArgumentParser(prog='pynot')
     tasks = parser.add_subparsers(dest='task')
@@ -572,6 +572,9 @@ def main():
                                help='Input filename of FITS image to which the new data will be appended')
     parser_adderr.add_argument('-f', '--force', action='store_true',
                                help='Overwrite existing error extension (if name is `ERR`)')
+
+    if inspect:
+        return parser
 
     args = parser.parse_args()
 
