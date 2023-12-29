@@ -9,6 +9,7 @@ def compile_parser_docs():
     parser = main.main(inspect=True)
     docs = {}
     docs['tasks'] = {}
+    docs['usage'] = {}
     for action in parser._actions:
         if action.dest == 'help':
             continue
@@ -17,6 +18,7 @@ def compile_parser_docs():
             # loop through subparsers:
             for task_name, subaction in action.choices.items():
                 docs['tasks'][task_name] = subaction._actions[1:]
+                docs['usage'][task_name] = subaction.format_usage()
         else:
             docs[action.dest] = action
     return docs
@@ -67,5 +69,29 @@ def format_task_options(task_actions):
     return html
 
 
-def format_task_usage(task_actions):
-    return ''
+def format_task_usage(task_usage):
+    full_usage = task_usage.replace('  ', '').replace('\n', '')
+    full_usage = full_usage.removeprefix('usage: ')
+    items = full_usage.split()
+    only_positionals = []
+    for item in items:
+        if ']' in item or '[' in item:
+            continue
+        else:
+            only_positionals.append(item)
+    usage = ' '.join(only_positionals)
+
+    elements = [
+        '<h2> Example </h2>',
+        '<h2 class="code">',
+        usage,
+        '</h2>',
+        '<br>',
+        'Full example of command line syntax: ',
+        '<p class="code">',
+        full_usage,
+        '</p>',
+        '<br><br>',
+    ]
+    
+    return '\n'.join(elements)

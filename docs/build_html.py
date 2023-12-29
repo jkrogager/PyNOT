@@ -164,6 +164,7 @@ if __name__ == '__main__':
 
     parser_docs = docparser.compile_parser_docs()
     tasks_docs = parser_docs['tasks']
+    tasks_usage = parser_docs['usage']
 
     for root, files in filetree.items():
         if root == './':
@@ -186,10 +187,10 @@ if __name__ == '__main__':
             title = get_title(html_section)
             if task_name in tasks_docs:
                 task_options = docparser.format_task_options(tasks_docs[task_name])
-                usage = docparser.format_task_usage(tasks_docs[task_name])
+                usage = docparser.format_task_usage(tasks_usage[task_name])
             elif task_name == 'PyNOT : init':
                 task_options = docparser.format_task_options(tasks_docs['init'])
-                usage = docparser.format_task_usage(tasks_docs['init'])
+                usage = docparser.format_task_usage(tasks_usage['init'])
             else:
                 task_options = ''
                 usage = ''
