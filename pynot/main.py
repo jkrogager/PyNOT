@@ -323,15 +323,11 @@ def main(inspect=False):
                             help="Input filename")
     parser_crr.add_argument("-o", "--output", type=str, required=True,
                             help="Output filename of cleaned image [REQUIRED]")
-    parser_crr.add_argument('-n', "--niter", type=int, default=4,
+    parser_crr.add_argument('-n', "--niter", type=int, default=2,
                             help="Number of iterations")
-    parser_crr.add_argument("--gain", type=float, default=0.16,
-                            help="Detector gain  (e-/ADU)")
-    parser_crr.add_argument("--readnoise", type=float, default=4.3,
-                            help="Detector read noise (e-)")
     # Define parameters based on default values:
     set_default_pars(parser_crr, section='crr', default_type=int,
-                     ignore_pars=['niter', 'gain', 'readnoise'])
+                     ignore_pars=['niter'])
 
 
     # -- flux1d :: Flux calibration of 1D spectrum
