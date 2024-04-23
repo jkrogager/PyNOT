@@ -22,13 +22,16 @@ The pipeline can be installed using [pip](https://www.pypi.org):
 and requires the following packages : `astroalign`, `astropy`, `astroquery`, `astroscrappy`, `lmfit`, `matplotlib`, `numpy`, `PyQt5`, `PyYAML`, `scipy`, `sep`, and `spectres`. I want to give a huge shout out to all the developers of these packages. Thanks for sharing your work!
 
 Alternatively, clone the repository and install it using:
-````
+
+```
 git clone git@github.com:jkrogager/PyNOT.git
 cd PyNOT
 python -m venv venv-pynot
 source venv-pynot/bin/activate
 python -m pip -r requirements.txt
+
 ```
+
 Then run the installer:
 `python -m pip install .` or `python setup.py install`.
 
