@@ -13,11 +13,25 @@ A special thank you goes out to Prof. Johan Fynbo for helpful discussions and fe
 ```
 
 ## Installation
+Before installing the pipeline, it is recommended to setup a virtual environment to avoid contaminating your local python environment. You can create a `pynot` environment using `python -m venv pynot` (or similar in `conda`). The activate the environment before installing and when running PyNOT: `source /path_to_venv/pynot/bin/activate`. Remember to `deactivate` the environment when you're done.
+
 The pipeline can be installed using [pip](https://www.pypi.org):
 
     ]% pip install PyNOT-redux
 
 and requires the following packages : `astroalign`, `astropy`, `astroquery`, `astroscrappy`, `lmfit`, `matplotlib`, `numpy`, `PyQt5`, `PyYAML`, `scipy`, `sep`, and `spectres`. I want to give a huge shout out to all the developers of these packages. Thanks for sharing your work!
+
+Alternatively, clone the repository and install it using:
+````
+git clone git@github.com:jkrogager/PyNOT.git
+cd PyNOT
+python -m venv venv-pynot
+source venv-pynot/bin/activate
+python -m pip -r requirements.txt
+```
+Then run the installer:
+`python -m pip install .` or `python setup.py install`.
+
 
 
 ## Basic Usage
