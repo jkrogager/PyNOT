@@ -30,6 +30,12 @@ std_filelist += ['tcs_namelist.txt']
 
 calib_files = glob.glob('')
 
+# Load Requirements
+fname = path.join(here, 'requirements.txt')
+with open(fname) as req_file:
+    reqs = req_file.readlines()
+requirements = [r.strip() for r in reqs]
+
 setup(
     name='PyNOT-redux',
 
@@ -91,10 +97,7 @@ setup(
     # your project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
-    install_requires=['matplotlib', 'numpy', 'scipy', 'PyQt5',
-                      'lmfit', 'astropy', 'astroscrappy', 'spectres',
-                      'PyYAML', 'sep', 'astroalign', 'astroquery',
-                      'beautifulsoup4'],
+    install_requires=requirements,
 
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,

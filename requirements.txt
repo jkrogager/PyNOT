@@ -1,0 +1,13 @@
+matplotlib
+numpy
+scipy
+PyQt5
+lmfit
+astropy
+astroscrappy
+spectres
+PyYAML
+sep
+astroalign
+astroquery
+beautifulsoup4
