@@ -836,7 +836,9 @@ def task_response(options, database, status, log=None, verbose=True, app=None, o
                 log.write("Starting Graphical User Interface...")
                 try:
                     response = response_gui.run_gui(ext1d_output, response_output,
-                                                    order=3, smoothing=0.02, app=app)
+                                                    order=3,
+                                                    smoothing=options['response']['smoothing'],
+                                                    app=app)
                     log.write(" [OUTPUT] - Saving response function: %s" % response_output, prefix='')
                 except:
                     log.error("Unexpected error in response GUI: %r" % sys.exc_info()[0])

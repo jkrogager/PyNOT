@@ -104,7 +104,7 @@ class ResponseGUI(QtWidgets.QMainWindow):
         self.order_edit.returnPressed.connect(self.fit_response)
 
         self.smooth_edit = QtWidgets.QLineEdit("%.3f" % smoothing)
-        self.smooth_edit.setValidator(QtGui.QDoubleValidator())
+        # self.smooth_edit.setValidator(QtGui.QDoubleValidator())
         self.smooth_edit.returnPressed.connect(self.fit_response)
 
         self.fit_btn = QtWidgets.QPushButton("Fit Response")
@@ -500,7 +500,12 @@ class ResponseGUI(QtWidgets.QMainWindow):
             return
         wl = self.spectrum.wl
         order = int(self.order_edit.text())
-        smoothing = float(self.smooth_edit.text())
+        try:
+            smoothing = float(self.smooth_edit.text())
+        except Exception:
+            warn_msg = f"Invalid smoothing factor. It must be a numeral, not: {self.smooth_edit.text()}"
+            WarningDialog(self, "Invalid Smoothing Factor!", warn_msg)
+            return
         mask = self.mask
         # resp_fit = Chebyshev.fit(self.wl_bins[mask], self.resp_bins[mask], order, domain=[wl.min(), wl.max()])
         resp_fit = UnivariateSpline(self.wl_bins[mask], self.resp_bins[mask], k=order, s=smoothing)
