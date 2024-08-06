@@ -31,62 +31,70 @@
 
 							<!-- Content -->
                                 <section>
+              
+                                <header class="main">
+                                  <h1>PyNOT : bias</h1>
+                                </header>
+              
+                                <p>
+                                  This task takes a list of a bias images and combines them into a master combined bias frame.
+                                  The command line task accepts wildcards, an explicit list of files, or a file containing a
+                                  list of files. The combination is performed using a sigma-clipped mean or median.
+                                  The threshold of the clipping and the method can be controlled by the <code>kappa</code>
+                                  and <code>method</code> arguments.
+                                </p>
+              
+                                The easiest way to generate the input for <code>pynot bias</code> is to source it from the file
+                                classification table:
+                                <br><br>
+                                <p class="code">
+                                  %] cat dataset.pfc | grep BIAS > bias.list<br>
+                                  %] pynot bias bias.list --output master_bias.fits --method median
+                                </p>
+                                <br><br>
+              
+                                Alternatively the input can be passed as an explicit list:
+                                <br><br>
+                                <p class="code">
+                                  %] pynot bias data/bias1.fits data/bias2.fits data/bias3.fits --output master_bias.fits
+                                </p>
+                                or using wildcards:
+                                <p class="code">
+                                  %] pynot bias data/bias*.fits --output master_bias.fits
+                                </p>
+                                <br><br>
+                                               
+                                 
+                                 <h2> Example Syntax</h2>
 
-									<header class="main">
-									  <h1>PyNOT : bias</h1>
-									</header>
+                                 <h2 class="code">
+                                 pynot bias input
+                                 </h2>
+                                 
+                                 <br>
+                                 
+                                 Full example of command line syntax: 
+                                 <p class="code">
+                                 pynot bias [-h] [-o OUTPUT] [--kappa KAPPA] [--method {mean,median}] input
+                                 </p>
+                                 <br><br>                                 
 
-									<p>
-										This task takes a list of a bias images and combines them into a master combined bias frame.
-										The command line task accepts wildcards, an explicit list of files, or a file containing a
-										list of files. The combination is performed using a sigma-clipped mean or median.
-										The threshold of the clipping and the method can be controlled by the <code>kappa</code>
-										and <code>method</code> arguments.
-									</p>
 
-									The easiest way to generate the input for <code>pynot bias</code> is to source it from the file
-									classification table:
-									<br><br>
-									<p class="code">
-										%] cat dataset.pfc | grep BIAS > bias.list<br>
-										%] pynot bias bias.list --output master_bias.fits --method median
-									</p>
-									<br><br>
+                                 <h2 id="summary"> Overview of parameters </h2>
 
-									Alternatively the input can be passed as an explicit list:
-									<br><br>
-									<p class="code">
-										%] pynot bias data/bias1.fits data/bias2.fits data/bias3.fits --output master_bias.fits
-									</p>
-									or using wildcards:
-									<p class="code">
-										%] pynot bias data/bias*.fits --output master_bias.fits
-									</p>
-									<br><br>
-<h2> Example Syntax</h2>
-<h2 class="code">
-pynot bias input
-</h2>
-<br>
-Full example of command line syntax: 
-<p class="code">
-pynot bias [-h] [-o OUTPUT] [--kappa KAPPA] [--method {mean,median}] input
-</p>
-<br><br>
-
-<h2 id="summary"> Overview of parameters </h2>
-<dl>
-<dt>input</dt>
-    <dd>Input file containing list of image filenames to combine</dd>
-</dl><u> Optional Arguments: </u>
-<dl>
-<dt>--output (-o):  'MASTER_BIAS.fits'</dt>
-    <dd>Output filename of combined bias frame  (default = MASTER_BIAS.fits)</dd>
-<dt>--kappa:  15</dt>
-    <dd>Threshold for sigma clipping</dd>
-<dt>--method:  'mean'</dt>
-    <dd>Method for image combination</dd>
-</dl>
+                                 <dl>
+                                 <dt>input</dt>
+                                     <dd>Input file containing list of image filenames to combine</dd>
+                                 </dl>
+                                 <u> Optional Arguments: </u>
+                                 <dl>
+                                 <dt>--output (-o):  'MASTER_BIAS.fits'</dt>
+                                     <dd>Output filename of combined bias frame  (default = MASTER_BIAS.fits)</dd>
+                                 <dt>--kappa:  15</dt>
+                                     <dd>Threshold for sigma clipping</dd>
+                                 <dt>--method:  'mean'</dt>
+                                     <dd>Method for image combination</dd>
+                                 </dl>
 								</section>
 
 						</div>

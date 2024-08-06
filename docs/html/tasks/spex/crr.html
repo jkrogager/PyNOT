@@ -58,40 +58,48 @@
                                         2  MASK          1 ImageHDU        20   (1024, 1024)   int64<br>
                                     </p>
                                     <p></p>
-<h2> Example Syntax</h2>
-<h2 class="code">
-pynot crr -o OUTPUT input
-</h2>
-<br>
-Full example of command line syntax: 
-<p class="code">
-pynot crr [-h] -o OUTPUT [-n NITER] [--gain GAIN] [--readnoise READNOISE] [--sigclip SIGCLIP] [--sigfrac SIGFRAC] [--objlim OBJLIM] [--cleantype CLEANTYPE] input
-</p>
-<br><br>
+                                 
+                                 
+                                 <h2> Example Syntax</h2>
 
-<h2 id="summary"> Overview of parameters </h2>
-<dl>
-<dt>input</dt>
-    <dd>Input filename</dd>
-<dt>--output (-o)</dt>
-    <dd>Output filename of cleaned image [REQUIRED]</dd>
-</dl><u> Optional Arguments: </u>
-<dl>
-<dt>--niter (-n):  2</dt>
-    <dd>Number of iterations</dd>
-<dt>--gain:  None</dt>
-    <dd>Detector gain, e-/ADU. Read from the header by default</dd>
-<dt>--readnoise:  None</dt>
-    <dd>Detector read-out noise, e-. Read from the header by default</dd>
-<dt>--sigclip:  4.5</dt>
-    <dd>Laplacian-to-noise limit for cosmic ray detection. Lower values will flag more pixels as cosmics</dd>
-<dt>--sigfrac:  0.3</dt>
-    <dd>Fractional detection limit for neighboring pixels</dd>
-<dt>--objlim:  5.0</dt>
-    <dd>Minimum contrast. Increase this value if cores of bright stars/skylines are flagged as cosmics</dd>
-<dt>--cleantype:  'meanmask'</dt>
-    <dd>Cleaning filter (5x5): {'median', 'medmask', 'meanmask', 'idw'}, see astroscrappy for details</dd>
-</dl>
+                                 <h2 class="code">
+                                 pynot crr -o OUTPUT input
+                                 </h2>
+                                 
+                                 <br>
+                                 
+                                 Full example of command line syntax: 
+                                 <p class="code">
+                                 pynot crr [-h] -o OUTPUT [-n NITER] [--gain GAIN] [--readnoise READNOISE] [--sigclip SIGCLIP] [--sigfrac SIGFRAC] [--objlim OBJLIM] [--cleantype CLEANTYPE] input
+                                 </p>
+                                 <br><br>                                 
+
+
+                                 <h2 id="summary"> Overview of parameters </h2>
+
+                                 <dl>
+                                 <dt>input</dt>
+                                     <dd>Input filename</dd>
+                                 <dt>--output (-o)</dt>
+                                     <dd>Output filename of cleaned image [REQUIRED]</dd>
+                                 </dl>
+                                 <u> Optional Arguments: </u>
+                                 <dl>
+                                 <dt>--niter (-n):  2</dt>
+                                     <dd>Number of iterations</dd>
+                                 <dt>--gain:  None</dt>
+                                     <dd>Detector gain, e-/ADU. Read from the header by default</dd>
+                                 <dt>--readnoise:  None</dt>
+                                     <dd>Detector read-out noise, e-. Read from the header by default</dd>
+                                 <dt>--sigclip:  4.5</dt>
+                                     <dd>Laplacian-to-noise limit for cosmic ray detection. Lower values will flag more pixels as cosmics</dd>
+                                 <dt>--sigfrac:  0.3</dt>
+                                     <dd>Fractional detection limit for neighboring pixels</dd>
+                                 <dt>--objlim:  5.0</dt>
+                                     <dd>Minimum contrast. Increase this value if cores of bright stars/skylines are flagged as cosmics</dd>
+                                 <dt>--cleantype:  'meanmask'</dt>
+                                     <dd>Cleaning filter (5x5): {'median', 'medmask', 'meanmask', 'idw'}, see astroscrappy for details</dd>
+                                 </dl>
 								</section>
 
 						</div>

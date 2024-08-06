@@ -39,44 +39,52 @@
                                     <p class="warning">
                                     Nothing here yet! Stay tuned... :)
                                     </p>
-<h2> Example Syntax</h2>
-<h2 class="code">
-pynot skysub -o OUTPUT input
-</h2>
-<br>
-Full example of command line syntax: 
-<p class="code">
-pynot skysub [-h] -o OUTPUT [--axis AXIS] [--auto AUTO] [--order_bg ORDER_BG] [--kappa KAPPA] [--med_kernel MED_KERNEL] [--obj_kappa OBJ_KAPPA] [--fwhm_scale FWHM_SCALE] [--xmin XMIN] [--xmax XMAX] input
-</p>
-<br><br>
+                                 
+                                 
+                                 <h2> Example Syntax</h2>
 
-<h2 id="summary"> Overview of parameters </h2>
-<dl>
-<dt>input</dt>
-    <dd>Input filename of 2D frame</dd>
-<dt>--output (-o)</dt>
-    <dd>Output filename of sky-subtracted 2D image [REQUIRED]</dd>
-</dl><u> Optional Arguments: </u>
-<dl>
-<dt>--axis:  2</dt>
-    <dd>Dispersion axis: 1 horizontal, 2: vertical</dd>
-<dt>--auto:  True</dt>
-    <dd>Automatically subtract the sky from the 2D spectrum?</dd>
-<dt>--order_bg:  3</dt>
-    <dd>Polynomial order for sky background subtraction (per row)</dd>
-<dt>--kappa:  10</dt>
-    <dd>Threshold for rejection of outlying pixels (cosmics etc) in units of std. deviations</dd>
-<dt>--med_kernel:  15</dt>
-    <dd>Median filter width for defining masking of cosmic rays, CCD artefacts etc.</dd>
-<dt>--obj_kappa:  20</dt>
-    <dd>Threshold for automatic object detection to be masked out.</dd>
-<dt>--fwhm_scale:  3</dt>
-    <dd>Mask out auto-identified objects within ±`fwhm_scale`*FWHM around centroid of object</dd>
-<dt>--xmin:  0</dt>
-    <dd>Mask out pixels below xmin</dd>
-<dt>--xmax:  None</dt>
-    <dd>Mask out pixels above xmax</dd>
-</dl>
+                                 <h2 class="code">
+                                 pynot skysub -o OUTPUT input
+                                 </h2>
+                                 
+                                 <br>
+                                 
+                                 Full example of command line syntax: 
+                                 <p class="code">
+                                 pynot skysub [-h] -o OUTPUT [--axis AXIS] [--auto AUTO] [--order_bg ORDER_BG] [--kappa KAPPA] [--med_kernel MED_KERNEL] [--obj_kappa OBJ_KAPPA] [--fwhm_scale FWHM_SCALE] [--xmin XMIN] [--xmax XMAX] input
+                                 </p>
+                                 <br><br>                                 
+
+
+                                 <h2 id="summary"> Overview of parameters </h2>
+
+                                 <dl>
+                                 <dt>input</dt>
+                                     <dd>Input filename of 2D frame</dd>
+                                 <dt>--output (-o)</dt>
+                                     <dd>Output filename of sky-subtracted 2D image [REQUIRED]</dd>
+                                 </dl>
+                                 <u> Optional Arguments: </u>
+                                 <dl>
+                                 <dt>--axis:  2</dt>
+                                     <dd>Dispersion axis: 1 horizontal, 2: vertical</dd>
+                                 <dt>--auto:  True</dt>
+                                     <dd>Automatically subtract the sky from the 2D spectrum?</dd>
+                                 <dt>--order_bg:  3</dt>
+                                     <dd>Polynomial order for sky background subtraction (per row)</dd>
+                                 <dt>--kappa:  10</dt>
+                                     <dd>Threshold for rejection of outlying pixels (cosmics etc) in units of std. deviations</dd>
+                                 <dt>--med_kernel:  15</dt>
+                                     <dd>Median filter width for defining masking of cosmic rays, CCD artefacts etc.</dd>
+                                 <dt>--obj_kappa:  20</dt>
+                                     <dd>Threshold for automatic object detection to be masked out.</dd>
+                                 <dt>--fwhm_scale:  3</dt>
+                                     <dd>Mask out auto-identified objects within ±`fwhm_scale`*FWHM around centroid of object</dd>
+                                 <dt>--xmin:  0</dt>
+                                     <dd>Mask out pixels below xmin</dd>
+                                 <dt>--xmax:  None</dt>
+                                     <dd>Mask out pixels above xmax</dd>
+                                 </dl>
 								</section>
 
 						</div>

@@ -39,46 +39,54 @@
                                     <p class="warning">
                                     Nothing here yet! Stay tuned... :)
                                     </p>
-<h2> Example Syntax</h2>
-<h2 class="code">
-pynot sflat --bias BIAS input
-</h2>
-<br>
-Full example of command line syntax: 
-<p class="code">
-pynot sflat [-h] --bias BIAS [-o OUTPUT] [--axis AXIS] [--kappa KAPPA] [--method METHOD] [--order ORDER] [--savgol_window SAVGOL_WINDOW] [--med_window MED_WINDOW] [--edge_threshold EDGE_THRESHOLD] [--edge_window EDGE_WINDOW] [--edge_width EDGE_WIDTH] input
-</p>
-<br><br>
+                                 
+                                 
+                                 <h2> Example Syntax</h2>
 
-<h2 id="summary"> Overview of parameters </h2>
-<dl>
-<dt>input</dt>
-    <dd>Input file containing list of image filenames to combine</dd>
-<dt>--bias</dt>
-    <dd>Filename of combined bias frame  [REQUIRED]</dd>
-</dl><u> Optional Arguments: </u>
-<dl>
-<dt>--output (-o):  ''</dt>
-    <dd>Output filename of combined and normalized flat frame. Constructed from GRISM and SLIT by default</dd>
-<dt>--axis:  2</dt>
-    <dd>Dispersion axis: 1 horizontal, 2: vertical</dd>
-<dt>--kappa:  5</dt>
-    <dd>Threshold for sigma clipping in Flat combiniation</dd>
-<dt>--method:  'mean'</dt>
-    <dd>Method for image combination (options: median/mean)</dd>
-<dt>--order:  24</dt>
-    <dd>Order for Chebyshev polynomial to fit to the spatial profile (per row/col)</dd>
-<dt>--savgol_window:  51</dt>
-    <dd>Window width in pixels for Savitzky--Golay filter of spatial profile</dd>
-<dt>--med_window:  5</dt>
-    <dd>Window width of median filter along spectral axis before fitting the spatial profile</dd>
-<dt>--edge_threshold:  10</dt>
-    <dd>The detection threshold for automatic edge detection</dd>
-<dt>--edge_window:  21</dt>
-    <dd>The Savitzky--Golay window used for automatic edge detection</dd>
-<dt>--edge_width:  10</dt>
-    <dd>The minimum width of peaks in the derivative for edge detection</dd>
-</dl>
+                                 <h2 class="code">
+                                 pynot sflat --bias BIAS input
+                                 </h2>
+                                 
+                                 <br>
+                                 
+                                 Full example of command line syntax: 
+                                 <p class="code">
+                                 pynot sflat [-h] --bias BIAS [-o OUTPUT] [--axis AXIS] [--kappa KAPPA] [--method METHOD] [--order ORDER] [--savgol_window SAVGOL_WINDOW] [--med_window MED_WINDOW] [--edge_threshold EDGE_THRESHOLD] [--edge_window EDGE_WINDOW] [--edge_width EDGE_WIDTH] input
+                                 </p>
+                                 <br><br>                                 
+
+
+                                 <h2 id="summary"> Overview of parameters </h2>
+
+                                 <dl>
+                                 <dt>input</dt>
+                                     <dd>Input file containing list of image filenames to combine</dd>
+                                 <dt>--bias</dt>
+                                     <dd>Filename of combined bias frame  [REQUIRED]</dd>
+                                 </dl>
+                                 <u> Optional Arguments: </u>
+                                 <dl>
+                                 <dt>--output (-o):  ''</dt>
+                                     <dd>Output filename of combined and normalized flat frame. Constructed from GRISM and SLIT by default</dd>
+                                 <dt>--axis:  2</dt>
+                                     <dd>Dispersion axis: 1 horizontal, 2: vertical</dd>
+                                 <dt>--kappa:  5</dt>
+                                     <dd>Threshold for sigma clipping in Flat combiniation</dd>
+                                 <dt>--method:  'mean'</dt>
+                                     <dd>Method for image combination (options: median/mean)</dd>
+                                 <dt>--order:  24</dt>
+                                     <dd>Order for Chebyshev polynomial to fit to the spatial profile (per row/col)</dd>
+                                 <dt>--savgol_window:  51</dt>
+                                     <dd>Window width in pixels for Savitzky--Golay filter of spatial profile</dd>
+                                 <dt>--med_window:  5</dt>
+                                     <dd>Window width of median filter along spectral axis before fitting the spatial profile</dd>
+                                 <dt>--edge_threshold:  10</dt>
+                                     <dd>The detection threshold for automatic edge detection</dd>
+                                 <dt>--edge_window:  21</dt>
+                                     <dd>The Savitzky--Golay window used for automatic edge detection</dd>
+                                 <dt>--edge_width:  10</dt>
+                                     <dd>The minimum width of peaks in the derivative for edge detection</dd>
+                                 </dl>
 								</section>
 
 						</div>
