@@ -9,6 +9,211 @@ extract
                                       <h1>PyNOT : extract</h1>
                                     </header>
 
-                                    <p class="warning">
-                                    Nothing here yet! Stay tuned... :)
+                                    <p>
+                                      This task is used to extract a 1-dimensional spectrum from the 2-dimensional detector image. 
+                                      The default behavior of this task is to open an interactive graphical interface which will allow you
+                                      to do the following steps:
+
+                                      <ol>
+                                        <li>Define extraction model or aperture</li>
+                                        <li>Define sky regions</li>
+                                        <li>Perform sky-subtraction</li>
+                                        <li>Fit and optimize the extraction profile</li>
+                                        <li>Extract the 1D spectrum using optimal or aperture extraction</li>
+                                      </ol>
                                     </p>
+
+                                    <p>
+                                      The command <code>pynot extract calibrated_image.fits</code> takes the already calibrated image,
+                                      on which the following steps have already been carried out: bias subtraction, flat-fielding,
+                                      cosmic ray flagging, wavelength calibration, and optionally flux calibration and sky subtraction.
+                                      The task will open the following graphical interface:
+
+                                      <figure>
+                                        <img width="80%" src="../../images/extract1.png" alt=""/>
+  
+                                        <figcaption>
+                                          Fig. 1 &ndash; An example of the graphical extraction interface of <code>pynot extract</code>.
+                                        </figcaption>
+                                      </figure>
+
+                                      There are two panels in the central main part of the window. The top one shows the science image that
+                                      was loaded. The bottom one starts out blank and will show the fitted background model, if the user
+                                      choses to do so. The right-hand part of the window shows the SPSF view (SPSF = Spectral point spread function)
+                                      and the related parameters. The SPSF profile shown is calculated by summing the science image along the spectral
+                                      direction within the x ranges defined by <i>X-min</i> and <i>X-max</i>. Regions along the slit, in the <i>y</i>
+                                      direction, that fall outside the <i>Y-min</i> and <i>Y-max</i> will be ignored in the extraction.
+                                      <br><br>
+
+                                      The <i>SPSF model</i> determines how the spectrum is extracted. Using either a "Moffat" or "Gaussian"
+                                      profile will fit the SPSF along the spectral direction and use this modelled profile to perform
+                                      a weighted optimal extraction. Alternatively, the "tophat" profile can be used to perform a standard
+                                      aperture extraction by simply summing the flux within the aperture boundaries.
+                                      <br><br>
+
+                                      <b>Adding objects along the slit:</b><br>
+                                      The spectral trace denotes the location of the spectrum along the dispersion axis (for bright objects,
+                                      this is visible as a striahgt or slightly curved band in the 2D View).
+                                      The code tries to identify point sources automatically. These will be highlighted in the SPSF view
+                                      in the upper right corner as a vertical solid line.
+                                      The default width of the extraction aperture is shown by the dashed lines. The position of the center
+                                      and edges of the extraction aperture can be dragged by clicking and holding each of the lines.
+                                      <br><b>Note:</b> All extraction apertures will use the same model for the extraction: either optimal
+                                      (using Gaussian or Moffat profiles) or aperture extraction.
+                                      <br><br>
+
+                                      If the code does not correctly identify the source (or sources) you want to extract, you can manually
+                                      define a new extraction aperture using the <i>"Add Object"</i> button. You can then click on a position
+                                      along the slit in the SPSF viewer and the new aperture model will show up as a vertical line.
+                                      <br><br>
+
+                                      All objects are listed in the bottom part of the right-hand panel in the <i>List of Extraction Apertues</i>.
+                                      Right-clicking on an object in this list will bring up an option-menu which allows you to remove
+                                      or copy the aperture, as well as changing the aperture properties.
+                                      <br><br>
+
+                                      <b>Deleting objects along the slit:</b><br>
+                                      Similarly if an object has been incorrectly identified or added by mistake, you can click the
+                                      <i>"Delete Object"</i> button and then click on the given aperture model you want to delete.
+                                      <br><b>Note:</b> You can also drag an aperture to a new position instead of deleting and then adding
+                                      a new aperture if an object is identified at the wrong location.
+                                    </p>
+
+
+                                    <h3>Fitting the background</h3>
+                                    <p>
+                                      Next step is to define sky-subtraction regions. The automatic sky-subtraction algorithm
+                                      <a href="skysub.html">pynot skysub</a>" usually does a good job but sometimes there are residual gradients
+                                      or other features in the background which can be optimized especially if there are extended objects
+                                      in the slit.
+                                      <br><br>
+                                      
+                                      To do so, the user can select regions along the slit as background regions by clicking the button
+                                      <i>"Select Background"</i> or by hitting the keyboard shortcut <i>"B"</i>. This will change the prompt
+                                      in the SPSF view and instruct the user to select the left and right borders of a sky region. This can be repeated
+                                      as many times as needed. Overlapping regions will automatically be merged.
+                                      The selected region will show up as a light blue vertical band. Sky background ranges can be removed
+                                      by clicking on the button <i>Delete Object</i> and then clicking on the blue band that should be removed.
+                                      <br><br>
+
+                                      The background can then be fitted using a polynomial of variable order. This is done either by clicking
+                                      the <i>"Fit Background"</i> or using the keyboard shortcut: 
+
+                                      When you have selected the sky background regions, fit the background by clicking <i>"Fit Background"</i>
+                                      in the bottom row of the <i>main panel</i> or (cmd/control + shift + F). This will update the
+                                      background model view in the bottom part of the main panel and will show a model in the
+                                      'SPSF view' as a dashed blue line. The polynomial order for the background model can be changed
+                                      by pressing the <i>"Options"</i> button on the top row (or on mac: cmd + ,).<br>
+                                    </p>
+                                    
+                                    
+                                    <h3>Fitting the Spectral Trace</h3>
+                                    <p>
+                                      The spectral trace is fitted using a parametric model of the spatial profile in bins along the
+                                      dispersion axis (you change this <i>Bin Size</i> below the SPSF View).
+                                      There are 2 options for the parametric <i>SPSF model</i> which subsequently determine the profile
+                                      for the <u>optimal extraction</u>: Moffat or Gaussian. For a <u>standard aperture extraction</u>,
+                                      select the <i>Tophat</i> model (note that the centroid of the Tophat profile is fitted using a
+                                      Moffat profile).<br>
+
+                                      To fit the position (and width of the trace model, if Moffat or Gaussian) click the
+                                      <i>Fit Spectral Trace</i> button (cmd + F).
+                                      <br><br>
+                                    
+                                      A progress bar will then appear. If the fit is slow, try to use a narrower region of <i>Y pixels</i>
+                                      (Y-min/Y-max) and/or exclude the ends of the X-axis where the object may be too faint,
+                                      alternatively use a larger <i>Bin Size</i>.
+                                      <br><br>
+                                    
+                                      Once the fitting is done, the program will switch to the <i>Fitting Points</i> tab shown in Figure 2.
+                                      <figure>
+                                        <img width="80%" src="../../images/extract2.png" alt=""/>
+  
+                                        <figcaption>
+                                          Fig. 2 &ndash; An example of the graphical extraction interface of <code>pynot extract</code>
+                                          after fitting the spectral trace model. In this case, a <i>Moffat</i> profile has been fitted
+                                          along the spectral trace. The panels in this window show the fitted parameters of the model
+                                          as a function of the wavelength or pixels along the dispersion axis.
+                                        </figcaption>
+                                      </figure>
+
+                                      Here the parameters of the fitted spectral trace are shown:
+                                      the centroid and width parameters (if Moffat or Gaussian).
+                                      The points indicate the fitted positions of the spatial profile.
+                                      The dashed lines mark the polynomial representation as a function of wavelength
+                                      (or dispersion axis, if no wavelength solution has been applied).
+                                      The order of the polynomial used to fit the points is given as the <i>Polynomial Orders</i>
+                                      on the right. One order for the centroid and one for the width parameters
+                                      (for the Moffat profile, both parameters alpha and beta are fitted using the same order).
+                                      <br><br>
+
+
+                                      <b>Manipulating Fitting Points:</b><br>
+                                      The fitted points (solid circles) often contain outliers where the profile fit failed.
+                                      These outliers can be removed by clicking on the given point, which will change the appearance
+                                      to transparent with a black cross over it. An excluded point can be included again by clicking
+                                      on it. You can also perform a median filtering by changing the <i>Filter Width</i> and the
+                                      significance threshold <i>Kappa</i> and then clicking the <i>Median Filter Points</i> button.<br>
+                                      The gray shaded regions mark the X-min and X-max limits defined in the right-hand panel.
+                                      Points in these shaded regions are excluded in the polynomial fit along the dispersion axis.
+                                      If several objects are defined you can toggle them visible/invisible by clicking on the given
+                                      tick-mark in the List of Extraction Apertures.
+                                      <br><br>
+                                    
+                                      When you are happy with the trace model (dashed lines) along the dispersion axis,
+                                      you can verify the given profile in the <i>2D View</i>, which is shown in Figure 3.
+                                      The given spectral trace will be over-plotted on the top panel
+                                      (if toggled visible in the List of Apertures).
+                                      The points shown in the 2D View can also be used to remove outlier points. 
+                                      This will deactivate all parameters (centroid and widths) of the given point 
+                                      (they can be re-activated under the tab Fitting Points).
+                                      <br><br>
+
+                                      <figure>
+                                        <img width="80%" src="../../images/extract3.png" alt=""/>
+  
+                                        <figcaption>
+                                          Fig. 3 &ndash; An example of the graphical extraction interface of <code>pynot extract</code>
+                                          after fitting the spectral trace model. Here the fitted extraction aperture model is overlaid
+                                          on the science image. The points indicate the fitting points from the figure before. These can
+                                          be deselected in this view by clicking on them, see text for details.
+                                        </figcaption>
+                                      </figure>
+
+                                    
+                                      <h3>Extracting the 1D Spectrum</h3>
+
+                                      When the model of the spectral trace has been defined, you are ready to extract the given aperture
+                                      by clicking the <i>"Extract 1D Spectrum"</i> button in the middle of the top row (cmd + E).
+                                      The program will change to the <i>"1D View"</i> tab where the extracted spectrum
+                                      (or spectra, if several objects are defined) is shown, see Figure 4.
+                                      The units on the X-axis (dispersion) are pixels by default, if no wavelength solution has been applied.
+                                      If a wavelength solution is present, the proper units will be shown. 
+                                      Similar for the flux on the Y-axis, the default units are counts unless other units are 
+                                      present in the header of the input FITS file. The FITS Header can be shown by going to the menu:
+                                      'View > Display Header'.
+
+                                    <figure>
+                                      <img width="80%" src="../../images/extract4.png" alt=""/>
+
+                                      <figcaption>
+                                        Fig. 4 &ndash; An example of the graphical extraction interface of <code>pynot extract</code>
+                                        after extracting the 1D spectrum. Here the extracted flux is shown as a function of wavelength
+                                        or pixels along the dispersion axis, if the data have not been wavelength calibrated.
+                                        If more than one spectral aperture is defined, all spectra will be shown unless they are de-selected
+                                        in the <i>List of Extraction Apertures</i> by clicking the tick-box.
+                                      </figcaption>
+                                    </figure>
+                                    
+                                    <b>Saving the Output:</b><br>
+                                    When you have successfully extracted the 1D spectrum and verified that it looks as expected,
+                                    you can save the 1D extraction by pressing the button <i>Done</i> on the top row.
+                                    This will promt you to save the spectrum in various formats: FITS, FITS Table or ASCII
+                                    (a short example of the format is shown). If several objects are defined, you can save
+                                    them all as individual extensions of a FITS Table by pressing <i>Save All</i>.
+                                    <br><br>
+
+                                    You can also save individual spectra by right-clicking on the given aperture model in the 
+                                    <i>List of Extraction Apertures</i>. This also allows you to save the extraction model profile.
+                                    You can also save the sky-subtracted 2D spectrum and the sky model by using the <i>File</i> menu.
+                                  </p>
