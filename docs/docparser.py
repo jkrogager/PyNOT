@@ -83,7 +83,7 @@ def format_task_usage(task_usage):
     usage = ' '.join(only_positionals)
 
     elements = [
-        '<h2> Example </h2>',
+        '<h2> Example Syntax</h2>',
         '<h2 class="code">',
         usage,
         '</h2>',
