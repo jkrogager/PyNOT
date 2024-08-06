@@ -42,7 +42,23 @@
                                       The output of the task is a corrected image with an additional mask extension indicating which pixels
                                       have been flagged (0 if good or 1 if flagged as a cosmic ray hit).
                                     </p>
-<h2> Example </h2>
+
+                                    <p>
+                                      The resulting FITS file can be inspected using the astropy command line function <code>fitsinfo</code>. 
+                                      An example of the output from <code>pynot crr</code> would look something like this:
+                                    </p>
+
+                                    <p class="code">
+                                      %] pynot crr raw_image.fits -o cosmic_ray_corrected_image.fits  >  crr_processing.log<br>
+                                      %] fitsinfo cosmic_ray_corrected_image.fits<br>
+                                      Filename: cosmic_ray_corrected_image.fits<br><br>
+                                      No.    Name      Ver    Type      Cards   Dimensions   Format<br>
+                                        0  DATA          1 PrimaryHDU     493   (1024, 1024)   float64<br>
+                                        1  ERR           1 ImageHDU       495   (1024, 1024)   float64<br>
+                                        2  MASK          1 ImageHDU        20   (1024, 1024)   int64<br>
+                                    </p>
+                                    <p></p>
+<h2> Example Syntax</h2>
 <h2 class="code">
 pynot crr -o OUTPUT input
 </h2>
@@ -169,7 +185,7 @@ pynot crr [-h] -o OUTPUT [-n NITER] [--gain GAIN] [--readnoise READNOISE] [--sig
 			</div>
 
 		<!-- Scripts -->
-			<script src="../../assets/js/jquery-3.6.0.js"></script>
+			<script src="../../assets/js/jquery.min.js"></script>
 			<script src="../../assets/js/browser.min.js"></script>
 			<script src="../../assets/js/breakpoints.min.js"></script>
 			<script src="../../assets/js/util.js"></script>
