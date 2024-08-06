@@ -24,10 +24,11 @@ def compile_parser_docs():
     return docs
 
 
-def format_task_options(task_actions):
+def format_task_options(task_actions, indent=0):
 
-    html = '\n\n'
-    html += '<h2 id="summary"> Overview of parameters </h2>\n'
+    html_lines = ['\n\n',
+                  '<h2 id="summary"> Overview of parameters </h2>\n'
+                  ]
 
     optional_arguments = [action for action in task_actions if not action.required]
     required_arguments = [action for action in task_actions if action.required]
@@ -46,7 +47,7 @@ def format_task_options(task_actions):
             elements.append(arg_name)
             elements.append('    <dd>%s</dd>' % arg.help)
         elements.append('</dl>')
-        html += '\n'.join(elements)
+        html_lines += elements
 
     if len(optional_arguments) > 0:
         elements = ['<u> Optional Arguments: </u>']
@@ -64,12 +65,15 @@ def format_task_options(task_actions):
             elements.append(arg_name)
             elements.append('    <dd>%s</dd>' % arg.help)
         elements.append('</dl>')
-        html += '\n'.join(elements)
+        html_lines += elements
 
+    # Add indentation:
+    html_lines = [indent*' ' + line for line in html_lines]
+    html = '\n'.join(html_lines)
     return html
 
 
-def format_task_usage(task_usage):
+def format_task_usage(task_usage, indent=0):
     full_usage = task_usage.replace('\n', '')
     full_usage = full_usage.removeprefix('usage: ')
     full_usage = ' '.join([item for item in full_usage.split() if item])
@@ -83,16 +87,22 @@ def format_task_usage(task_usage):
     usage = ' '.join(only_positionals)
 
     elements = [
-        '<h2> Example Syntax</h2>',
+        '',
+        '',
+        '<h2> Example Syntax</h2>\n',
         '<h2 class="code">',
         usage,
         '</h2>',
+        '',
         '<br>',
+        '',
         'Full example of command line syntax: ',
         '<p class="code">',
         full_usage,
         '</p>',
         '<br><br>',
     ]
+    elements = [indent*' ' + line for line in elements]
+    html = '\n'.join(elements)
     
-    return '\n'.join(elements)
+    return html
