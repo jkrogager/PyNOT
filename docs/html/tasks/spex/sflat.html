@@ -86,7 +86,24 @@
                                       of the intrinsic spectral shape of the continuum lamp and the instrument throughput.
                                     </li>
                                   </ol>
+                                
+                                  The easiest way to prepare the list of input files is to filter the 'dataset.pfc' file created by
+                                  <code><a href="../init.html"></a>pynot init</code> using the <code>grep</code> command:
+                                  <br><br>
+                                  <p class="code">
+                                    %] cat dataset.pfc | grep SPEC_FLAT > flat_.list<br>
+                                  </p>
+                                  <br><br>
+                                  You can further filter on specific setups in the file, such as slit, grism, filter, exposure time etc.
+                                
+                                  <p class="warning">
+                                    Make sure only to combine spectral flat fields taken with the same instrumental setup and detector
+                                    characteristics (binning, readout mode, windowing). The code will complain if the image sizes do not match
+                                    but any other checks is left for the user.
+                                  </p>
+                                  <br><br>
                                 </p>
+                                
                                 
                                 
                                 <p>
@@ -111,7 +128,9 @@
                                   In Fig. 1, the edges of the illuminated part of the CCD are clearly visible.
                                   <br><br>
                                 
-                                  An example of the normalization of the spatial profile is shown below in Fig. 2:
+                                  An example of the normalization of the spatial profile is shown below in Fig. 2 below, and a similar diagnostic
+                                  plot is saved to the working directory with a filename starting with 'specflat_1d'.
+                                  The exact filename is given in the log when running the task.
                                   <figure>
                                     <img width="60%" src="../../images/sflat2.png" alt="" />
                                     <figcaption>
@@ -142,6 +161,9 @@
                                       Note that the two images are not shown on the same color-scale.
                                     </figcaption>
                                   </figure>
+                                  
+                                  A similar diagnostic plot is saved to the working directory with a filename starting with 'specflat_2d'.
+                                  The exact filename is given in the log when running the task.
                                 </p>
                                 
                                 
