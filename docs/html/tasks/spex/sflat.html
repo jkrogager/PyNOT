@@ -31,15 +31,123 @@
 
 							<!-- Content -->
                                 <section>
-
-                                    <header class="main">
-                                      <h1>PyNOT : sflat</h1>
-                                    </header>
-
-                                    <p class="warning">
-                                    Nothing here yet! Stay tuned... :)
-                                    </p>
-                                 
+                                
+                                <header class="main">
+                                  <h1>PyNOT : sflat</h1>
+                                </header>
+                                
+                                <p>
+                                  This task will take a series of calibration exposures taken with a continuum lamp. These should use the 
+                                  same spectroscopic setup as your science exposures (same slit and dispersive element).
+                                  The goal of this task is to remove artefacts in the data caused by variations in the detector
+                                  effeciency as well as impurities in the optical path.
+                                  The task <code>sflat</code> performs the following sub-tasks:
+                                
+                                  <ul class="subtasklist">
+                                  <li> <a href="#combination"> Image combination</a> </li>
+                                  <li> <a href="#normalization"> Flat field normalization</a> </li>
+                                  <li> <a href="#summary"> Overview of parameters</a> </li>
+                                  </ul>
+                                </p>
+                                
+                                <hr class="major" />
+                                
+                                
+                                <h2 id="combination">Combination of spectroscopic flat-field calibrations</h2>
+                                
+                                <p>
+                                  The first step of the task <code>pynot sflat</code> is to remove the bias level and overscan regions
+                                  of all the individual spectroscopic flat-field exposures. For this prupose, a combined bias image
+                                  must be provided using the command line option <code>--bias</code>. 
+                                  <br>
+                                
+                                  After the bias level has been removed, the different flat-field exposures are combined using 
+                                  a sigma-clipped mean combination by default. The threshold for the sigma-clipping can be controlled
+                                  by the parameter <code>--kappa</code>. You can also chose to perform a median combination by
+                                  setting the parameter <code>--method median</code>. The resulting combined flat-field will be saved
+                                  to a FITS file which by default is named after the slit width and dispersive element. An example
+                                  is shown in Fig. 1:
+                                
+                                  <figure>
+                                    <img width="60%" src="../../images/sflat1.png" alt="" />
+                                    <figcaption>
+                                      Fig. 1 &ndash; Example of a combined spectroscopic flat-field image,
+                                      here using the grism #19 and the 1.0 arcsec slit of AlFOSC mounted at the Nordic Optical Telescope.
+                                    </figcaption>
+                                  </figure>
+                                
+                                  The structure visible in the above figure is due to a combination of effects:
+                                  <ol class="subtasklist">
+                                    <li>The two sharp edges indicate the edges of the grism which is blocking part of the CCD;</li>
+                                    <li>
+                                      The spatial variations with two peaks is an artefact of the calibration lamp not illuminating
+                                      the slit evenly;
+                                    </li>
+                                    <li>
+                                      And lastly, the spectral variation (along the vertical axis) is due to the combination
+                                      of the intrinsic spectral shape of the continuum lamp and the instrument throughput.
+                                    </li>
+                                  </ol>
+                                </p>
+                                
+                                
+                                <p>
+                                  <h2 id="normalization"> Flat field normalization </h2>
+                                
+                                  Given the non-uniform illumination of the slit by this calibration unit, we cannot use these exposure
+                                  to perform an illumination correction. For this purpose, the spectroscopic flat-field exposures should
+                                  be obtained using the twilight sky. However, PyNOT does not cover illumination corrections yet.
+                                  <br>
+                                  Instead, we must characterize both the spatial and spectral variations in order to divide them out.
+                                  This is what we refer to as <i>normalization</i> of the flat-field.
+                                  PyNOT does this by determining the spatial profile of the flat-field in each wavelength bin using
+                                  a Savitzky&ndash;Golay filtering algorithm as implemented in <code>scipy</code>. The parameters of
+                                  the filtering can be controlled via the parameters <code>--order</code> and <code>--savgol_window</code>
+                                  from the command line. Before filtering and fitting the spatial profile in individual wavelength bins,
+                                  the image is first median filtered along the spectral axis to decrease the noise. A default of
+                                  5 pixels are median combined. This can be controlled using the parameter <code>--med_window</code>.
+                                  For more information about the parameters, run <code>pynot sflat -h</code> or <a href="#summary">see below</a>.
+                                  <br>
+                                  The code determines the edges of the illuminated part of the
+                                  CCD using a similar filtering algorithm and its first derivative to look for sharp features.
+                                  In Fig. 1, the edges of the illuminated part of the CCD are clearly visible.
+                                  <br><br>
+                                
+                                  An example of the normalization of the spatial profile is shown below in Fig. 2:
+                                  <figure>
+                                    <img width="60%" src="../../images/sflat2.png" alt="" />
+                                    <figcaption>
+                                      Fig. 2 &ndash; Example of the spatial profile in a given wavelength bin
+                                      of the combined and median-filtered spectroscopic flat-field image (top),
+                                      here using the grism #19 and the 1.0 arcsec slit of AlFOSC mounted at the Nordic Optical Telescope.
+                                      The solid red line in the top panel indicates the estimated spatial profile. The bottom panel
+                                      shows the relative residuals caused by impurities and variations in detector sensitivy. This is 
+                                      typically of the order a few percent.
+                                    </figcaption>
+                                  </figure>
+                                
+                                  A continuum image is then constructed per row by using the filtered spatial profile
+                                  in each wavelength bin inside the illuminsted parts of the CCD. Outside the edges of the illuminated
+                                  part, the continuum image is simply set to 1. The normalized flat field image is then obtained
+                                  by dividing the combined spectral flat field by the continuum image. The result is an image
+                                  which only retains artefacts due to the pixel-to-pixel variations of the CCD sensitivy and
+                                  impurities in the optical path (such as irregular slit edges or dust grains in the optical elements).
+                                  An example of the normalized flat field image of the combined spectroscopic flat-field from Fig. 1
+                                  is shown below:
+                                
+                                  <figure>
+                                    <img width="60%" src="../../images/sflat3.png" alt="" />
+                                    <figcaption>
+                                      Fig. 3 &ndash; Example of the combined spectroscopic flat-field image (left) and the 
+                                      normalized flat-field (right),
+                                      here using the grism #19 and the 1.0 arcsec slit of AlFOSC mounted at the Nordic Optical Telescope.
+                                      Note that the two images are not shown on the same color-scale.
+                                    </figcaption>
+                                  </figure>
+                                </p>
+                                
+                                
+                                                                 
                                  
                                  <h2> Example Syntax</h2>
 
