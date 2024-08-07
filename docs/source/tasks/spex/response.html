@@ -64,10 +64,20 @@ response
   <br>
   The best fit response function will show up as a solid blue line, as seen in Fig. 2.
 
+  <figure>
+    <img width="80%" src="../../images/response2.png" alt=""/>
+    <figcaption>
+      Fig. 2 &ndash; An example of the graphical extraction interface of <code>pynot response</code>. The response function has
+      been fitted using a smoothing spline of variable degree. The best-fit response function is shown as the red solid line in the
+      bottom panel.
+    </figcaption>
+  </figure>
+
   <b>Saving the output:</b><br>
   When you are happy with the fitted response curve, you can save it to a file by clicking the <i>"Done"</i> button in the upper left
   corner. This will save the response function to a FITS table by default, which can be used in the PyNOT tasks <a href="flux1d.html">flux1d</a>
   and <a href="flux2d.html">flux2d</a> to apply the flux calibration to a processed science spectrum.
+  The response function converts the observed counts into spectral flux density per wavelength unit: \({\rm erg\ s^{-1}\ cm^{-2}\ Å^{-1}}\).
 </p>
 
 
