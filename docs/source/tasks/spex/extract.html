@@ -103,9 +103,19 @@ extract
     in the bottom row of the <i>main panel</i> or (cmd/control + shift + F). This will update the
     background model view in the bottom part of the main panel and will show a model in the
     'SPSF view' as a dashed blue line. The polynomial order for the background model can be changed
-    by pressing the <i>"Options"</i> button on the top row (or on mac: cmd + ,).<br>
+    by pressing the <i>"Options"</i> button on the top row (or on mac: cmd + ,) which will bring up the
+    options window as shown in Fig. 2.<br>
   </p>
-  
+
+  <figure>
+    <img width="80%" src="../../images/extract_options.png" alt=""/>
+
+    <figcaption>
+      Fig. 2 &ndash; An example of the options dialog of <code>pynot extract</code> allowing the user to
+      change the filtering and polynomial order used for the background subtraction. The parameters
+      used for the automatic object identification can also be changed.
+    </figcaption>
+  </figure>
   
   <h3>Fitting the Spectral Trace</h3>
   <p>
@@ -125,12 +135,12 @@ extract
     alternatively use a larger <i>Bin Size</i>.
     <br><br>
   
-    Once the fitting is done, the program will switch to the <i>Fitting Points</i> tab shown in Figure 2.
+    Once the fitting is done, the program will switch to the <i>Fitting Points</i> tab shown in Figure 3.
     <figure>
       <img width="80%" src="../../images/extract2.png" alt=""/>
 
       <figcaption>
-        Fig. 2 &ndash; An example of the graphical extraction interface of <code>pynot extract</code>
+        Fig. 3 &ndash; An example of the graphical extraction interface of <code>pynot extract</code>
         after fitting the spectral trace model. In this case, a <i>Moffat</i> profile has been fitted
         along the spectral trace. The panels in this window show the fitted parameters of the model
         as a function of the wavelength or pixels along the dispersion axis.
@@ -161,7 +171,7 @@ extract
     <br><br>
   
     When you are happy with the trace model (dashed lines) along the dispersion axis,
-    you can verify the given profile in the <i>2D View</i>, which is shown in Figure 3.
+    you can verify the given profile in the <i>2D View</i>, which is shown in Figure 4.
     The given spectral trace will be over-plotted on the top panel
     (if toggled visible in the List of Apertures).
     The points shown in the 2D View can also be used to remove outlier points. 
@@ -173,7 +183,7 @@ extract
       <img width="80%" src="../../images/extract3.png" alt=""/>
 
       <figcaption>
-        Fig. 3 &ndash; An example of the graphical extraction interface of <code>pynot extract</code>
+        Fig. 4 &ndash; An example of the graphical extraction interface of <code>pynot extract</code>
         after fitting the spectral trace model. Here the fitted extraction aperture model is overlaid
         on the science image. The points indicate the fitting points from the figure before. These can
         be deselected in this view by clicking on them, see text for details.
@@ -186,7 +196,7 @@ extract
     When the model of the spectral trace has been defined, you are ready to extract the given aperture
     by clicking the <i>"Extract 1D Spectrum"</i> button in the middle of the top row (cmd + E).
     The program will change to the <i>"1D View"</i> tab where the extracted spectrum
-    (or spectra, if several objects are defined) is shown, see Figure 4.
+    (or spectra, if several objects are defined) is shown, see Figure 5.
     The units on the X-axis (dispersion) are pixels by default, if no wavelength solution has been applied.
     If a wavelength solution is present, the proper units will be shown. 
     Similar for the flux on the Y-axis, the default units are counts unless other units are 
@@ -197,7 +207,7 @@ extract
     <img width="80%" src="../../images/extract4.png" alt=""/>
 
     <figcaption>
-      Fig. 4 &ndash; An example of the graphical extraction interface of <code>pynot extract</code>
+      Fig. 5 &ndash; An example of the graphical extraction interface of <code>pynot extract</code>
       after extracting the 1D spectrum. Here the extracted flux is shown as a function of wavelength
       or pixels along the dispersion axis, if the data have not been wavelength calibrated.
       If more than one spectral aperture is defined, all spectra will be shown unless they are de-selected
