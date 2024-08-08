@@ -35,6 +35,17 @@ skysub
   option. The object detection algorithm is illustrated in Fig. 1.
 </p>
 
+<figure>
+  <img width="60%" src="../../images/skysub1.png" alt="" />
+  <figcaption>
+    Fig. 1 &ndash; Example of the spatial profile of an observation from the ALFOSC at the Nordic Optical Telescope
+    showing two closely separated objects in the slit. The <code>pynot skysub</code> algorithm has automatically
+    identified the two objects marked by the solid vertical lines of different color. The dotted lines on either side
+    of the solid line indicated the estimated FWHM of the object used to define the masking region.
+    The gray shaded region indicates the exclusion region around the objects as identified by the code.
+  </figcaption>
+</figure>
+
 <p class="note">
   Note: This algorithm has been optimized for point sources or objects which have significant amount of empty background
   within the slit. Very extended objects may require a different strategy, such as <i>"Nodding along the slit"</i> or
@@ -64,5 +75,22 @@ skysub
   An example of the fitting algorithm is shown in Fig. 2.
 </p>
 
-The output is saved as a FITS file with an added extension named <i>"SKY"</i> which holds the 2D background model
-subtracted from the science image.
+<figure>
+  <img width="60%" src="../../images/skysub2.png" alt="" />
+  <figcaption>
+    Fig. 2 &ndash; Example of the filtering of outlying pixels and polynomial fitting of a single row
+    in a 2D spectrum. The figure here is based on the same observation as showed in Fig. 1 from the ALFOSC
+    at the Nordic Optical Telescope. The <code>pynot skysub</code> algorithm has automatically
+    identified the outlying pixels caused by a detector artefact (the spike on the right-hand side of the two objects).
+    Excluded pixels are highlighted as red crosses whereas black dots mark the good points used for fitting 
+    the polynomial. The best-fit background model is shown as the thick blue line.
+  </figcaption>
+</figure>
+
+<p>
+  <b>Saving the output:</b><br>
+  The output from <code>pynot skysub</code> is saved as a FITS file with an added extension named <i>"SKY"</i>
+  which holds the 2D background model subtracted from the science image. The filename must be given with the <code>--output</code>
+  (or <code>-o</code>) option in the command line.
+</p>
+<br><br>
