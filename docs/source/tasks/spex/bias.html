@@ -5,34 +5,34 @@ bias
 <link rel="stylesheet" href="/Users/krogager/coding/jkrogager.github.io/pynot/assets/css/main.css"/>
 </head>
 
-									<header class="main">
-									  <h1>PyNOT : bias</h1>
-									</header>
+<header class="main">
+	<h1>PyNOT : bias</h1>
+</header>
 
-									<p>
-										This task takes a list of a bias images and combines them into a master combined bias frame.
-										The command line task accepts wildcards, an explicit list of files, or a file containing a
-										list of files. The combination is performed using a sigma-clipped mean or median.
-										The threshold of the clipping and the method can be controlled by the <code>--kappa</code>
-										and <code>--method</code> arguments.
-									</p>
+<p>
+	This task takes a list of a bias images and combines them into a master combined bias frame.
+	The command line task accepts wildcards, an explicit list of files, or a file containing a
+	list of files. The combination is performed using a sigma-clipped mean or median.
+	The threshold of the clipping and the method can be controlled by the <code>--kappa</code>
+	and <code>--method</code> arguments.
+</p>
 
-									The easiest way to generate the input for <code>pynot bias</code> is to source it from the file
-									classification table:
-									<br><br>
-									<p class="code">
-										%] cat dataset.pfc | grep BIAS > bias.list<br>
-										%] pynot bias bias.list --output master_bias.fits --method median
-									</p>
-									<br><br>
+The easiest way to generate the input for <code>pynot bias</code> is to source it from the file
+classification table:
+<br><br>
+<p class="code">
+	%] cat dataset.pfc | grep BIAS > bias.list<br>
+	%] pynot bias bias.list --output master_bias.fits --method median
+</p>
+<br><br>
 
-									Alternatively the input can be passed as an explicit list:
-									<br><br>
-									<p class="code">
-										%] pynot bias data/bias1.fits data/bias2.fits data/bias3.fits --output master_bias.fits
-									</p>
-									or using wildcards:
-									<p class="code">
-										%] pynot bias data/bias*.fits --output master_bias.fits
-									</p>
-									<br><br>
+Alternatively the input can be passed as an explicit list:
+<br><br>
+<p class="code">
+	%] pynot bias data/bias1.fits data/bias2.fits data/bias3.fits --output master_bias.fits
+</p>
+or using wildcards:
+<p class="code">
+	%] pynot bias data/bias*.fits --output master_bias.fits
+</p>
+<br><br>
