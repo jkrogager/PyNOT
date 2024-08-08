@@ -29,7 +29,8 @@ from pynot import extract_gui
 from pynot.functions import get_version_number, my_formatter, mad
 from pynot import response_gui
 from pynot.logging import Report
-from pynot.scired import auto_fit_background, raw_correction
+from pynot.scired import raw_correction
+from pynot.skysub import auto_fit_background
 from pynot.scombine import combine_2d
 from pynot.wavecal import rectify
 
@@ -343,7 +344,7 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
         output_msg = raw_correction(raw2D, hdr, bias_fname, flat_fname,
                                     output=std_tmp_fname, overwrite=True)
         msg.append(output_msg)
-    except:
+    except Exception:
         msg.append("Unexpected error in raw correction: %r" % sys.exc_info()[0])
         output_msg = "\n".join(msg)
         raise Exception(output_msg)
@@ -354,7 +355,7 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
         rect_msg = rectify(std_tmp_fname, arc_fname, pixtable_fname, output=rect2d_fname,
                            dispaxis=dispaxis, **rectify_options)
         msg.append(rect_msg)
-    except:
+    except Exception:
         msg.append("Unexpected error in rectify: %r" % sys.exc_info()[0])
         output_msg = "\n".join(msg)
         raise Exception(output_msg)
@@ -366,7 +367,7 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
         bg_msg = auto_fit_background(rect2d_fname, bgsub2d_fname, dispaxis=1, order_bg=order_bg, plot_fname='',
                                      kappa=100, fwhm_scale=5)
         msg.append(bg_msg)
-    except:
+    except Exception:
         msg.append("Unexpected error in auto sky sub: %r" % sys.exc_info()[0])
         output_msg = "\n".join(msg)
         raise Exception(output_msg)
@@ -379,7 +380,7 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
             extract_gui.run_gui(bgsub2d_fname, output_fname=ext1d_output,
                                 app=app, order_center=5, order_width=5, smoothing=smoothing, dx=20)
             msg.append(" [OUTPUT] - Writing fits table: %s" % ext1d_output)
-        except:
+        except Exception:
             msg.append("Unexpected error in extract GUI: %r" % sys.exc_info()[0])
             output_msg = "\n".join(msg)
             raise Exception(output_msg)
@@ -389,7 +390,7 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
                                    model_name='moffat', dx=20, order_center=4, order_width=5, xmin=20, ymin=5, ymax=-5,
                                    kappa_cen=5., w_cen=15)
             msg.append(ext_msg)
-        except:
+        except Exception:
             msg.append("Unexpected error in auto extract: %r" % sys.exc_info()[0])
             output_msg = "\n".join(msg)
             raise Exception(output_msg)
@@ -474,7 +475,7 @@ def calculate_response(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat
             response = response_gui.run_gui(ext1d_output, response_output,
                                             order=3, smoothing=0.02, app=app)
             msg.append(" [OUTPUT] - Saving the response function as FITS table: %s" % response_output)
-        except:
+        except Exception:
             msg.append("Unexpected error in response GUI: %r" % sys.exc_info()[0])
             output_msg = "\n".join(msg)
             raise Exception(output_msg)
@@ -626,7 +627,7 @@ def process_std_flux(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat_f
                                     output=corr2d_fname, overwrite=True)
         log.commit(output_msg)
         log.add_linebreak()
-    except:
+    except Exception:
         log.error("Unexpected error in raw correction: %r" % sys.exc_info()[0])
         raise
 
@@ -637,7 +638,7 @@ def process_std_flux(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat_f
                            dispaxis=dispaxis, fig_dir=output_dir, **rectify_options)
         log.commit(rect_msg)
         log.add_linebreak()
-    except:
+    except Exception:
         log.error("Unexpected error in rectify: %r" % sys.exc_info()[0])
         raise
     # After RECTIFY all images are oriented with the dispersion axis horizontally
@@ -648,7 +649,7 @@ def process_std_flux(raw_fname, *, arc_fname, pixtable_fname, bias_fname, flat_f
                                      kappa=100, fwhm_scale=5)
         log.commit(bg_msg)
         log.add_linebreak()
-    except:
+    except Exception:
         log.error("Unexpected error in auto sky sub: %r" % sys.exc_info()[0])
         raise
 
@@ -742,7 +743,7 @@ def task_response(options, database, status, log=None, verbose=True, app=None, o
                     extract_gui.run_gui(bgsub2d_fname, output_fname=ext1d_output,
                                         app=app, order_center=5, order_width=5, dx=20)
                     log.write("Writing fits table: %s" % ext1d_output, prefix=" [OUTPUT] - ")
-                except:
+                except Exception:
                     log.error("Unexpected error in extract GUI: %r" % sys.exc_info()[0])
                     raise
             else:
@@ -752,7 +753,7 @@ def task_response(options, database, status, log=None, verbose=True, app=None, o
                                            kappa_cen=5., w_cen=15)
                     log.commit(ext_msg)
                     log.add_linebreak()
-                except:
+                except Exception:
                     log.error("Unexpected error in auto extract: %r" % sys.exc_info()[0])
                     raise
 
@@ -840,7 +841,7 @@ def task_response(options, database, status, log=None, verbose=True, app=None, o
                                                     smoothing=options['response']['smoothing'],
                                                     app=app)
                     log.write(" [OUTPUT] - Saving response function: %s" % response_output, prefix='')
-                except:
+                except Exception:
                     log.error("Unexpected error in response GUI: %r" % sys.exc_info()[0])
                     raise
             else:

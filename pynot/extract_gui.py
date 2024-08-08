@@ -125,16 +125,18 @@ def color_shade(color, amount=1.2):
     """
     try:
         c = mc.cnames[color]
-    except:
+    except Exception:
         c = color
     c = colorsys.rgb_to_hls(*mc.to_rgb(c))
     return colorsys.hls_to_rgb(c[0], 1 - amount * (1 - c[1]), c[2])
+
 
 def make_linear_colormap(color, N=256):
     lum = np.linspace(0., 1., 256)
     c = np.array(mc.to_rgb(color))
     col_array = np.outer(lum, c-1.) + 1.
     return mc.ListedColormap(col_array)
+
 
 color_list = [
     "#3949AB",
@@ -512,7 +514,7 @@ class ImageData(object):
         self.mask = None
         try:
             self.error = fits.getdata(fname, 1)
-        except:
+        except Exception:
             # noise = mad(self.data) * 1.48
             # self.error = np.ones_like(self.data) * noise
             noise_tmp = self.data.copy()

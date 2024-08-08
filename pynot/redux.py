@@ -19,7 +19,8 @@ from pynot import extract_gui
 from pynot.functions import get_options, get_version_number
 from pynot.wavecal import rectify, WavelengthError
 from pynot.identify_gui import create_pixtable, task_identify
-from pynot.scired import raw_correction, auto_fit_background, correct_cosmics
+from pynot.scired import raw_correction, correct_cosmics
+from pynot.skysub import auto_fit_background
 from pynot.scombine import combine_2d
 from pynot.response import flux_calibrate, task_response
 from pynot.logging import Report
@@ -494,7 +495,7 @@ def run_pipeline(options_fname, object_id=None, verbose=True, interactive=False,
                             extract_gui.run_gui(extract_fname, output_fname=flux1d_fname,
                                                 app=app, **task_options['extract'])
                             log.write("Writing fits table: %s" % flux1d_fname, prefix=" [OUTPUT] - ")
-                        except:
+                        except Exception:
                             log.error("Interactive 1D extraction failed!")
                             log.fatal_error()
                             print("Unexpected error:", sys.exc_info()[0])
@@ -553,7 +554,7 @@ def run_pipeline(options_fname, object_id=None, verbose=True, interactive=False,
                                 extract_gui.run_gui(comb2d_fname, output_fname=comb1d_fname,
                                                     app=app, **task_options['extract'])
                                 log.write("Writing fits table: %s" % comb1d_fname, prefix=" [OUTPUT] - ")
-                            except:
+                            except Exception:
                                 log.error("Interactive 1D extraction failed!")
                                 log.fatal_error()
                                 print("Unexpected error:", sys.exc_info()[0])

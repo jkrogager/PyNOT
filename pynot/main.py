@@ -695,7 +695,7 @@ def main(inspect=False):
                       dispaxis=args.axis, **options)
 
     elif task == 'skysub':
-        from pynot.scired import auto_fit_background
+        from pynot.skysub import auto_fit_background
         print("Running task: Background Subtraction")
         options = copy(vars(args))
         vars_to_remove = ['task', 'input', 'output', 'axis', 'auto']
