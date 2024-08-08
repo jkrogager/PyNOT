@@ -12,6 +12,35 @@ from pynot import instrument
 __version__ = get_version_number()
 
 
+def detect_objects_in_slit(x, spsf, fwhm_scale=1, obj_kappa=20):
+    noise = 1.4826 * mad(spsf)
+    peaks, properties = signal.find_peaks(spsf, prominence=obj_kappa*noise, width=3)
+    object_mask = np.ones(len(spsf), dtype=bool)
+    for num, center in enumerate(peaks):
+        width = properties['widths'][num]
+        x1 = center - width*fwhm_scale
+        x2 = center + width*fwhm_scale
+        obj = (x >= x1) * (x <= x2)
+        object_mask &= ~obj
+    return object_mask
+
+
+def fit_background_row(x, row, mask=None, order_bg=3, med_kernel=15, kappa=5):
+    if mask is None:
+        mask = np.ones(len(row), dtype=bool)
+
+    # Median filter the data to remove outliers:
+    med_row = median_filter(row, med_kernel)
+    noise = mad(row) * 1.4826
+    this_mask = mask * (np.abs(row - med_row) < kappa*noise)
+    if np.sum(this_mask) > order_bg+1:
+        best_fit = Chebyshev.fit(x[this_mask], row[this_mask], order_bg, domain=[x.min(), x.max()])
+        bg_model = best_fit(x)
+    else:
+        bg_model = np.zeros_like(row)
+    return bg_model, this_mask
+
+
 def fit_background_image(data, order_bg=3, xmin=0, xmax=None, med_kernel=15, kappa=5, fwhm_scale=1, obj_kappa=20):
     """
     Fit background in 2D spectral data. The background is fitted along the spatial rows by a Chebyshev polynomium.
@@ -31,7 +60,7 @@ def fit_background_image(data, order_bg=3, xmin=0, xmax=None, med_kernel=15, kap
         Number of FWHM below and above centroid of auto-detected trace
         that will be masked out during fitting.
 
-    kappa : float  [default=10]
+    kappa : float  [default=5]
         Threshold for masking out cosmic rays etc.
 
     Returns
@@ -44,32 +73,22 @@ def fit_background_image(data, order_bg=3, xmin=0, xmax=None, med_kernel=15, kap
         xmax = len(x)
     if xmax < 0:
         xmax = len(x) + xmax
-    SPSF = np.nanmedian(data, 0)
-    noise = 1.5*mad(SPSF)
-    peaks, properties = signal.find_peaks(SPSF, prominence=obj_kappa*noise, width=3)
     mask = (x >= xmin) & (x <= xmax)
-    for num, center in enumerate(peaks):
-        width = properties['widths'][num]
-        x1 = center - width*fwhm_scale
-        x2 = center + width*fwhm_scale
-        obj = (x >= x1) * (x <= x2)
-        mask &= ~obj
+    SPSF = np.nanmedian(data, 0)
+    object_mask = detect_objects_in_slit(x, SPSF, fwhm_scale=fwhm_scale, obj_kappa=obj_kappa)
+    mask &= object_mask
     N_masked_pixels = np.sum(~mask)
 
     bg2D = np.zeros_like(data)
     for i, row in enumerate(data):
-        # Median filter the data to remove outliers:
-        med_row = median_filter(row, med_kernel)
-        noise = mad(row)*1.4826
-        this_mask = mask * (np.abs(row - med_row) < kappa*noise)
-        if np.sum(this_mask) > order_bg+1:
-            bg_model = Chebyshev.fit(x[this_mask], row[this_mask], order_bg, domain=[x.min(), x.max()])
-            bg2D[i] = bg_model(x)
+        bg2D[i], _ = fit_background_row(x, row, mask=mask,
+                                        order_bg=order_bg, med_kernel=med_kernel, kappa=kappa)
 
     return bg2D, N_masked_pixels
 
 
-def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, med_kernel=15, kappa=10, obj_kappa=20, fwhm_scale=3, xmin=0, xmax=None, plot_fname='', **kwargs):
+def auto_fit_background(data_fname, output_fname, dispaxis=2, order_bg=3, med_kernel=15, kappa=10,
+                        obj_kappa=20, fwhm_scale=3, xmin=0, xmax=None, plot_fname='', **kwargs):
     """
     Fit background in 2D spectral data. The background is fitted along the spatial rows by a Chebyshev polynomium.
 
