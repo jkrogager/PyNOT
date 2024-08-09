@@ -1,0 +1,75 @@
+tutorial: spectroscopy
+<head>
+<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3.0.1/es5/tex-mml-chtml.js"></script>
+<link rel="stylesheet" href="/Users/krogager/coding/website/jkrogager.github.io/pynot/assets/css/main.css"/>
+</head>
+<header class="main">
+	<h1>Tutorial of Spectroscopic Data Reduction using PyNOT</h1>
+</header>
+
+<hr class="major" />
+
+<p>
+We are about to start reducing spectroscopic data obtained with the EFOSC2 instrument mounted on the 
+NTT at the ESO La Silla Observatory in Chile. All the data used for this tutorial are located in the 
+<code>tests/data</code> directory.
+You can check out the <a href="https://github.com/jkrogager/PyNOT">Git repository</a> if you don't have
+the data already.
+<br><br>
+
+In the following, I'll be explaining the steps I've taken to reduce this example data set. All commands
+in the code blocks can be copied and pasted into your own terminal.
+If you encounter any problems or inaccuracies, please get in touch.
+</p>
+
+<h2> Outline </h2>
+
+In order to perform a full spectroscopic reduction, we will go through the following steps:
+
+<ul>
+	<li><a href="#init"> File classification </a></li>
+	<li><a href="#bias"> Create a "master bias" image </a></li>
+	<li><a href="#flat"> Create a "master flat field" image </a></li>
+	<li><a href="#corr"> Apply the bias and flat-field corrections to science and reference exposures </a></li>
+	<li><a href="#wavecal"> Wavelength calibration </a></li>
+	<li><a href="#response"> Calculate the instrument response function </a></li>
+	<li><a href="#crr"> Cosmic ray rejection </a></li>
+	<li><a href="#flux"> Flux calibration </a></li>
+	<li><a href="#extract"> Sky subtraction and object extraction </a></li>
+</ul>
+
+<h2 id="init"> Organizing your files </h2>
+
+
+<pre><code>pynot classify raw -o dataset.pfc
+</code></pre>
+
+
+<h2 id="bias"> The "Master Bias" image </h2>
+
+
+<h2 id="flat"> The "Master Flat" field image </h2>
+
+
+<h2 id="corr"> Correcting the science and reference exposures </h2>
+
+
+<h2 id="wavecal"> Wavelength Calibration </h2>
+
+First identify on arc lines
+
+
+<h2 id="response"> The instrument response function </h2>
+
+First extract standard star spectrum
+
+
+<h2 id="crr"> Cosmic ray rejection </h2>
+
+
+<h2 id="flux"> Flux calibration </h2>
+
+
+<h2 id="extract"> Sky subtraction and object extraction </h2>
+
