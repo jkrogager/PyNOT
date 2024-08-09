@@ -203,8 +203,11 @@ if __name__ == '__main__':
             with open(abs_fname) as task_file:
                 html_section = task_file.read()
 
-            task_section, section_indent = clean_page(html_section)
-            section_indent = 33
+            if 'install' in fname or 'tutorial' in fname:
+                section_indent = 0
+            else:
+                section_indent = 33
+            task_section, section_indent = clean_page(html_section, section_indent)
             
             task_name = get_link_title(fname, source_dir)
             title = get_title(html_section)
