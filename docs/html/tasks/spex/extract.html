@@ -254,64 +254,64 @@
                                 <i>List of Extraction Apertures</i>. This also allows you to save the extraction model profile.
                                 You can also save the sky-subtracted 2D spectrum and the sky model by using the <i>File</i> menu.
                               </p>
-                                                               
-                                 
-                                 <h2> Example Syntax</h2>
+                                                            
+                              
+                              <h2> Example Syntax</h2>
 
-                                 <h2 class="code">
-                                 pynot extract
-                                 </h2>
-                                 
-                                 <br>
-                                 
-                                 Full example of command line syntax: 
-                                 <p class="code">
-                                 pynot extract [-h] [-o OUTPUT] [--axis AXIS] [--auto] [--model_name MODEL_NAME] [--dx DX] [--width_scale WIDTH_SCALE] [--xmin XMIN] [--xmax XMAX] [--ymin YMIN] [--ymax YMAX] [--order_center ORDER_CENTER] [--order_width ORDER_WIDTH] [--w_cen W_CEN] [--kappa_cen KAPPA_CEN] [--w_width W_WIDTH] [--kappa_width KAPPA_WIDTH] [--kappa_det KAPPA_DET] [input]
-                                 </p>
-                                 <br><br>                                 
+                              <h2 class="code">
+                              pynot extract
+                              </h2>
+                              
+                              <br>
+                              
+                              Full example of command line syntax: 
+                              <p class="code">
+                              pynot extract [-h] [-o OUTPUT] [--axis AXIS] [--auto] [--model_name MODEL_NAME] [--dx DX] [--width_scale WIDTH_SCALE] [--xmin XMIN] [--xmax XMAX] [--ymin YMIN] [--ymax YMAX] [--order_center ORDER_CENTER] [--order_width ORDER_WIDTH] [--w_cen W_CEN] [--kappa_cen KAPPA_CEN] [--w_width W_WIDTH] [--kappa_width KAPPA_WIDTH] [--kappa_det KAPPA_DET] [input]
+                              </p>
+                              <br><br>                              
 
 
-                                 <h2 id="summary"> Overview of parameters </h2>
+                              <h2 id="summary"> Overview of parameters </h2>
 
-                                 <u> Optional Arguments: </u>
-                                 <dl>
-                                 <dt>input</dt>
-                                     <dd>Input filename of 2D spectrum</dd>
-                                 <dt>--output (-o):  ''</dt>
-                                     <dd>Output filename of 1D spectrum (FITS Table)</dd>
-                                 <dt>--axis:  1</dt>
-                                     <dd>Dispersion axis: 1 horizontal, 2: vertical</dd>
-                                 <dt>--auto:  False</dt>
-                                     <dd>Use automatic extraction instead of interactive GUI</dd>
-                                 <dt>--model_name:  'moffat'</dt>
-                                     <dd>Profile type for optimal extraction 'moffat' or 'gaussian', otherwise 'tophat'</dd>
-                                 <dt>--dx:  25</dt>
-                                     <dd>Fit the spectral trace for every `dx` pixels along dispersion axis</dd>
-                                 <dt>--width_scale:  2</dt>
-                                     <dd>If model_name is 'tophat', this scales the width in terms of FWHM below and above the centroid</dd>
-                                 <dt>--xmin:  0</dt>
-                                     <dd>Exclude pixels above this index for the fitting and object identification [dispersion axis]</dd>
-                                 <dt>--xmax:  None</dt>
-                                     <dd>Exclude pixels below this index for the fitting and object identification [dispersion axis]</dd>
-                                 <dt>--ymin:  0</dt>
-                                     <dd>Exclude pixels above this index for the fitting and object identification [spatial axis]</dd>
-                                 <dt>--ymax:  None</dt>
-                                     <dd>Exclude pixels below this index for the fitting and object identification [spatial axis]</dd>
-                                 <dt>--order_center:  3</dt>
-                                     <dd>Polynomial order used to fit the centroid along the spectral trace</dd>
-                                 <dt>--order_width:  0</dt>
-                                     <dd>Polynomial order used to fit the width of the spectral trace</dd>
-                                 <dt>--w_cen:  15</dt>
-                                     <dd>Kernel width of median filter for trace position</dd>
-                                 <dt>--kappa_cen:  3.0</dt>
-                                     <dd>Threshold for median filtering. Reject outliers above: ±`kappa` * sigma</dd>
-                                 <dt>--w_width:  21</dt>
-                                     <dd>Kernel width of median filter for trace width parameters</dd>
-                                 <dt>--kappa_width:  3.0</dt>
-                                     <dd>Threshold for median filtering. Reject outliers above: ±`kappa` * sigma</dd>
-                                 <dt>--kappa_det:  10.0</dt>
-                                     <dd>Threshold for automatic object detection</dd>
-                                 </dl>
+                              <u> Optional Arguments: </u>
+                              <dl>
+                              <dt>input</dt>
+                                  <dd>Input filename of 2D spectrum</dd>
+                              <dt>--output (-o):  ''</dt>
+                                  <dd>Output filename of 1D spectrum (FITS Table)</dd>
+                              <dt>--axis:  1</dt>
+                                  <dd>Dispersion axis: 1 horizontal, 2: vertical</dd>
+                              <dt>--auto:  False</dt>
+                                  <dd>Use automatic extraction instead of interactive GUI</dd>
+                              <dt>--model_name:  'moffat'</dt>
+                                  <dd>Profile type for optimal extraction 'moffat' or 'gaussian', otherwise 'tophat'</dd>
+                              <dt>--dx:  25</dt>
+                                  <dd>Fit the spectral trace for every `dx` pixels along dispersion axis</dd>
+                              <dt>--width_scale:  2</dt>
+                                  <dd>If model_name is 'tophat', this scales the width in terms of FWHM below and above the centroid</dd>
+                              <dt>--xmin:  0</dt>
+                                  <dd>Exclude pixels above this index for the fitting and object identification [dispersion axis]</dd>
+                              <dt>--xmax:  None</dt>
+                                  <dd>Exclude pixels below this index for the fitting and object identification [dispersion axis]</dd>
+                              <dt>--ymin:  0</dt>
+                                  <dd>Exclude pixels above this index for the fitting and object identification [spatial axis]</dd>
+                              <dt>--ymax:  None</dt>
+                                  <dd>Exclude pixels below this index for the fitting and object identification [spatial axis]</dd>
+                              <dt>--order_center:  3</dt>
+                                  <dd>Polynomial order used to fit the centroid along the spectral trace</dd>
+                              <dt>--order_width:  0</dt>
+                                  <dd>Polynomial order used to fit the width of the spectral trace</dd>
+                              <dt>--w_cen:  15</dt>
+                                  <dd>Kernel width of median filter for trace position</dd>
+                              <dt>--kappa_cen:  3.0</dt>
+                                  <dd>Threshold for median filtering. Reject outliers above: ±`kappa` * sigma</dd>
+                              <dt>--w_width:  21</dt>
+                                  <dd>Kernel width of median filter for trace width parameters</dd>
+                              <dt>--kappa_width:  3.0</dt>
+                                  <dd>Threshold for median filtering. Reject outliers above: ±`kappa` * sigma</dd>
+                              <dt>--kappa_det:  10.0</dt>
+                                  <dd>Threshold for automatic object detection</dd>
+                              </dl>
 								</section>
 
 						</div>
@@ -337,6 +337,7 @@
                                 <ul>
                                     <li><a href="../../index.html">Homepage</a></li>
                                     <li><a href="../../install.html">Installation</a></li>
+                                    <li><a href="../../tutorial.html">tutorial: spectroscopy</a></li>
                                     <li><a href="../../tasks/init.html">PyNOT : init</a></li>
                                     <li>
                                     <span class="opener">SPEX: tasks</span>
@@ -382,7 +383,9 @@
 								<div class="mini-posts">
 									<p>If you are having issues or find bugs in the code, please contact me. You can either contact me via GitHub or send an e-mail:</p>
 									<ul class="contact">
-										<li class="icon solid fa-envelope"><a href="#">krogager.jk@gmail.com</a></li>
+										<li class="icon solid fa-envelope">
+											krogager.jk<span style="display:none">astro</span>@<span style="display:none">bar</span>gmail.com
+										</li>
 									</ul>
 									<article>
 										<p>For more information about me and my research, visit my homepage:</p>

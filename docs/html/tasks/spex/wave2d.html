@@ -189,58 +189,58 @@
                                 
                                 </p>
                                 
-                                                                 
-                                 
-                                 <h2> Example Syntax</h2>
+                                                                
+                                
+                                <h2> Example Syntax</h2>
 
-                                 <h2 class="code">
-                                 pynot wave2d --table TABLE -o OUTPUT input arc
-                                 </h2>
-                                 
-                                 <br>
-                                 
-                                 Full example of command line syntax: 
-                                 <p class="code">
-                                 pynot wave2d [-h] --table TABLE -o OUTPUT [--axis AXIS] [--order_wl ORDER_WL] [--order_bg ORDER_BG] [--order_2d ORDER_2D] [--log LOG] [--N_out N_OUT] [--interpolate INTERPOLATE] [--fit_window FIT_WINDOW] [--plot PLOT] [--edge_kappa EDGE_KAPPA] input arc
-                                 </p>
-                                 <br><br>                                 
+                                <h2 class="code">
+                                pynot wave2d --table TABLE -o OUTPUT input arc
+                                </h2>
+                                
+                                <br>
+                                
+                                Full example of command line syntax: 
+                                <p class="code">
+                                pynot wave2d [-h] --table TABLE -o OUTPUT [--axis AXIS] [--order_wl ORDER_WL] [--order_bg ORDER_BG] [--order_2d ORDER_2D] [--log LOG] [--N_out N_OUT] [--interpolate INTERPOLATE] [--fit_window FIT_WINDOW] [--plot PLOT] [--edge_kappa EDGE_KAPPA] input arc
+                                </p>
+                                <br><br>                                
 
 
-                                 <h2 id="summary"> Overview of parameters </h2>
+                                <h2 id="summary"> Overview of parameters </h2>
 
-                                 <dl>
-                                 <dt>input</dt>
-                                     <dd>Input filename of 2D spectrum</dd>
-                                 <dt>arc</dt>
-                                     <dd>Input filename of arc line image</dd>
-                                 <dt>--table</dt>
-                                     <dd>Pixeltable of line identification from 'PyNOT-identify' [REQUIRED]</dd>
-                                 <dt>--output (-o)</dt>
-                                     <dd>Output filename of rectified, wavelength calibrated 2D image [REQUIRED]</dd>
-                                 </dl>
-                                 <u> Optional Arguments: </u>
-                                 <dl>
-                                 <dt>--axis:  2</dt>
-                                     <dd>Dispersion axis: 1 horizontal, 2: vertical</dd>
-                                 <dt>--order_wl:  5</dt>
-                                     <dd>Order of Chebyshev polynomium for wavelength solution</dd>
-                                 <dt>--order_bg:  5</dt>
-                                     <dd>Polynomial order for background subtraction of calibration lamp continuum</dd>
-                                 <dt>--order_2d:  3</dt>
-                                     <dd>Polynomial order for spatial reconstruction of arc lines</dd>
-                                 <dt>--log:  False</dt>
-                                     <dd>Use logarithmic binning in wavelength?</dd>
-                                 <dt>--N_out:  None</dt>
-                                     <dd>No. of output pixels along dispersion axis. If null is given, use No. of pixels in input image.</dd>
-                                 <dt>--interpolate:  True</dt>
-                                     <dd>Perform interpolation or apply central wavelength solution to full 2D range</dd>
-                                 <dt>--fit_window:  10</dt>
-                                     <dd>Fitting window in pixels around each arc line to determine centroid  (optimized for grism 4)</dd>
-                                 <dt>--plot:  True</dt>
-                                     <dd>Make diagnostic plots?</dd>
-                                 <dt>--edge_kappa:  10</dt>
-                                     <dd>Significance threshold for edge detection of arc lines</dd>
-                                 </dl>
+                                <dl>
+                                <dt>input</dt>
+                                    <dd>Input filename of 2D spectrum</dd>
+                                <dt>arc</dt>
+                                    <dd>Input filename of arc line image</dd>
+                                <dt>--table</dt>
+                                    <dd>Pixeltable of line identification from 'PyNOT-identify' [REQUIRED]</dd>
+                                <dt>--output (-o)</dt>
+                                    <dd>Output filename of rectified, wavelength calibrated 2D image [REQUIRED]</dd>
+                                </dl>
+                                <u> Optional Arguments: </u>
+                                <dl>
+                                <dt>--axis:  2</dt>
+                                    <dd>Dispersion axis: 1 horizontal, 2: vertical</dd>
+                                <dt>--order_wl:  5</dt>
+                                    <dd>Order of Chebyshev polynomium for wavelength solution</dd>
+                                <dt>--order_bg:  5</dt>
+                                    <dd>Polynomial order for background subtraction of calibration lamp continuum</dd>
+                                <dt>--order_2d:  3</dt>
+                                    <dd>Polynomial order for spatial reconstruction of arc lines</dd>
+                                <dt>--log:  False</dt>
+                                    <dd>Use logarithmic binning in wavelength?</dd>
+                                <dt>--N_out:  None</dt>
+                                    <dd>No. of output pixels along dispersion axis. If null is given, use No. of pixels in input image.</dd>
+                                <dt>--interpolate:  True</dt>
+                                    <dd>Perform interpolation or apply central wavelength solution to full 2D range</dd>
+                                <dt>--fit_window:  10</dt>
+                                    <dd>Fitting window in pixels around each arc line to determine centroid  (optimized for grism 4)</dd>
+                                <dt>--plot:  True</dt>
+                                    <dd>Make diagnostic plots?</dd>
+                                <dt>--edge_kappa:  10</dt>
+                                    <dd>Significance threshold for edge detection of arc lines</dd>
+                                </dl>
 								</section>
 
 						</div>
@@ -266,6 +266,7 @@
                                 <ul>
                                     <li><a href="../../index.html">Homepage</a></li>
                                     <li><a href="../../install.html">Installation</a></li>
+                                    <li><a href="../../tutorial.html">tutorial: spectroscopy</a></li>
                                     <li><a href="../../tasks/init.html">PyNOT : init</a></li>
                                     <li>
                                     <span class="opener">SPEX: tasks</span>
@@ -311,7 +312,9 @@
 								<div class="mini-posts">
 									<p>If you are having issues or find bugs in the code, please contact me. You can either contact me via GitHub or send an e-mail:</p>
 									<ul class="contact">
-										<li class="icon solid fa-envelope"><a href="#">krogager.jk@gmail.com</a></li>
+										<li class="icon solid fa-envelope">
+											krogager.jk<span style="display:none">astro</span>@<span style="display:none">bar</span>gmail.com
+										</li>
 									</ul>
 									<article>
 										<p>For more information about me and my research, visit my homepage:</p>
