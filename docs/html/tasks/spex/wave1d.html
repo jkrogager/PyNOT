@@ -31,52 +31,122 @@
 
 							<!-- Content -->
                                 <section>
+                                
+                                <header class="main">
+                                  <h1>PyNOT : wave1d</h1>
+                                </header>
+                                
+                                <p>
+                                  This task will apply a wavelength solution obtained by the task <a href="identify.html">pynot identify</a>
+                                  to a 1-dimensional spectrum extracted by <a href="extract.html">pynot extract</a> on a science image which
+                                  has not been rectified using a 2D wavelength solution. 
+                                </p>
+                                
+                                <p class="note">
+                                  I highly recommend performing a 2D wavelength calibration using the task <a href="wave2d.html">pynot wave2d</a>;
+                                  but in some cases you may want to limit the potential additional correlations introduced by the rectification,
+                                  of the rectification may fail due to issues in the calibration image (over or under-exposed arc lines).
+                                  In these cases, you can extract the spectrum of your object before performing the wavelength calibration.
+                                  However, you should make sure that you extract the arc line spectrum used for the <a href="identify.html"> line identification </a>
+                                  <b> at the same spatial position along the slit </b> as your science spectrum. Otherwise you may introduce
+                                  a systematic shift in your wavelength calibration.
+                                </p>
+                                
+                                
+                                <h2> Applying the wavelength solution from PyNOT identify </h2>
+                                
+                                <p>
+                                  The files needed to perform the wavelength calibration are:
+                                  <ol>
+                                    <li>
+                                      <b>Extracted 1D spectrum</b> in a FITS table format. This is the default format from <a href="extract.html">pynot extract</a>.
+                                    </li>
+                                    <li>
+                                      <b>The pixel table</b>. This is the output from the line identification step that translates the pixel position along the dispersion axis
+                                      to wavelengths.
+                                    </li>
+                                  </ol>
+                                  
+                                  <h3>Controlling the wavelength sampling</h3>
+                                  The code then simply applies the given pixel-to-wavelength calibration converting each pixel value to its corresponding wavelength value.
+                                  This results in a non-linear sampling with varying pixel size as a function of wavelength. PyNOT overcomes this by interpolating
+                                  the spectrum onto a linearized wavelength grid resulting in a constant sampling with fixed pixel size in wavelength.
+                                  If you want to skip this additional interpolation and keep the raw but varying pixel size, you can pass the option <code>--no-int</code>
+                                  in the command line. 
+                                  <br><br>
+                                
+                                  <b>Logarithmic resampling:</b><br>
+                                  You can also tell PyNOT to resample the spectrum onto a logarithmic grid instead of a linear grid. The number of pixels is conserved but the
+                                  pixel size is rescaled to vary linearly with wavelength resulting in a fixed pixel size in velocity space. To do so, pass the command line option
+                                  <code>--log</code>.
+                                  This logarithmic resmapling can be very practical for certain scientific analyses (e.g., cross-correlations in redshift/velocity space).
+                                  <br><br>
+                                
+                                  <b>Increased sampling:</b><br>
+                                  In some cases you may want to increase the wavelength sampling. This is performed by increasing the number of pixels in the output wavelength grid
+                                  in either linear or log-space. By default, the number of detector pixels determines the native sampling, however, you can use the command line option
+                                  <code>--npix</code> to bypass this as set a higher or lower number of pixels.
+                                
+                                </p>
+                                
+                                <h2>Example commands</h2>
+                                
+                                <p>
+                                  In order to perform a wavelength calibration of the 1D spectrum 'object_1D.fits' (must be a FITS table format) using the identified list of reference
+                                  calibration lines 'pixeltab.dat' (from PyNOT identify), you can run:
+                                
+                                  <pre><code>pynot wave1d object_1D.fits --table pixeltab.dat  --output object_1D_wavecal.fits</code></pre>
+                                
+                                  which will create the wavelength calibrated 1D spectrum named 'object_1D_wavecal.fits' in this case. Note that it's mandatory to give an output filename
+                                  with the <code>-o</code> (or <code>--output</code>) option.
+                                  <br>
+                                  
+                                  If we want to set the sampling at a fixed number of 3000 pixels, then we can include the following option:
+                                
+                                  <pre><code>pynot wave1d object_1D.fits --table pixeltab.dat  --output object_1D_wavecal.fits --npix 3000</code></pre>
+                                
+                                  And if we instead want to resample the spectrum onto a logarithmic grid of 3000 pixels, then we include the <code>--log</code> option:
+                                
+                                  <pre><code>pynot wave1d object_1D.fits --table pixeltab.dat  --output object_1D_wavecal.fits --npix 3000 --log</code></pre>
+                                
+                                </p>                                
+                                
+                                <h2> Example Syntax</h2>
 
-                                    <header class="main">
-                                      <h1>PyNOT : wave1d</h1>
-                                    </header>
-
-                                    <p class="warning">
-                                    Nothing here yet! Stay tuned... :)
-                                    </p>
-
-
-<h2> Example Syntax</h2>
-
-<h2 class="code">
-pynot wave1d --table TABLE -o OUTPUT input
-</h2>
-
-<br>
-
-Full example of command line syntax: 
-<p class="code">
-pynot wave1d [-h] --table TABLE -o OUTPUT [--order_wl ORDER_WL] [--log] [--npix NPIX] [--no-int] input
-</p>
-<br><br>
+                                <h2 class="code">
+                                pynot wave1d --table TABLE -o OUTPUT input
+                                </h2>
+                                
+                                <br>
+                                
+                                Full example of command line syntax: 
+                                <p class="code">
+                                pynot wave1d [-h] --table TABLE -o OUTPUT [--order_wl ORDER_WL] [--log] [--npix NPIX] [--no-int] input
+                                </p>
+                                <br><br>                                
 
 
-<h2 id="summary"> Overview of parameters </h2>
+                                <h2 id="summary"> Overview of parameters </h2>
 
-<dl>
-<dt>input</dt>
-    <dd>Input filename of 1D spectrum (FITS Table format)</dd>
-<dt>--table</dt>
-    <dd>Pixeltable of line identification from 'PyNOT-identify' [REQUIRED]</dd>
-<dt>--output (-o)</dt>
-    <dd>Output filename of wavelength calibrated 1D spectrum (FITS table) [REQUIRED]</dd>
-</dl>
-<u> Optional Arguments: </u>
-<dl>
-<dt>--order_wl:  None</dt>
-    <dd>Polynomial order for fitting wavelength solution</dd>
-<dt>--log:  False</dt>
-    <dd>Create logarithmically binned spectrum</dd>
-<dt>--npix:  None</dt>
-    <dd>Number of pixels in output spectrum  (default= number of input pixels)</dd>
-<dt>--no-int:  True</dt>
-    <dd>Do not interpolate data onto linearized grid!</dd>
-</dl>
+                                <dl>
+                                <dt>input</dt>
+                                    <dd>Input filename of 1D spectrum (FITS Table format)</dd>
+                                <dt>--table</dt>
+                                    <dd>Pixeltable of line identification from 'PyNOT-identify' [REQUIRED]</dd>
+                                <dt>--output (-o)</dt>
+                                    <dd>Output filename of wavelength calibrated 1D spectrum (FITS table) [REQUIRED]</dd>
+                                </dl>
+                                <u> Optional Arguments: </u>
+                                <dl>
+                                <dt>--order_wl:  None</dt>
+                                    <dd>Polynomial order for fitting wavelength solution</dd>
+                                <dt>--log:  False</dt>
+                                    <dd>Create logarithmically binned spectrum</dd>
+                                <dt>--npix:  None</dt>
+                                    <dd>Number of pixels in output spectrum  (default= number of input pixels)</dd>
+                                <dt>--no-int:  True</dt>
+                                    <dd>Do not interpolate data onto linearized grid!</dd>
+                                </dl>
 								</section>
 
 						</div>
