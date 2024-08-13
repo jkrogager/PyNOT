@@ -31,48 +31,48 @@
 
 							<!-- Content -->
                                 <section>
-
-									<header class="main">
-										<h1>PyNOT</h1>
-									</header>
-
-									<p>
-									PyNOT is a data processing pipeline for the ALFOSC instrument at the Nordic Optical Telescope on La Palma, Spain. The pipeline works as a collection of individual tasks which can either be run manually, step by step, or as an automated workflow. The tasks are designed to process standard CCD imaging and long-slit spectroscopy. The pipeline has two main modules: the spectroscopic module (<i>spex</i>) and the photometric module (<i>phot</i>). These are run from the command line and controlled by a single parameter file that allows the user to change individual parameters. The spex module furthermore has a set of graphic user interfaces to make certain steps of the data processing easier and more convenient.
-									</p>
-
-									<hr class="major" />
-
-									<h2>PyNOT &ndash; spex</h2>
-
-									<p>
-									The spectroscopic data processing pipeline (spex) handles all the necessary steps needed to calibrate a raw CCD image of the spectrum. The final outputs are: a 2-dimensional wavelength- and flux-calibrated spectrum; and a 1-dimensional extraction. The pipeline can be run in a fully automated mode, requiring minimal input from the user. The pipeline performs a sequence of zero-level subtraction, flat field correction, wavelength calibration and rectification, flux calibration and extraction. For more information about the individual tasks, see the spectroscopic example page and the dedicated task overview in the menu bar on the left.
-									</p>
-
-									<span class="image main"><img src="images/spex_overview.jpeg" alt="" /></span>
-
-
-									<hr class="major" />
-
-									<h2>PyNOT &ndash; phot</h2>
-
-									<p>
-									The photometric data processing pipeline (phot) takes care of the steps needed to calibrate raw CCD images. The pipeline performs an automated sequence of zero-level subtraction, flat field correction, trimming, cosmic ray rejection, image registration, combination, source extraction and WCS calibration. For more information about the individual tasks, see the photometric example page and the dedicated task overview in the menu bar on the left.
-									</p>
-
-									<span class="image main"><img src="images/phot_overview.jpeg" alt="" /></span>
-
-									<hr class="major" />
-
-
-									<h2>Acknowledgements</h2>
-
-									<p>
-									I want to thank my former thesis advisor, Prof. Johan Fynbo for helpful discussions and feedback, and for introducing me to the Nordic Optical Telescope in the first place (back in 2012).
-
-
-									PyNOT was written using the following Python packages: <b>astroalign</b>, <b>astropy</b>, <b>astroquery</b>, <b>astroscrappy</b>, <b>lmfit</b>, <b>matplotlib</b>, <b>numpy</b>, <b>PyQt5</b>, <b>PyYAML</b>, <b>scipy</b>, <b>sep</b>, and <b>spectres</b>. I want to give a huge shout out to all the developers of these packages. Thanks for developing these fantastic tools and for sharing your work!
-									</p>
-
+              
+                                <header class="main">
+                                  <h1>PyNOT</h1>
+                                </header>
+              
+                                <p>
+                                PyNOT is a data processing pipeline for the ALFOSC instrument at the Nordic Optical Telescope on La Palma, Spain. The pipeline works as a collection of individual tasks which can either be run manually, step by step, or as an automated workflow. The tasks are designed to process standard CCD imaging and long-slit spectroscopy. The pipeline has two main modules: the spectroscopic module (<i>spex</i>) and the photometric module (<i>phot</i>). These are run from the command line and controlled by a single parameter file that allows the user to change individual parameters. The spex module furthermore has a set of graphic user interfaces to make certain steps of the data processing easier and more convenient.
+                                </p>
+              
+                                <hr class="major" />
+              
+                                <h2>PyNOT &ndash; spex</h2>
+              
+                                <p>
+                                The spectroscopic data processing pipeline (spex) handles all the necessary steps needed to calibrate a raw CCD image of the spectrum. The final outputs are: a 2-dimensional wavelength- and flux-calibrated spectrum; and a 1-dimensional extraction. The pipeline can be run in a fully automated mode, requiring minimal input from the user. The pipeline performs a sequence of zero-level subtraction, flat field correction, wavelength calibration and rectification, flux calibration and extraction. For more information about the individual tasks, see the spectroscopic example page and the dedicated task overview in the menu bar on the left.
+                                </p>
+              
+                                <span class="image main"><img src="images/spex_overview.jpeg" alt="" /></span>
+              
+              
+                                <hr class="major" />
+              
+                                <h2>PyNOT &ndash; phot</h2>
+              
+                                <p>
+                                The photometric data processing pipeline (phot) takes care of the steps needed to calibrate raw CCD images. The pipeline performs an automated sequence of zero-level subtraction, flat field correction, trimming, cosmic ray rejection, image registration, combination, source extraction and WCS calibration. For more information about the individual tasks, see the photometric example page and the dedicated task overview in the menu bar on the left.
+                                </p>
+              
+                                <span class="image main"><img src="images/phot_overview.jpeg" alt="" /></span>
+              
+                                <hr class="major" />
+              
+              
+                                <h2>Acknowledgements</h2>
+              
+                                <p>
+                                I want to thank my former thesis advisor, Prof. Johan Fynbo for helpful discussions and feedback, and for introducing me to the Nordic Optical Telescope in the first place (back in 2012).
+              
+              
+                                PyNOT was written using the following Python packages: <b>astroalign</b>, <b>astropy</b>, <b>astroquery</b>, <b>astroscrappy</b>, <b>lmfit</b>, <b>matplotlib</b>, <b>numpy</b>, <b>PyQt5</b>, <b>PyYAML</b>, <b>scipy</b>, <b>sep</b>, and <b>spectres</b>. I want to give a huge shout out to all the developers of these packages. Thanks for developing these fantastic tools and for sharing your work!
+                                </p>
+              
 								</section>
 
 						</div>
@@ -98,6 +98,7 @@
                                 <ul>
                                     <li><a href="./index.html">Homepage</a></li>
                                     <li><a href="./install.html">Installation</a></li>
+                                    <li><a href="./tutorial.html">tutorial: spectroscopy</a></li>
                                     <li><a href="./tasks/init.html">PyNOT : init</a></li>
                                     <li>
                                     <span class="opener">SPEX: tasks</span>
@@ -106,8 +107,8 @@
                                         <li><a href="./tasks/spex/corr.html">corr</a></li>
                                         <li><a href="./tasks/spex/crr.html">crr</a></li>
                                         <li><a href="./tasks/spex/extract.html">extract</a></li>
-                                        <li><a href="./tasks/spex/flux1.html">flux1</a></li>
-                                        <li><a href="./tasks/spex/flux2.html">flux2</a></li>
+                                        <li><a href="./tasks/spex/flux1d.html">flux1d</a></li>
+                                        <li><a href="./tasks/spex/flux2d.html">flux2d</a></li>
                                         <li><a href="./tasks/spex/identify.html">identify</a></li>
                                         <li><a href="./tasks/spex/response.html">response</a></li>
                                         <li><a href="./tasks/spex/scombine.html">scombine</a></li>
@@ -143,7 +144,9 @@
 								<div class="mini-posts">
 									<p>If you are having issues or find bugs in the code, please contact me. You can either contact me via GitHub or send an e-mail:</p>
 									<ul class="contact">
-										<li class="icon solid fa-envelope"><a href="#">krogager.jk@gmail.com</a></li>
+										<li class="icon solid fa-envelope">
+											krogager.jk<span style="display:none">astro</span>@<span style="display:none">bar</span>gmail.com
+										</li>
 									</ul>
 									<article>
 										<p>For more information about me and my research, visit my homepage:</p>
@@ -166,7 +169,7 @@
 			</div>
 
 		<!-- Scripts -->
-			<script src="./assets/js/jquery-3.6.0.js"></script>
+			<script src="./assets/js/jquery.min.js"></script>
 			<script src="./assets/js/browser.min.js"></script>
 			<script src="./assets/js/breakpoints.min.js"></script>
 			<script src="./assets/js/util.js"></script>

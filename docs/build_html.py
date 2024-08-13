@@ -21,7 +21,7 @@ def get_title(text):
         raise HTMLFormatError("could not find <h1> tag!")
 
 
-def clean_page(text):
+def clean_page(text, indentation=33):
     """Clean the input text for sidebar entry name and <head> section"""
     all_lines = text.split('\n')
     # Remove the sidebar entry name in the first line
@@ -33,7 +33,27 @@ def clean_page(text):
                 break
         all_lines = all_lines[linenum:]
 
-    return '\n'.join(all_lines)
+    # Replace tabs with 2 blank spaces
+    all_lines = [line.replace('\t', '  ') for line in all_lines]
+
+    # Count the existing indentation
+    existing_indent = 0
+    for line in all_lines:
+        if len(line) > 0:
+            while line.endswith(' '):
+                line = line[:-1]
+            existing_indent = line.count(' ')
+            break
+
+    # Add indentation to match the <section> tag in the template
+    if not isinstance(indentation, int):
+        raise ValueError(f"Indentation must be given as an integer! Not {type(indentation)=}")
+    current_indentation = max(indentation - existing_indent, 0)
+    
+    all_lines = [current_indentation*' ' + line for line in all_lines]
+    print(f"Adjusting indentation: {current_indentation}")
+    
+    return '\n'.join(all_lines), current_indentation
 
 
 
@@ -182,22 +202,30 @@ if __name__ == '__main__':
             abs_fname = os.path.join(source_dir, fname)
             with open(abs_fname) as task_file:
                 html_section = task_file.read()
+
+            if 'install' in fname or 'tutorial' in fname:
+                section_indent = 0
+            else:
+                section_indent = 33
+            task_section, section_indent = clean_page(html_section, section_indent)
             
             task_name = get_link_title(fname, source_dir)
             title = get_title(html_section)
             if task_name in tasks_docs:
-                task_options = docparser.format_task_options(tasks_docs[task_name])
-                usage = docparser.format_task_usage(tasks_usage[task_name])
+                task_options = docparser.format_task_options(tasks_docs[task_name], indent=section_indent)
+                usage = docparser.format_task_usage(tasks_usage[task_name], indent=section_indent)
             elif task_name == 'PyNOT : init':
-                task_options = docparser.format_task_options(tasks_docs['init'])
-                usage = docparser.format_task_usage(tasks_usage['init'])
+                task_options = docparser.format_task_options(tasks_docs['init'],
+                                                             indent=section_indent)
+                usage = docparser.format_task_usage(tasks_usage['init'],
+                                                    indent=section_indent)
             else:
                 task_options = ''
                 usage = ''
 
             elements = dict()
             elements['title'] = title
-            elements['section'] = clean_page(html_section) + usage + task_options
+            elements['section'] = task_section + usage + task_options
             elements['root_path'] = root_path
             elements['sidebar'] = build_sidebar(target=fname,
                                                 filetree=filetree,

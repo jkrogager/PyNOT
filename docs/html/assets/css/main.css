@@ -328,7 +328,6 @@ code {
 pre {
   -webkit-overflow-scrolling: touch;
   font-family: "Courier New", monospace;
-  font-size: 0.9em;
   margin: 0 0 2em 0;
 }
 pre code {
@@ -336,6 +335,7 @@ pre code {
   line-height: 1.75;
   padding: 1em 1.5em;
   overflow-x: auto;
+  font-size: 1em;
 }
 
 hr {

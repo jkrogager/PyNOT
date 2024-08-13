@@ -1,0 +1,201 @@
+<!DOCTYPE HTML>
+<!--
+	Editorial by HTML5 UP
+	html5up.net | @ajlkn
+	Free for personal and commercial use under the CCA 3.0 license (html5up.net/license)
+-->
+<html>
+	<head>
+		<title>PyNOT : flux2d</title>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+		<link rel="stylesheet" href="../../assets/css/main.css" />
+	</head>
+	<body class="is-preload">
+
+		<!-- Wrapper -->
+			<div id="wrapper">
+
+				<!-- Main -->
+					<div id="main">
+						<div class="inner">
+
+							<!-- Header -->
+								<header id="header">
+									<a href="../../index.html" class="logo"><strong>PyNOT</strong> / data processing pipeline</a>
+									<ul class="icons">
+										<li><a href="https://jkrogager.github.io/"><span class="label">About Me</span></a></li>
+										<li><a href="https://github.com/jkrogager/pynot" class="icon brands fa-github"><span class="label">Github</span></a></li>
+									</ul>
+								</header>
+
+							<!-- Content -->
+                                <section>
+                                
+                                <header class="main">
+                                  <h1>PyNOT : flux2d</h1>
+                                </header>
+                                
+                                <p>
+                                  <h2>Flux Calibration</h2>
+                                
+                                  Once the instrument response function has been determined for a given dispersive element using <a href="response.html">pynot response</a>,
+                                  the flux calibration can be applied to a 2-dimensional spectrum by running the command <code>pynot flux2d</code>.
+                                  This command requires three arguments:
+                                  <ol>
+                                    <li>
+                                      The 2D spectrum (must be wavelength-calibrated and rectified)
+                                    </li>
+                                    <li>
+                                      The response function calculated by <a href="response.html">pynot response</a>
+                                    </li>
+                                    <li>
+                                      The desired filename of the output, given by command line option <code>-o</code>
+                                    </li>
+                                  </ol>
+                                
+                                  PyNOT verifies that the science spectrum that you want to flux calibrate has been observed with the same instrumental setting.
+                                </p>
+                                
+                                <h3>Airmass and Exposure Time</h3>
+                                <p>
+                                  The code automatically tries to determine the airmass of the observation from the FITS header. If this is not possible, the command line will
+                                  prompt you for the value of the airmass. After you enter the value and press the <code>RETURN</code> key, the code will continue.
+                                  Similarly, if the code cannot read the exposure time from the FITS header, the command line will ask you for this value, which must be given in seconds.
+                                </p>
+                                                                
+                                
+                                <h2> Example Syntax</h2>
+
+                                <h2 class="code">
+                                pynot flux2d -o OUTPUT input response
+                                </h2>
+                                
+                                <br>
+                                
+                                Full example of command line syntax: 
+                                <p class="code">
+                                pynot flux2d [-h] -o OUTPUT input response
+                                </p>
+                                <br><br>                                
+
+
+                                <h2 id="summary"> Overview of parameters </h2>
+
+                                <dl>
+                                <dt>input</dt>
+                                    <dd>Input filename of 2D spectrum</dd>
+                                <dt>response</dt>
+                                    <dd>Reference response function from 'PyNOT-response'</dd>
+                                <dt>--output (-o)</dt>
+                                    <dd>Output filename of flux-calibrated 2D spectrum [REQUIRED]</dd>
+                                </dl>
+								</section>
+
+						</div>
+					</div>
+
+				<!-- Sidebar -->
+					<div id="sidebar">
+						<div class="inner">
+
+							<!-- Search
+								<section id="search" class="alt">
+									<form method="post" action="#">
+										<input type="text" name="query" id="query" placeholder="Search" />
+									</form>
+								</section>
+                             -->
+
+							<!-- Menu -->
+							<nav id="menu">
+								<header class="major">
+									<h2>PyNOT</h2>
+								</header>
+                                <ul>
+                                    <li><a href="../../index.html">Homepage</a></li>
+                                    <li><a href="../../install.html">Installation</a></li>
+                                    <li><a href="../../tutorial.html">tutorial: spectroscopy</a></li>
+                                    <li><a href="../../tasks/init.html">PyNOT : init</a></li>
+                                    <li>
+                                    <span class="opener">SPEX: tasks</span>
+                                    <ul>
+                                        <li><a href="../../tasks/spex/bias.html">bias</a></li>
+                                        <li><a href="../../tasks/spex/corr.html">corr</a></li>
+                                        <li><a href="../../tasks/spex/crr.html">crr</a></li>
+                                        <li><a href="../../tasks/spex/extract.html">extract</a></li>
+                                        <li><a href="../../tasks/spex/flux1d.html">flux1d</a></li>
+                                        <li><a href="../../tasks/spex/flux2d.html">flux2d</a></li>
+                                        <li><a href="../../tasks/spex/identify.html">identify</a></li>
+                                        <li><a href="../../tasks/spex/response.html">response</a></li>
+                                        <li><a href="../../tasks/spex/scombine.html">scombine</a></li>
+                                        <li><a href="../../tasks/spex/sflat.html">sflat</a></li>
+                                        <li><a href="../../tasks/spex/skysub.html">skysub</a></li>
+                                        <li><a href="../../tasks/spex/wave1d.html">wave1d</a></li>
+                                        <li><a href="../../tasks/spex/wave2d.html">wave2d</a></li>
+                                    </ul>
+                                    </li>
+                                    <li>
+                                    <span class="opener">PHOT: tasks</span>
+                                    <ul>
+                                        <li><a href="../../tasks/phot/autozp.html">autozp</a></li>
+                                        <li><a href="../../tasks/phot/bias.html">bias</a></li>
+                                        <li><a href="../../tasks/phot/corr.html">corr</a></li>
+                                        <li><a href="../../tasks/phot/findnew.html">findnew</a></li>
+                                        <li><a href="../../tasks/phot/fringe.html">fringe</a></li>
+                                        <li><a href="../../tasks/phot/imcombine.html">imcombine</a></li>
+                                        <li><a href="../../tasks/phot/imflat.html">imflat</a></li>
+                                        <li><a href="../../tasks/phot/imtrim.html">imtrim</a></li>
+                                        <li><a href="../../tasks/phot/sep.html">sep</a></li>
+                                        <li><a href="../../tasks/phot/wcs.html">wcs</a></li>
+                                    </ul>
+                                    </li>
+                                </ul>
+							</nav>
+
+							<!-- Section -->
+							<section>
+								<header class="major">
+									<h2>Get in touch</h2>
+								</header>
+								<div class="mini-posts">
+									<p>If you are having issues or find bugs in the code, please contact me. You can either contact me via GitHub or send an e-mail:</p>
+									<ul class="contact">
+										<li class="icon solid fa-envelope">
+											krogager.jk<span style="display:none">astro</span>@<span style="display:none">bar</span>gmail.com
+										</li>
+									</ul>
+									<article>
+										<p>For more information about me and my research, visit my homepage:</p>
+									</article>
+								</div>
+								<ul class="actions">
+									<li><a href="https://jkrogager.github.io/" class="button">jkrogager.github.io</a></li>
+								</ul>
+							</section>
+
+							<!-- Footer -->
+							<footer id="footer">
+								<p class="copyright">&copy; Jens-Kristian Krogager (2021) &mdash; MIT license<br>
+									Design: <a href="https://html5up.net">HTML5 UP</a>.</p>
+							</footer>
+
+						</div>
+					</div>
+
+			</div>
+
+		<!-- Scripts -->
+			<script src="../../assets/js/jquery.min.js"></script>
+			<script src="../../assets/js/browser.min.js"></script>
+			<script src="../../assets/js/breakpoints.min.js"></script>
+			<script src="../../assets/js/util.js"></script>
+			<script src="../../assets/js/main.js"></script>
+
+			<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+			<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3.0.1/es5/tex-mml-chtml.js"></script>
+
+
+	</body>
+</html>
+

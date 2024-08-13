@@ -31,76 +31,85 @@
 
 							<!-- Content -->
                                 <section>
+                                
+                                <header class="main">
+                                  <h1>PyNOT : corr</h1>
+                                </header>
+                                
+                                <p>
+                                  This task takes a list of images together with a combined bias frame and a combined flat frame
+                                  using respectively the <code>--bias</code> and <code>--flat</code> parameters.
+                                  The command line task accepts wildcards, an explicit list of files, or a file containing a
+                                  list of files. By default the bias-subtracted and flat-corrected frame is saved to the current directory
+                                  but this can be changed using the <code>--dir</code> optional parameter.
+                                  Lastly, in order to make sure that the right header keywords are propagated, make sure to use
+                                  the command line option <code>--img</code> for imaging data. For spectroscopic data, nothing is needed.
+                                </p>
+                                
+                                <p>
+                                  The task <code>pynot corr</code> performs the following steps:
+                                  <ul class="subtasklist">
+                                    <li>Trim overscan</li>
+                                    <li>Subtract bias frame</li>
+                                    <li>Divide by flat field frame</li>
+                                    <li>Calculate error image based on detector gain and read noise</li>
+                                  </ul>
+                                
+                                  The overscan region is automatically determined from the header (or from the instrument settings).
+                                  When the overscan region has been trimmed from a raw frame the header will be updated with the following
+                                  keyword <tt>OVERSCAN = TRIMMED</tt> together with the two values of pixels that have been removed along
+                                  the detector x- and y-axes: <tt>OVERSCAN_X</tt> and <tt>OVERSCAN_Y</tt>.
+                                </p>
+                                
+                                The easiest way to generate the input for <code>pynot corr</code> is to source it from the file
+                                classification table:
+                                <br><br>
+                                <p class="code">
+                                  %] cat dataset.pfc | grep SPEC_OBJECT > obj.list<br>
+                                  %] pynot corr obj.list --dir corr  --bias master_bias.fits  --flat master_flat_grism4.fits
+                                </p>
+                                <br>
+                                
+                                Alternatively the input can be passed as an explicit list:
+                                <br><br>
+                                <p class="code">
+                                  %] pynot corr data/file.fits --bias master_bias.fits --flat master_flat_r.fits --img
+                                </p>
+                                <br><br>
+                                                                
+                                
+                                <h2> Example Syntax</h2>
 
-									<header class="main">
-									  <h1>PyNOT : corr</h1>
-									</header>
+                                <h2 class="code">
+                                pynot corr input
+                                </h2>
+                                
+                                <br>
+                                
+                                Full example of command line syntax: 
+                                <p class="code">
+                                pynot corr [-h] [--dir DIR] [--bias BIAS] [--flat FLAT] [--img] input
+                                </p>
+                                <br><br>                                
 
-									<p>
-										This task takes a list of images together with a combined bias frame and a combined flat frame
-										using respectively the <code>--bias</code> and <code>--flat</code> parameters.
-										The command line task accepts wildcards, an explicit list of files, or a file containing a
-										list of files. By default the bias-subtracted and flat-corrected frame is saved to the current directory
-										but this can be changed using the <code>--dir</code> optional parameter.
-										Lastly, in order to make sure that the right header keywords are propagated, make sure to use
-										the command line option <code>--img</code> for imaging data. For spectroscopic data, nothing is needed.
-									</p>
 
-									<p>
-										The <code>corr</code> task performs the following steps:
-										<ul>
-											<li>Trim overscan</li>
-											<li>Subtract bias frame</li>
-											<li>Divide by flat field frame</li>
-											<li>Calculate error image based on detector gain and read noise</li>
-										</ul>
+                                <h2 id="summary"> Overview of parameters </h2>
 
-										The overscan region is automatically determined from the header (or from the instrument settings).
-										When the overscan region has been trimmed from a raw frame the header will be updated with the following
-										keyword <tt>OVERSCAN = TRIMMED</tt> together with the two values of pixels that have been removed along
-										the detector x- and y-axes: <tt>OVERSCAN_X</tt> and <tt>OVERSCAN_Y</tt>.
-									</p>
-
-									The easiest way to generate the input for <code>pynot corr</code> is to source it from the file
-									classification table:
-									<br><br>
-									<p class="code">
-										%] cat dataset.pfc | grep SPEC_OBJECT > obj.list<br>
-										%] pynot corr obj.list --dir corr  --bias master_bias.fits  --flat master_flat_grism4.fits
-									</p>
-									<br><br>
-
-									Alternatively the input can be passed as an explicit list:
-									<br><br>
-									<p class="code">
-										%] pynot corr data/file.fits --bias master_bias.fits --flat master_flat_r.fits --img
-									</p>
-<h2> Example </h2>
-<h2 class="code">
-pynot corr input
-</h2>
-<br>
-Full example of command line syntax: 
-<p class="code">
-pynot corr [-h] [--dir DIR] [--bias BIAS] [--flat FLAT] [--img] input
-</p>
-<br><br>
-
-<h2 id="summary"> Overview of parameters </h2>
-<dl>
-<dt>input</dt>
-    <dd>List of filenames to correct</dd>
-</dl><u> Optional Arguments: </u>
-<dl>
-<dt>--dir:  ''</dt>
-    <dd>Output directory</dd>
-<dt>--bias:  ''</dt>
-    <dd>Filename of combined bias frame. If not given, a constant of 0 is used</dd>
-<dt>--flat:  ''</dt>
-    <dd>Filename of combined flat frame. If not given, a constant of 1 is used</dd>
-<dt>--img:  False</dt>
-    <dd>Imaging mode</dd>
-</dl>
+                                <dl>
+                                <dt>input</dt>
+                                    <dd>List of filenames to correct</dd>
+                                </dl>
+                                <u> Optional Arguments: </u>
+                                <dl>
+                                <dt>--dir:  ''</dt>
+                                    <dd>Output directory</dd>
+                                <dt>--bias:  ''</dt>
+                                    <dd>Filename of combined bias frame. If not given, a constant of 0 is used</dd>
+                                <dt>--flat:  ''</dt>
+                                    <dd>Filename of combined flat frame. If not given, a constant of 1 is used</dd>
+                                <dt>--img:  False</dt>
+                                    <dd>Imaging mode</dd>
+                                </dl>
 								</section>
 
 						</div>
@@ -126,6 +135,7 @@ pynot corr [-h] [--dir DIR] [--bias BIAS] [--flat FLAT] [--img] input
                                 <ul>
                                     <li><a href="../../index.html">Homepage</a></li>
                                     <li><a href="../../install.html">Installation</a></li>
+                                    <li><a href="../../tutorial.html">tutorial: spectroscopy</a></li>
                                     <li><a href="../../tasks/init.html">PyNOT : init</a></li>
                                     <li>
                                     <span class="opener">SPEX: tasks</span>
@@ -134,8 +144,8 @@ pynot corr [-h] [--dir DIR] [--bias BIAS] [--flat FLAT] [--img] input
                                         <li><a href="../../tasks/spex/corr.html">corr</a></li>
                                         <li><a href="../../tasks/spex/crr.html">crr</a></li>
                                         <li><a href="../../tasks/spex/extract.html">extract</a></li>
-                                        <li><a href="../../tasks/spex/flux1.html">flux1</a></li>
-                                        <li><a href="../../tasks/spex/flux2.html">flux2</a></li>
+                                        <li><a href="../../tasks/spex/flux1d.html">flux1d</a></li>
+                                        <li><a href="../../tasks/spex/flux2d.html">flux2d</a></li>
                                         <li><a href="../../tasks/spex/identify.html">identify</a></li>
                                         <li><a href="../../tasks/spex/response.html">response</a></li>
                                         <li><a href="../../tasks/spex/scombine.html">scombine</a></li>
@@ -171,7 +181,9 @@ pynot corr [-h] [--dir DIR] [--bias BIAS] [--flat FLAT] [--img] input
 								<div class="mini-posts">
 									<p>If you are having issues or find bugs in the code, please contact me. You can either contact me via GitHub or send an e-mail:</p>
 									<ul class="contact">
-										<li class="icon solid fa-envelope"><a href="#">krogager.jk@gmail.com</a></li>
+										<li class="icon solid fa-envelope">
+											krogager.jk<span style="display:none">astro</span>@<span style="display:none">bar</span>gmail.com
+										</li>
 									</ul>
 									<article>
 										<p>For more information about me and my research, visit my homepage:</p>
@@ -194,7 +206,7 @@ pynot corr [-h] [--dir DIR] [--bias BIAS] [--flat FLAT] [--img] input
 			</div>
 
 		<!-- Scripts -->
-			<script src="../../assets/js/jquery-3.6.0.js"></script>
+			<script src="../../assets/js/jquery.min.js"></script>
 			<script src="../../assets/js/browser.min.js"></script>
 			<script src="../../assets/js/breakpoints.min.js"></script>
 			<script src="../../assets/js/util.js"></script>

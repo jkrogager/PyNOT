@@ -36,62 +36,69 @@
                                       <h1>PyNOT : imflat</h1>
                                     </header>
 
-									<p>
-										The <code>imflat</code> task takes a list of a flat images and combines them into a master combined flat frame.
-										The command line task accepts wildcards, an explicit list of files, or a file containing a
-										list of files. The combination is performed using a sigma-clipped mean or median.
-										The threshold of the clipping and the method can be controlled by the <code>kappa</code>
-										and <code>method</code> arguments. Each individual flat frame is normalized by its median value.
-									</p>
+                  <p>
+                    The <code>imflat</code> task takes a list of a flat images and combines them into a master combined flat frame.
+                    The command line task accepts wildcards, an explicit list of files, or a file containing a
+                    list of files. The combination is performed using a sigma-clipped mean or median.
+                    The threshold of the clipping and the method can be controlled by the <code>kappa</code>
+                    and <code>method</code> arguments. Each individual flat frame is normalized by its median value.
+                  </p>
 
-									The easiest way to generate the input for <code>pynot imflat</code> is to source it from the file
-									classification table for each photometric filter:
-									<br><br>
-									<p class="code">
-										%] cat dataset.pfc | grep IMG_FLAT | grep SDSS_r > flat_r.list<br>
-										%] pynot imflat flat_r.list --output master_flat_r.fits --method median
-									</p>
-									<br><br>
+                  The easiest way to generate the input for <code>pynot imflat</code> is to source it from the file
+                  classification table for each photometric filter:
+                  <br><br>
+                  <p class="code">
+                    %] cat dataset.pfc | grep IMG_FLAT | grep SDSS_r > flat_r.list<br>
+                    %] pynot imflat flat_r.list --output master_flat_r.fits --method median
+                  </p>
+                  <br><br>
 
-									Alternatively the input can be passed as an explicit list:
-									<br><br>
-									<p class="code">
-										%] pynot imflat data/flat1.fits data/flat2.fits data/flat3.fits --output master_flat.fits
-									</p>
-									or using wildcards:
-									<p class="code">
-										%] pynot imflat data/flat*.fits --output master_flat.fits
-									</p>
-									<br><br>
+                  Alternatively the input can be passed as an explicit list:
+                  <br><br>
+                  <p class="code">
+                    %] pynot imflat data/flat1.fits data/flat2.fits data/flat3.fits --output master_flat.fits
+                  </p>
+                  or using wildcards:
+                  <p class="code">
+                    %] pynot imflat data/flat*.fits --output master_flat.fits
+                  </p>
+                  <br><br>
 
-									<h2 id="summary"> Overview of parameters</h2>
+                  <h2 id="summary"> Overview of parameters</h2>
 
-									<dl>
-									<dt>input</dt>
-											<dd>List of flat images to combine (command line accepts a list of files and wildcards)</dd>
-									</dl>
+                  <dl>
+                  <dt>input</dt>
+                      <dd>List of flat images to combine (command line accepts a list of files and wildcards)</dd>
+                  </dl>
 
                   <u>Optional Arguments:</u>
-									<dl>
-									<dt>bias:    0</dt>
-										<dd>Filename of the combined bias frame. (If no file is given, a value of 0 is assumed)</dd>
-									<dt>method:    median</dt>
-										<dd>Method for image combination (options: median/mean)</dd>
+                  <dl>
+                  <dt>bias:    0</dt>
+                    <dd>Filename of the combined bias frame. (If no file is given, a value of 0 is assumed)</dd>
+                  <dt>method:    median</dt>
+                    <dd>Method for image combination (options: median/mean)</dd>
                                     <dt>kappa:     15</dt>
-									    <dd>Threshold for sigma clipping in bias combiniation</dd>
-									</dl>
-<h2> Example </h2>
+                      <dd>Threshold for sigma clipping in bias combiniation</dd>
+                  </dl>
+
+
+<h2> Example Syntax</h2>
+
 <h2 class="code">
 pynot imflat --bias BIAS -o OUTPUT input
 </h2>
+
 <br>
+
 Full example of command line syntax: 
 <p class="code">
 pynot imflat [-h] --bias BIAS -o OUTPUT [--kappa KAPPA] [--method {mean,median}] input
 </p>
 <br><br>
 
+
 <h2 id="summary"> Overview of parameters </h2>
+
 <dl>
 <dt>input</dt>
     <dd>Input file containing list of image filenames to combine</dd>
@@ -99,7 +106,8 @@ pynot imflat [-h] --bias BIAS -o OUTPUT [--kappa KAPPA] [--method {mean,median}]
     <dd>Filename of combined bias frame  [REQUIRED]</dd>
 <dt>--output (-o)</dt>
     <dd>Output filename of combined bias frame  [REQUIRED]</dd>
-</dl><u> Optional Arguments: </u>
+</dl>
+<u> Optional Arguments: </u>
 <dl>
 <dt>--kappa:  15</dt>
     <dd>Threshold for sigma clipping</dd>
@@ -131,6 +139,7 @@ pynot imflat [-h] --bias BIAS -o OUTPUT [--kappa KAPPA] [--method {mean,median}]
                                 <ul>
                                     <li><a href="../../index.html">Homepage</a></li>
                                     <li><a href="../../install.html">Installation</a></li>
+                                    <li><a href="../../tutorial.html">tutorial: spectroscopy</a></li>
                                     <li><a href="../../tasks/init.html">PyNOT : init</a></li>
                                     <li>
                                     <span class="opener">SPEX: tasks</span>
@@ -139,8 +148,8 @@ pynot imflat [-h] --bias BIAS -o OUTPUT [--kappa KAPPA] [--method {mean,median}]
                                         <li><a href="../../tasks/spex/corr.html">corr</a></li>
                                         <li><a href="../../tasks/spex/crr.html">crr</a></li>
                                         <li><a href="../../tasks/spex/extract.html">extract</a></li>
-                                        <li><a href="../../tasks/spex/flux1.html">flux1</a></li>
-                                        <li><a href="../../tasks/spex/flux2.html">flux2</a></li>
+                                        <li><a href="../../tasks/spex/flux1d.html">flux1d</a></li>
+                                        <li><a href="../../tasks/spex/flux2d.html">flux2d</a></li>
                                         <li><a href="../../tasks/spex/identify.html">identify</a></li>
                                         <li><a href="../../tasks/spex/response.html">response</a></li>
                                         <li><a href="../../tasks/spex/scombine.html">scombine</a></li>
@@ -176,7 +185,9 @@ pynot imflat [-h] --bias BIAS -o OUTPUT [--kappa KAPPA] [--method {mean,median}]
 								<div class="mini-posts">
 									<p>If you are having issues or find bugs in the code, please contact me. You can either contact me via GitHub or send an e-mail:</p>
 									<ul class="contact">
-										<li class="icon solid fa-envelope"><a href="#">krogager.jk@gmail.com</a></li>
+										<li class="icon solid fa-envelope">
+											krogager.jk<span style="display:none">astro</span>@<span style="display:none">bar</span>gmail.com
+										</li>
 									</ul>
 									<article>
 										<p>For more information about me and my research, visit my homepage:</p>
@@ -199,7 +210,7 @@ pynot imflat [-h] --bias BIAS -o OUTPUT [--kappa KAPPA] [--method {mean,median}]
 			</div>
 
 		<!-- Scripts -->
-			<script src="../../assets/js/jquery-3.6.0.js"></script>
+			<script src="../../assets/js/jquery.min.js"></script>
 			<script src="../../assets/js/browser.min.js"></script>
 			<script src="../../assets/js/breakpoints.min.js"></script>
 			<script src="../../assets/js/util.js"></script>

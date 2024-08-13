@@ -31,33 +31,136 @@
 
 							<!-- Content -->
                                 <section>
+                                
+                                <header class="main">
+                                  <h1>PyNOT : response</h1>
+                                </header>
+                                
+                                <p>
+                                  <h3>Loading the data</h3>
+                                
+                                  The task <code>pynot response</code> will launch an interactive graphical interface allowing you to filter, smooth and fit
+                                  the response function of your instrument. To do this you need the following: <br>
+                                
+                                  <ol>
+                                    <li>
+                                      A processed spectrum of a spectroscopic standard star observed under similar conditions as your science target,
+                                      and using the same dispersive element. The spectrum should be bias-level corrected, flat-field corrected,
+                                      wavelength calibrated and extracted to a 1-dimensional spectrum.
+                                    </li>
+                                    
+                                    <li>
+                                      A table of the well-calibrated flux or magnitudes as a function of wavelength.
+                                      The list of installed reference stars is given at <a href="#starlist">the bottom of this page</a>.
+                                    </li>
+                                    
+                                    <li>
+                                      The airmass and exposure time of the reference star observation. This should ideally be available in the FITS file header.
+                                    </li>
+                                  </ol>
+                                
+                                  To get started, run the task with or without a filename from the command line. You can also load a spectrum from the
+                                  graphical interface itself. The window will look like Fig. 1.
+                                  The programme will automatically try to guess which star you have observed based on the 
+                                  meta data in the header &ndash; so please try to use consistent naming for the header's "OBJECT" keyword.
+                                  If the star's name is not automatically identified, you can select it in the drop-down menu in the top right corner.
+                                
+                                  <figure>
+                                    <img width="80%" src="../../images/response1.png" alt=""/>
+                                    <figcaption>
+                                      Fig. 1 &ndash; An example of the graphical extraction interface of <code>pynot response</code>. The wavelength-calibrated,
+                                      1-dimensional spectrum of the star BD262606 is shown in black. The blue dots mark the calculated obesrved flux in the same
+                                      wavelength bins as the available measurements of absolute flux of the standard star.
+                                    </figcaption>
+                                  </figure>
+                                </p>
+                                
+                                
+                                <p>
+                                  <h3>Fitting the response</h3>
+                                
+                                  It's important to pay attention to absorption or emission features in the spectrum as these depend on the spectral resolution
+                                  and therefore do not represent the exact flux in the given wavelength band. These should masked out. This can be done by clicking
+                                  on a given blue point. It will then turn into a red cross, indicating that it will no longer be used when fitting the response function.
+                                  Clicking on that point again will toggle it back on. (This part of the interface is sometimes a bit lagging, I apologize.)
+                                  <br><br>
+                                
+                                  When you have filtered out all the bad points, you can fit the response function by clicking the <i>"Fit Response"</i> button.
+                                  This is done using a combination of spline fitting of a variable degree and a smoothed and clipped interpolation.
+                                  For the best result, the smoothing parameter should be of the order of the uncertainty on the measured points.
+                                  <br>
+                                  The best fit response function will show up as a solid blue line, as seen in Fig. 2.
+                                
+                                  <figure>
+                                    <img width="80%" src="../../images/response2.png" alt=""/>
+                                    <figcaption>
+                                      Fig. 2 &ndash; An example of the graphical extraction interface of <code>pynot response</code>. The response function has
+                                      been fitted using a smoothing spline of variable degree. The best-fit response function is shown as the red solid line in the
+                                      bottom panel.
+                                    </figcaption>
+                                  </figure>
+                                
+                                  <b>Saving the output:</b><br>
+                                  When you are happy with the fitted response curve, you can save it to a file by clicking the <i>"Done"</i> button in the upper left
+                                  corner. This will save the response function to a FITS table by default, which can be used in the PyNOT tasks <a href="flux1d.html">flux1d</a>
+                                  and <a href="flux2d.html">flux2d</a> to apply the flux calibration to a processed science spectrum.
+                                  The response function converts the observed counts into spectral flux density per wavelength unit: \({\rm erg\ s^{-1}\ cm^{-2}\ Å^{-1}}\).
+                                </p>
+                                
+                                
+                                <p>
+                                  <h3 id="starlist">List of standard stars</h3>
+                                
+                                  The list of currently available standard stars is given here:
+                                
+                                <ul>
+                                  <li>bd174708</li>
+                                  <li>bd262606</li>
+                                  <li>bd332642</li>
+                                  <li>bd75325</li>
+                                  <li>eg21</li>
+                                  <li>feige110</li>
+                                  <li>feige34</li>
+                                  <li>gd153</li>
+                                  <li>gd50</li>
+                                  <li>gd71</li>
+                                  <li>hd19445</li>
+                                  <li>hd84937</li>
+                                  <li>hd93521</li>
+                                  <li>he3</li>
+                                  <li>hiltner600</li>
+                                  <li>ltt3864</li>
+                                  <li>wolf1346</li>
+                                </ul>
+                                
+                                  For more information, you can also look at the page from the 
+                                  <a href="http://catserver.ing.iac.es/landscape/index.php" target="_blank">Isaac Newton Group of Telescopes</a>.
+                                </p>                                
+                                
+                                <h2> Example Syntax</h2>
 
-                                    <header class="main">
-                                      <h1>PyNOT : response</h1>
-                                    </header>
+                                <h2 class="code">
+                                pynot response
+                                </h2>
+                                
+                                <br>
+                                
+                                Full example of command line syntax: 
+                                <p class="code">
+                                pynot response [-h] [-o OUTPUT] [input]
+                                </p>
+                                <br><br>                                
 
-                                    <p class="warning">
-                                    Nothing here yet! Stay tuned... :)
-                                    </p>
-<h2> Example </h2>
-<h2 class="code">
-pynot response
-</h2>
-<br>
-Full example of command line syntax: 
-<p class="code">
-pynot response [-h] [-o OUTPUT] [input]
-</p>
-<br><br>
 
-<h2 id="summary"> Overview of parameters </h2>
-<u> Optional Arguments: </u>
-<dl>
-<dt>input</dt>
-    <dd>Input filename of 1D spectrum of flux standard star</dd>
-<dt>--output (-o):  ''</dt>
-    <dd>Output filename of response function</dd>
-</dl>
+                                <h2 id="summary"> Overview of parameters </h2>
+
+                                <u> Optional Arguments: </u>
+                                <dl>
+                                <dt>input</dt>
+                                    <dd>Input filename of 1D spectrum of flux standard star</dd>
+                                <dt>--output (-o):  ''</dt>
+                                    <dd>Output filename of response function</dd>
+                                </dl>
 								</section>
 
 						</div>
@@ -83,6 +186,7 @@ pynot response [-h] [-o OUTPUT] [input]
                                 <ul>
                                     <li><a href="../../index.html">Homepage</a></li>
                                     <li><a href="../../install.html">Installation</a></li>
+                                    <li><a href="../../tutorial.html">tutorial: spectroscopy</a></li>
                                     <li><a href="../../tasks/init.html">PyNOT : init</a></li>
                                     <li>
                                     <span class="opener">SPEX: tasks</span>
@@ -91,8 +195,8 @@ pynot response [-h] [-o OUTPUT] [input]
                                         <li><a href="../../tasks/spex/corr.html">corr</a></li>
                                         <li><a href="../../tasks/spex/crr.html">crr</a></li>
                                         <li><a href="../../tasks/spex/extract.html">extract</a></li>
-                                        <li><a href="../../tasks/spex/flux1.html">flux1</a></li>
-                                        <li><a href="../../tasks/spex/flux2.html">flux2</a></li>
+                                        <li><a href="../../tasks/spex/flux1d.html">flux1d</a></li>
+                                        <li><a href="../../tasks/spex/flux2d.html">flux2d</a></li>
                                         <li><a href="../../tasks/spex/identify.html">identify</a></li>
                                         <li><a href="../../tasks/spex/response.html">response</a></li>
                                         <li><a href="../../tasks/spex/scombine.html">scombine</a></li>
@@ -128,7 +232,9 @@ pynot response [-h] [-o OUTPUT] [input]
 								<div class="mini-posts">
 									<p>If you are having issues or find bugs in the code, please contact me. You can either contact me via GitHub or send an e-mail:</p>
 									<ul class="contact">
-										<li class="icon solid fa-envelope"><a href="#">krogager.jk@gmail.com</a></li>
+										<li class="icon solid fa-envelope">
+											krogager.jk<span style="display:none">astro</span>@<span style="display:none">bar</span>gmail.com
+										</li>
 									</ul>
 									<article>
 										<p>For more information about me and my research, visit my homepage:</p>
@@ -151,7 +257,7 @@ pynot response [-h] [-o OUTPUT] [input]
 			</div>
 
 		<!-- Scripts -->
-			<script src="../../assets/js/jquery-3.6.0.js"></script>
+			<script src="../../assets/js/jquery.min.js"></script>
 			<script src="../../assets/js/browser.min.js"></script>
 			<script src="../../assets/js/breakpoints.min.js"></script>
 			<script src="../../assets/js/util.js"></script>

@@ -31,52 +31,142 @@
 
 							<!-- Content -->
                                 <section>
+                                
+                                <header class="main">
+                                  <h1>PyNOT : skysub</h1>
+                                </header>
+                                
+                                <p>
+                                  This task takes a 2-dimensional image as input and performs a background subtraction using an automated object
+                                  detection and masking. The background level is then fitted by a polynomial of variable degree excluding pixels
+                                  flagged as objects (i.e., significantly above the noise level) or artefacts such as cosmic rays.
+                                  The task performs the following sub-tasks:
+                                
+                                  <ol class="subtasklist">
+                                    <li><a href="#detection">Object detection</a></li>
+                                    <li><a href="#fitting">Polynomial fitting of rows (wavelength bins)</a></li>
+                                  </ol>
+                                </p>
+                                
+                                <h2 id="detection">Object detection</h2>
+                                <p>
+                                  The object detection is performed by first collapsing the data array along the dispersion axis to obtain the
+                                  spatial profile along the slit. If the dispersion axis is incorrectly identified from the file itself
+                                  you can set it using the <code>--axis</code> option. Next, the noise level is determined based on the median
+                                  absolute deviation (MAD) of the data themselves. Objects are then identified as peaks in the spatial profile
+                                  above a certain threshold defined as \( \kappa_{\rm obj} \times {\rm MAD} \) using <code>scipy.signal.find_peaks</code>.
+                                  The threshold factor is set to 20 by default but can be changed by the <code>--obj_kappa</code> option.
+                                  Additionally, a peak must extend over at least 3 pixels to be considered a real object. The width of each peak
+                                  estimated and used to mask out pixels around the centroid: \( x_{\rm cen} \pm s \times {\rm width} \), where <i>s</i>
+                                  is a user-defined scale-factor (by default set to 3). The scale-factor can be changed by the <code>--fwhm_scale</code>
+                                  option. The object detection algorithm is illustrated in Fig. 1.
+                                </p>
+                                
+                                <figure>
+                                  <img width="60%" src="../../images/skysub1.png" alt="" />
+                                  <figcaption>
+                                    Fig. 1 &ndash; Example of the spatial profile of an observation from the ALFOSC at the Nordic Optical Telescope
+                                    showing two closely separated objects in the slit. The <code>pynot skysub</code> algorithm has automatically
+                                    identified the two objects marked by the solid vertical lines of different color. The dotted lines on either side
+                                    of the solid line indicated the estimated FWHM of the object used to define the masking region.
+                                    The gray shaded region indicates the exclusion region around the objects as identified by the code.
+                                  </figcaption>
+                                </figure>
+                                
+                                <p class="note">
+                                  Note: This algorithm has been optimized for point sources or objects which have significant amount of empty background
+                                  within the slit. Very extended objects may require a different strategy, such as <i>"Nodding along the slit"</i> or
+                                  <i>"Offset sky observations"</i>. PyNOT does not currently handle such strategies. You can also use the interactive tool
+                                  <a href="extract.html">pynot extract</a> to determine a background model, subtract it and save the result.
+                                </p>
+                                
+                                
+                                <h2 id="fitting">Polynomial fitting of rows (wavelength bins)</h2>
+                                <p>
+                                  Once any objects have been identified, the code loops through all the rows of the data array, that is, each wavelength bin
+                                  along the dispersion axis is fitted idenpendently. It is therefore recommended to apply a 2D rectification of the dispersion
+                                  axis along the slit using <a href="wave2d.html">pynot wave2d</a>. This ensures that skylines are straightened out.
+                                  Any residual "curvature" of the sky-lines may lead to residuals in the sky-subtracted image.
+                                  <br>
+                                  Each row is filtered using a median filter in order to clip artefacts, such as cosmic ray hits or bad pixels. 
+                                  The noise-level per row is determined using the MAD, and outlying pixels are flagged if they are more than 
+                                  \( \kappa \times {\rm MAD} \) above or below the median filtered row. The options of the median-filtering and sigma-clipping
+                                  are controlled by the options <code>--med_kernel</code> and <code>--kappa</code>, respectively.
+                                  <br>
+                                  <br>
+                                
+                                  Lastly, the pixels that are not flagged as objects, outliers and fall within the <code>--xmin</code> and <code>--xmax</code> values
+                                  are used to fit a Chebyshev polynomial of variable degree, controlled by the option <code>--order_bg</code>. By default
+                                  a 3<sup>rd</sup> order polynomial is used. The x<sub>min</sub> and x<sub>max</sub> values are used to exclude any artefacts at the edge
+                                  of the data array (CCD artefacts, vignetting, etc).
+                                  An example of the fitting algorithm is shown in Fig. 2.
+                                </p>
+                                
+                                <figure>
+                                  <img width="60%" src="../../images/skysub2.png" alt="" />
+                                  <figcaption>
+                                    Fig. 2 &ndash; Example of the filtering of outlying pixels and polynomial fitting of a single row
+                                    in a 2D spectrum. The figure here is based on the same observation as showed in Fig. 1 from the ALFOSC
+                                    at the Nordic Optical Telescope. The <code>pynot skysub</code> algorithm has automatically
+                                    identified the outlying pixels caused by a detector artefact (the spike on the right-hand side of the two objects).
+                                    Excluded pixels are highlighted as red crosses whereas black dots mark the good points used for fitting 
+                                    the polynomial. The best-fit background model is shown as the thick blue line.
+                                  </figcaption>
+                                </figure>
+                                
+                                <p>
+                                  <b>Saving the output:</b><br>
+                                  The output from <code>pynot skysub</code> is saved as a FITS file with an added extension named <i>"SKY"</i>
+                                  which holds the 2D background model subtracted from the science image. The filename must be given with the <code>--output</code>
+                                  (or <code>-o</code>) option in the command line.
+                                </p>
+                                <br><br>
+                                                                
+                                
+                                <h2> Example Syntax</h2>
 
-                                    <header class="main">
-                                      <h1>PyNOT : skysub</h1>
-                                    </header>
+                                <h2 class="code">
+                                pynot skysub -o OUTPUT input
+                                </h2>
+                                
+                                <br>
+                                
+                                Full example of command line syntax: 
+                                <p class="code">
+                                pynot skysub [-h] -o OUTPUT [--axis AXIS] [--auto AUTO] [--order_bg ORDER_BG] [--kappa KAPPA] [--med_kernel MED_KERNEL] [--obj_kappa OBJ_KAPPA] [--fwhm_scale FWHM_SCALE] [--xmin XMIN] [--xmax XMAX] input
+                                </p>
+                                <br><br>                                
 
-                                    <p class="warning">
-                                    Nothing here yet! Stay tuned... :)
-                                    </p>
-<h2> Example </h2>
-<h2 class="code">
-pynot skysub -o OUTPUT input
-</h2>
-<br>
-Full example of command line syntax: 
-<p class="code">
-pynot skysub [-h] -o OUTPUT [--axis AXIS] [--auto AUTO] [--order_bg ORDER_BG] [--kappa KAPPA] [--med_kernel MED_KERNEL] [--obj_kappa OBJ_KAPPA] [--fwhm_scale FWHM_SCALE] [--xmin XMIN] [--xmax XMAX] input
-</p>
-<br><br>
 
-<h2 id="summary"> Overview of parameters </h2>
-<dl>
-<dt>input</dt>
-    <dd>Input filename of 2D frame</dd>
-<dt>--output (-o)</dt>
-    <dd>Output filename of sky-subtracted 2D image [REQUIRED]</dd>
-</dl><u> Optional Arguments: </u>
-<dl>
-<dt>--axis:  2</dt>
-    <dd>Dispersion axis: 1 horizontal, 2: vertical</dd>
-<dt>--auto:  True</dt>
-    <dd>Automatically subtract the sky from the 2D spectrum?</dd>
-<dt>--order_bg:  3</dt>
-    <dd>Polynomial order for sky background subtraction (per row)</dd>
-<dt>--kappa:  10</dt>
-    <dd>Threshold for rejection of outlying pixels (cosmics etc) in units of std. deviations</dd>
-<dt>--med_kernel:  15</dt>
-    <dd>Median filter width for defining masking of cosmic rays, CCD artefacts etc.</dd>
-<dt>--obj_kappa:  20</dt>
-    <dd>Threshold for automatic object detection to be masked out.</dd>
-<dt>--fwhm_scale:  3</dt>
-    <dd>Mask out auto-identified objects within ±`fwhm_scale`*FWHM around centroid of object</dd>
-<dt>--xmin:  0</dt>
-    <dd>Mask out pixels below xmin</dd>
-<dt>--xmax:  None</dt>
-    <dd>Mask out pixels above xmax</dd>
-</dl>
+                                <h2 id="summary"> Overview of parameters </h2>
+
+                                <dl>
+                                <dt>input</dt>
+                                    <dd>Input filename of 2D frame</dd>
+                                <dt>--output (-o)</dt>
+                                    <dd>Output filename of sky-subtracted 2D image [REQUIRED]</dd>
+                                </dl>
+                                <u> Optional Arguments: </u>
+                                <dl>
+                                <dt>--axis:  2</dt>
+                                    <dd>Dispersion axis: 1 horizontal, 2: vertical</dd>
+                                <dt>--auto:  True</dt>
+                                    <dd>Automatically subtract the sky from the 2D spectrum?</dd>
+                                <dt>--order_bg:  3</dt>
+                                    <dd>Polynomial order for sky background subtraction (per row)</dd>
+                                <dt>--kappa:  10</dt>
+                                    <dd>Threshold for rejection of outlying pixels (cosmics etc) in units of std. deviations</dd>
+                                <dt>--med_kernel:  15</dt>
+                                    <dd>Median filter width for defining masking of cosmic rays, CCD artefacts etc.</dd>
+                                <dt>--obj_kappa:  20</dt>
+                                    <dd>Threshold for automatic object detection to be masked out.</dd>
+                                <dt>--fwhm_scale:  3</dt>
+                                    <dd>Mask out auto-identified objects within ±`fwhm_scale`*FWHM around centroid of object</dd>
+                                <dt>--xmin:  0</dt>
+                                    <dd>Mask out pixels below xmin</dd>
+                                <dt>--xmax:  None</dt>
+                                    <dd>Mask out pixels above xmax</dd>
+                                </dl>
 								</section>
 
 						</div>
@@ -102,6 +192,7 @@ pynot skysub [-h] -o OUTPUT [--axis AXIS] [--auto AUTO] [--order_bg ORDER_BG] [-
                                 <ul>
                                     <li><a href="../../index.html">Homepage</a></li>
                                     <li><a href="../../install.html">Installation</a></li>
+                                    <li><a href="../../tutorial.html">tutorial: spectroscopy</a></li>
                                     <li><a href="../../tasks/init.html">PyNOT : init</a></li>
                                     <li>
                                     <span class="opener">SPEX: tasks</span>
@@ -110,8 +201,8 @@ pynot skysub [-h] -o OUTPUT [--axis AXIS] [--auto AUTO] [--order_bg ORDER_BG] [-
                                         <li><a href="../../tasks/spex/corr.html">corr</a></li>
                                         <li><a href="../../tasks/spex/crr.html">crr</a></li>
                                         <li><a href="../../tasks/spex/extract.html">extract</a></li>
-                                        <li><a href="../../tasks/spex/flux1.html">flux1</a></li>
-                                        <li><a href="../../tasks/spex/flux2.html">flux2</a></li>
+                                        <li><a href="../../tasks/spex/flux1d.html">flux1d</a></li>
+                                        <li><a href="../../tasks/spex/flux2d.html">flux2d</a></li>
                                         <li><a href="../../tasks/spex/identify.html">identify</a></li>
                                         <li><a href="../../tasks/spex/response.html">response</a></li>
                                         <li><a href="../../tasks/spex/scombine.html">scombine</a></li>
@@ -147,7 +238,9 @@ pynot skysub [-h] -o OUTPUT [--axis AXIS] [--auto AUTO] [--order_bg ORDER_BG] [-
 								<div class="mini-posts">
 									<p>If you are having issues or find bugs in the code, please contact me. You can either contact me via GitHub or send an e-mail:</p>
 									<ul class="contact">
-										<li class="icon solid fa-envelope"><a href="#">krogager.jk@gmail.com</a></li>
+										<li class="icon solid fa-envelope">
+											krogager.jk<span style="display:none">astro</span>@<span style="display:none">bar</span>gmail.com
+										</li>
 									</ul>
 									<article>
 										<p>For more information about me and my research, visit my homepage:</p>
@@ -170,7 +263,7 @@ pynot skysub [-h] -o OUTPUT [--axis AXIS] [--auto AUTO] [--order_bg ORDER_BG] [-
 			</div>
 
 		<!-- Scripts -->
-			<script src="../../assets/js/jquery-3.6.0.js"></script>
+			<script src="../../assets/js/jquery.min.js"></script>
 			<script src="../../assets/js/browser.min.js"></script>
 			<script src="../../assets/js/breakpoints.min.js"></script>
 			<script src="../../assets/js/util.js"></script>
