@@ -12,7 +12,7 @@ from pynot.txtio import load_ascii_spectrum
 __version__ = get_version_number()
 
 
-def combine_2d(files, output=None, method='mean', scale=False, extended=False, dispaxis=1):
+def combine_2d(files, output=None, method='mean', scale=False, extended=False, dispaxis=1, trim=False):
     """Combine a list of 2d-spectra using either median or mean combination.
     For median combination, only the overlapping parts of the spectra will be
     combined. The mean combination uses a weighted average over the entire
@@ -99,7 +99,21 @@ def combine_2d(files, output=None, method='mean', scale=False, extended=False, d
             exp_times.append(exptime)
         else:
             msg.append("[WARNING] - No exposure time could be found in the header!")
+            exptime = 0
             exp_times.append(1)
+
+        if 'RESPONSE' in hdr:
+            # Data have been flux calibrated, so combination is straight-forwards
+            weight_by_t = False
+        elif 'BUNIT' in hdr and hdr['BUNIT'].lower() in ['count', 'counts', 'adu', 'adus']:
+            msg.append("[WARNING] - Exposures have not been flux calibrated.")
+            msg.append("            The combination is done in counts/sec and scaled to the total exposure time.")
+            weight_by_t = True
+        else:
+            msg.append("[WARNING] - Could not determine if the spectra are in counts or flux units")
+            msg.append("            I assume they are in counts per second or similar units... Please verify the result!")
+            msg.append("            If the data are in counts, please set the header keyword BUNIT to ADU or COUNTS")
+            weight_by_t = False
 
         if dispaxis == 2:
             # Vertical spectra:
@@ -165,6 +179,9 @@ def combine_2d(files, output=None, method='mean', scale=False, extended=False, d
             this_scale = np.nanmax(SPSF)
         else:
             this_scale = 1.
+
+        if weight_by_t and exptime > 0:
+            this_scale = exptime
         scales.append(this_scale)
 
         meta_data = (fnum+1, trace_cen, trace_fwhm) + data2D.shape + (this_scale, exptime)
@@ -191,7 +208,10 @@ def combine_2d(files, output=None, method='mean', scale=False, extended=False, d
 
     # Rescale to flux values of the order 10^0:
     rescale = 10**int(np.log10(np.max(SPSF)))
-    f0 = np.mean(scales) / rescale
+    if weight_by_t:
+        f0 = 1
+    else:
+        f0 = np.mean(scales) / rescale
     msg.append("          - Rescaling data by a factor of 10^%i" % (-int(np.log10(np.max(SPSF)))))
 
     # Check whether to use interpolation or not:
@@ -200,6 +220,8 @@ def combine_2d(files, output=None, method='mean', scale=False, extended=False, d
     array_shape_x = ((diff_lmax < pix_size1) and (diff_lmin < pix_size1))
     array_centroids = (cen_max - cen_min < pix_size2)
     use_interpolation = not (same_size_x & same_size_y & array_shape_x & array_centroids)
+    if trim:
+        use_interpolation = True
 
     if not use_interpolation:
         msg.append("          - Combining with no interpolation!")
@@ -223,18 +245,24 @@ def combine_2d(files, output=None, method='mean', scale=False, extended=False, d
         int_var = list()
         int_mask = list()
         weight = list()
-        if method == 'median':
-            overlap_wl = reduce(np.intersect1d, wl)
-            overlap_space = reduce(np.intersect1d, space)
+        if method == 'median' or trim:
+            xmin = np.max([np.min(ar) for ar in wl])
+            xmax = np.min([np.max(ar) for ar in wl])
+            ymin = np.max([np.min(ar) for ar in space])
+            ymax = np.min([np.max(ar) for ar in space])
 
         elif method == 'mean':
             overlap_wl = reduce(np.union1d, wl)
+            xmin = overlap_wl.min()
+            xmax = overlap_wl.max()
             overlap_space = reduce(np.union1d, space)
+            ymin = overlap_space.min()
+            ymax = overlap_space.max()
 
         pix = np.mean([np.diff(X)[0] for X in wl])
         pix_y = np.mean([np.diff(Y)[0] for Y in space])
-        final_wl = np.arange(overlap_wl.min(), overlap_wl.max(), pix)
-        final_space = np.arange(overlap_space.min(), overlap_space.max(), pix_y)
+        final_wl = np.arange(xmin, xmax, pix)
+        final_space = np.arange(ymin, ymax, pix_y)
 
         msg.append("          - Creating new linear wavelength grid:")
         msg.append("          - %.1f -- %.1f  |  sampling: %.1f" % (final_wl.min(), final_wl.max(), pix))
@@ -300,6 +328,9 @@ def combine_2d(files, output=None, method='mean', scale=False, extended=False, d
             output += '.fits'
     msg.append("          - Bringing data back to original flux scale")
 
+    if weight_by_t:
+        msg.append("          - Scaling the counts to the effective exposure time: %.1f sec" % np.sum(exp_times))
+        rescale = rescale * np.sum(exp_times)
     FLUX = fits.PrimaryHDU(data=final_flux*rescale, header=hdr)
     FLUX.name = 'DATA'
     ERR = fits.ImageHDU(data=final_err*rescale, header=hdr, name='ERR')
@@ -407,13 +438,16 @@ def combine_1d(files, output=None, method='mean', scale=False, table_output=True
         int_mask = list()
         weight = list()
         if method == 'median':
-            overlap = reduce(np.intersect1d, wl_all)
+            xmin = np.max([np.min(ar) for ar in wl_all])
+            xmax = np.min([np.max(ar) for ar in wl_all])
 
         elif method == 'mean':
             overlap = reduce(np.union1d, wl_all)
+            xmin = overlap.min()
+            xmax = overlap.max()
 
         pix = np.min([np.min(np.diff(this_wl)) for this_wl in wl_all])
-        final_wl = np.arange(overlap.min(), overlap.max(), pix)
+        final_wl = np.arange(xmin, xmax, pix)
         msg.append("          - Creating new linear wavelength grid:")
         msg.append("          - %.3f -- %.3f  |  sampling: %.3f" % (final_wl.min(), final_wl.max(), pix))
         hdr['CRVAL1'] = final_wl.min()

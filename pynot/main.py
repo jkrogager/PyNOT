@@ -364,6 +364,8 @@ def main(inspect=False):
                               choices=['mean', 'median'])
     parser_scomb.add_argument("-s", "--scale", action="store_true",
                               help="Scale spectra before combining")
+    parser_scomb.add_argument("-t", "--trim", action="store_true",
+                              help="Trim image regions that are not covered by all images (default when using method=median)")
     parser_scomb.add_argument("--axis", choices=[1, 2], default=1,
                               help="Dispersion axis. 1: horizontal, 2: vertical (default: 1 for processed spectra)")
     parser_scomb.add_argument("-x", "--extended", action="store_true",
@@ -759,7 +761,7 @@ def main(inspect=False):
             out_args = combine_1d(filelist, output=args.output, method=args.method,
                                   scale=args.scale, table_output=args.mef)
         else:
-            out_args = combine_2d(filelist, output=args.output, method=args.method,
+            out_args = combine_2d(filelist, output=args.output, method=args.method, trim=args.trim,
                                   scale=args.scale, extended=args.extended, dispaxis=args.axis)
         log = out_args[-1]
 
