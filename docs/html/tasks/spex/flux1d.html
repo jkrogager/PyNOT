@@ -31,41 +31,65 @@
 
 							<!-- Content -->
                                 <section>
+                                
+                                <header class="main">
+                                  <h1>PyNOT : flux1d</h1>
+                                </header>
+                                
+                                <p>
+                                  <h2>Flux Calibration</h2>
+                                
+                                  Once the instrument response function has been determined for a given dispersive element using <a href="response.html">pynot response</a>,
+                                  the flux calibration can be applied to a 1-dimensional extracted spectrum by running the command <code>pynot flux1d</code>.
+                                  This command requires three arguments:
+                                  <ol>
+                                    <li>
+                                      The 1D extracted spectrum (in FITS table format, must be wavelength-calibrated!)
+                                    </li>
+                                    <li>
+                                      The response function calculated by <a href="response.html">pynot response</a>
+                                    </li>
+                                    <li>
+                                      The desired filename of the output, given by command line option <code>-o</code>
+                                    </li>
+                                  </ol>
+                                
+                                  PyNOT verifies that the science spectrum that you want to flux calibrate has been observed with the same instrumental setting.
+                                </p>
+                                
+                                <h3>Airmass and Exposure Time</h3>
+                                <p>
+                                  The code automatically tries to determine the airmass of the observation from the FITS header. If this is not possible, the command line will
+                                  prompt you for the value of the airmass. After you enter the value and press the <code>RETURN</code> key, the code will continue.
+                                  Similarly, if the code cannot read the exposure time from the FITS header, the command line will ask you for this value, which must be given in seconds.
+                                </p>
+                                                                
+                                
+                                <h2> Example Syntax</h2>
 
-                                    <header class="main">
-                                      <h1>PyNOT : flux1d</h1>
-                                    </header>
-
-                                    <p class="warning">
-                                    Nothing here yet! Stay tuned... :)
-                                    </p>
-
-
-<h2> Example Syntax</h2>
-
-<h2 class="code">
-pynot flux1d -o OUTPUT input response
-</h2>
-
-<br>
-
-Full example of command line syntax: 
-<p class="code">
-pynot flux1d [-h] -o OUTPUT input response
-</p>
-<br><br>
+                                <h2 class="code">
+                                pynot flux1d -o OUTPUT input response
+                                </h2>
+                                
+                                <br>
+                                
+                                Full example of command line syntax: 
+                                <p class="code">
+                                pynot flux1d [-h] -o OUTPUT input response
+                                </p>
+                                <br><br>                                
 
 
-<h2 id="summary"> Overview of parameters </h2>
+                                <h2 id="summary"> Overview of parameters </h2>
 
-<dl>
-<dt>input</dt>
-    <dd>Input filename of 1D spectrum</dd>
-<dt>response</dt>
-    <dd>Reference response function from 'PyNOT-response'</dd>
-<dt>--output (-o)</dt>
-    <dd>Output filename of flux-calibrated spectrum [REQUIRED]</dd>
-</dl>
+                                <dl>
+                                <dt>input</dt>
+                                    <dd>Input filename of 1D spectrum</dd>
+                                <dt>response</dt>
+                                    <dd>Reference response function from 'PyNOT-response'</dd>
+                                <dt>--output (-o)</dt>
+                                    <dd>Output filename of flux-calibrated spectrum [REQUIRED]</dd>
+                                </dl>
 								</section>
 
 						</div>

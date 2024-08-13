@@ -31,52 +31,135 @@
 
 							<!-- Content -->
                                 <section>
+                                
+                                <header class="main">
+                                  <h1>PyNOT : scombine</h1>
+                                </header>
+                                
+                                <h2>Combining Spectra</h2>
+                                <p>
+                                  PyNOT allows you to combine spectra of the same object directly from the terminal using the command <code>pynot scombine</code>.
+                                  The code automatically determines if the spectra are 1-dimensional or 2-dimensional and performs the combination accordlingly.
+                                  By default, the combination is performed assuming that the data are in units of flux (i.e., divided by exposure time).
+                                  If the exposure time and data units are correctly set in the FITS header, PyNOT will automatically detect if the data are
+                                  in flux units or in units of counts. Alternatively, you can set the command line option <code>--scale</code> to ensure 
+                                  that the spectra are correctly scaled to the exposure time (or to the median flux in the spectra if exposure times are not in the headers.)
+                                </p>
+                                
+                                <p class="warning">
+                                  Make sure that the data have appropriately defined units!
+                                  Otherwise you have to double check that the results have been correctly scaled to the total exposure time.
+                                </p>
+                                
+                                
+                                <h3>Combination methods</h3>
+                                <p>
+                                  There are two methods available for the combination:
+                                  <ul>
+                                    <li><b>Mean:</b></li> will perform an inverse-variance weighted average. If the spectra have different wavelength coverage
+                                    they will be interpolated onto a common wavelength grid covering the full extent of all the spectra unless using the option
+                                    <code>--trim</code> in which case only the overlapping parts will be combined.
+                                    <li>
+                                      <b>Median:</b> will perform a median combination of all spectra. If the spectra have different wavelength coverage,
+                                      only the overlapping parts of all the spectra will be median combined.
+                                    </li>
+                                  </ul>
+                                
+                                  The default method is the weighted average (mean). If you want to use the median combination, you have to set the command line option
+                                  <code>--method median</code> (or <code>-m</code> for short).
+                                </p>
+                                
+                                
+                                <h2>Combination of 2D spectra</h2>
+                                <p>
+                                  When combining 2-dimensional spectra, the code will try to identify the brightest object in the slit and align the exposures
+                                  to this position. This is useful when dealing with point sources that have been offset along the slit during the different exposures.
+                                  If you do not want to perform this object localisation and alignment, or if your object is extended or diffuse, you can turn this behavior
+                                  off by including the command line option <code>-x</code> <code>--extended</code>. When using the automatic image-alignment, there will be 
+                                  regions on the sides where the data do not overlap due to the shifting of the two images. These regions can be trimmed away by using the
+                                  command line option <code>--trim</code> (or <code>-t</code> for short.)
+                                  <br><br>
+                                  For the object alignment to work properly, it is important that the dispersion axis is correctly identified. PyNOT will try to determine
+                                  this automatically, but if this fails, you can set the dispersion axis yourself using <code>--axis</code>:
+                                  <ol>
+                                    <li>Horizontal spectra with dispersion along the x-axis: <code>--axis 1</code></li>
+                                    <li>Vertical spectra with dispersion along the y-axis: <code>--axis 2</code></li>
+                                  </ol>
+                                </p>
+                                
+                                <figure>
+                                  <img src="../../images/scombine_obj1.png" width="48%" alt="" />
+                                  <img src="../../images/scombine_obj2.png" width="48%" alt="" />
+                                  <figcaption>
+                                    Fig. 1 &ndash; Example data of an object observed twice with an offset along the slit between the two observations (left and right). In this example
+                                    the two images are saved in two files: 'img1.fits' and 'img2.fits'.
+                                  </figcaption>
+                                </figure>
+                                
+                                <figure>
+                                  <img src="../../images/scombine_comb.png" width="80%" alt="" />
+                                  <figcaption>
+                                    Fig. 2 &ndash; The result of running <code>pynot scombine img1.fits img2.fits</code> with default mean combination and object alignment.
+                                    The upper and lower edges are scrambled due to the image shift and interpolation applied when aligning the two images. These regions
+                                    are clipped if using <code>--method median</code> or the <code>--trim</code> option.
+                                  </figcaption>
+                                </figure>
+                                
+                                <figure>
+                                  <img src="../../images/scombine_comb_x.png" width="80%" alt="" />
+                                  <figcaption>
+                                    Fig. 3 &ndash; The result of running <code>pynot scombine img1.fits img2.fits -x</code> with default mean combination but ignoring the object offset.
+                                  </figcaption>
+                                </figure>
+                                
+                                
+                                <h2>Combination of 1D spectra</h2>
+                                <p>
+                                  For the combination of 1-dimensional spectra, the options <code>--axis</code> and <code>--extended</code> are ignored.
+                                  However the other options have the same behaviour. By default, PyNOT works with FITS tables for the 1D spectra.
+                                  If you prefer to have your 1D spectrum saved as a multi-extension FITS (MEF) file with a 1D array in each extension for
+                                  flux, error, mask and sky (if present), then you can include the option <code>--mef</code> in the command line.
+                                </p>
+                                                                
+                                
+                                <h2> Example Syntax</h2>
 
-                                    <header class="main">
-                                      <h1>PyNOT : scombine</h1>
-                                    </header>
-
-                                    <p class="warning">
-                                    Nothing here yet! Stay tuned... :)
-                                    </p>
-
-
-<h2> Example Syntax</h2>
-
-<h2 class="code">
-pynot scombine input
-</h2>
-
-<br>
-
-Full example of command line syntax: 
-<p class="code">
-pynot scombine [-h] [-o OUTPUT] [-m {mean,median}] [-s] [--axis {1,2}] [-x] [--mef] input [input ...]
-</p>
-<br><br>
+                                <h2 class="code">
+                                pynot scombine input
+                                </h2>
+                                
+                                <br>
+                                
+                                Full example of command line syntax: 
+                                <p class="code">
+                                pynot scombine [-h] [-o OUTPUT] [-m {mean,median}] [-s] [-t] [--axis {1,2}] [-x] [--mef] input [input ...]
+                                </p>
+                                <br><br>                                
 
 
-<h2 id="summary"> Overview of parameters </h2>
+                                <h2 id="summary"> Overview of parameters </h2>
 
-<dl>
-<dt>input</dt>
-    <dd>Input spectra</dd>
-</dl>
-<u> Optional Arguments: </u>
-<dl>
-<dt>--output (-o):  ''</dt>
-    <dd>Output filename (autogenerated if not given)</dd>
-<dt>--method (-m):  'mean'</dt>
-    <dd>Combination method</dd>
-<dt>--scale (-s):  False</dt>
-    <dd>Scale spectra before combining</dd>
-<dt>--axis:  1</dt>
-    <dd>Dispersion axis. 1: horizontal, 2: vertical (default: 1 for processed spectra)</dd>
-<dt>--extended (-x):  False</dt>
-    <dd>Set this option for 2D spectra of extended sources to turn off automatic localization</dd>
-<dt>--mef:  True</dt>
-    <dd>Set this option to save output as a multiextension FITS file instead of a FITS table.</dd>
-</dl>
+                                <dl>
+                                <dt>input</dt>
+                                    <dd>Input spectra</dd>
+                                </dl>
+                                <u> Optional Arguments: </u>
+                                <dl>
+                                <dt>--output (-o):  ''</dt>
+                                    <dd>Output filename (autogenerated if not given)</dd>
+                                <dt>--method (-m):  'mean'</dt>
+                                    <dd>Combination method</dd>
+                                <dt>--scale (-s):  False</dt>
+                                    <dd>Scale spectra before combining</dd>
+                                <dt>--trim (-t):  False</dt>
+                                    <dd>Trim image regions that are not covered by all images (default when using method=median)</dd>
+                                <dt>--axis:  1</dt>
+                                    <dd>Dispersion axis. 1: horizontal, 2: vertical (default: 1 for processed spectra)</dd>
+                                <dt>--extended (-x):  False</dt>
+                                    <dd>Set this option for 2D spectra of extended sources to turn off automatic localization</dd>
+                                <dt>--mef:  True</dt>
+                                    <dd>Set this option to save output as a multiextension FITS file instead of a FITS table.</dd>
+                                </dl>
 								</section>
 
 						</div>
