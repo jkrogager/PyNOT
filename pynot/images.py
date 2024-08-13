@@ -67,6 +67,11 @@ class FitsImage:
         ])
         hdu_list.writeto(filename, overwrite=True)
 
+    def __array__(self):
+        return self.data
+
+    # def __array_wrap__(self):
+
     def __add__(self, other):
         if isinstance(other, (int, float, np.number, np.integer)):
             self.data += other
@@ -116,6 +121,32 @@ class FitsImage:
     def __str__(self):
         return f"<FitsImage: {self.shape}>"
 
+    def interpolate(self, new_x, new_y):
+        """
+        Interpolate the FitsImage onto a new regular grid defined by axes: `new_x` and `new_y`.
+        The new grid will be constructed using :func:`np.meshgrid` of the two input arrays.
+        All image attributes of the FitsImage will be interpolated onto the new grid.
+
+        Parameters
+        ----------
+        new_x : np.ndarray
+            The points of the new x-axis corresponding to `self.shape[1]`
+        new_y : np.ndarray
+            The points of the new y-axis corresponding to `self.shape[0]`
+
+        Returns
+        -------
+        :class:`pynot.images.FitsImage`
+            The new 2D image with the same dimensions as the new x and y coordinate arrays.
+        """
+        new_points = tuple(np.meshgrid(new_y, new_x, indexing='ij'))
+        values = {'header': self.header}
+        attributes = ['data', 'error', 'mask']
+        for attr in attributes:
+            array2D = self.__getattribute__(attr)
+            values[attr] = RegularGridInterpolator((self.y, self.x), array2D, bounds_error=False)(new_points)
+        return self.__class__(**values)
+
 
 def image_operation(img1, img2, func):
     same_size = img1.shape == img2.shape
@@ -134,35 +165,26 @@ def image_operation(img1, img2, func):
         interpolate = True
 
     if interpolate:
+        print(f"          - Interpolating images onto the same grid")
         xmin = np.max([np.min(ar) for ar in (img1.x, img2.x)])
         xmax = np.min([np.max(ar) for ar in (img1.x, img2.x)])
         ymin = np.max([np.min(ar) for ar in (img1.y, img2.y)])
         ymax = np.min([np.max(ar) for ar in (img1.y, img2.y)])
         xnew = np.arange(xmin, xmax, np.mean(np.diff(img1.x)))
         ynew = np.arange(ymin, ymax, np.mean(np.diff(img1.y)))
-        new_points = tuple(np.meshgrid(xnew, ynew, indexing='ij'))
-        data1 = RegularGridInterpolator((img1.x, img1.y), img1.data)(new_points)
-        err1 = RegularGridInterpolator((img1.x, img1.y), img1.error)(new_points)
-        mask1 = RegularGridInterpolator((img1.x, img1.y), img1.mask)(new_points)
-        data2 = RegularGridInterpolator((img2.x, img2.y), img2.data)(new_points)
-        err2 = RegularGridInterpolator((img2.x, img2.y), img2.error)(new_points)
-        mask2 = RegularGridInterpolator((img2.x, img2.y), img2.mask)(new_points)
+
+        img1 = img1.interpolate(xnew, ynew)
+        img2 = img2.interpolate(xnew, ynew)
     else:
         xnew = img1.x
         ynew = img1.y
-        data1 = img1.data
-        err1 = img1.error
-        mask1 = img1.mask
-        data2 = img2.data
-        err2 = img2.error
-        mask2 = img2.mask
 
-    new_data = func(data1, data2)
-    new_mask = (mask1 + mask2) > 1
+    new_data = func(img1.data, img2.data)
+    new_mask = (img1.mask + img2.mask) > 1
     if 'sub' in str(func) or 'add' in str(func):
-        new_err = np.sqrt(err1**2 + err2**2)
+        new_err = np.sqrt(img1.error**2 + img2.error**2)
     elif 'mult' in str(func) or 'div' in str(func):
-        new_err = new_data * np.sqrt((err1/data1)**2 + (err2/data2)**2)
+        new_err = new_data * np.sqrt((img1.error/img1.data)**2 + (img2.error/img2.data)**2)
     else:
         raise ValueError(f"Invalid operator on FitsImage: {func}")
     new_header = img1.header.copy()

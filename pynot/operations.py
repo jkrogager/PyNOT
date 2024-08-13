@@ -1,9 +1,11 @@
 import os
+
 from pynot.images import FitsImage
 
 BLACKLIST = ['import', 'eval', 'rm', 'sudo', 'sh']
 
 def perform_operation(sequence, variables, output='output.fits'):
+    print("\nRunning task: Arithmetic Operator")
     if any(word in sequence for word in BLACKLIST):
         print(" [ERROR]  - Invalid word in the operation. Cannot execute the task!")
         return
@@ -12,7 +14,8 @@ def perform_operation(sequence, variables, output='output.fits'):
         result = eval(sequence, variables)
         if isinstance(result, FitsImage):
             result.write(output)
-        print(f"Result is: {result}")
+        print(f"          - Result is: {result}")
+        print(f" [OUTPUT] - Saved result to file: {output}")
 
     except Exception:
         print("")
@@ -51,7 +54,11 @@ def prepare_variables(args_list):
             except ValueError:
                 errors.append(f" - Invalid variable type for {name} = {value}")
 
-    print("\n".join(messages))
+    if len(messages) > 0:
+        print("   PyNOT operate parser   ")
+        print(" ------------------------ ")
+        print("\n".join(messages))
+
     if len(errors) > 0:
         print("\nFollowing errors or warnings ocurred:")
         print("\n".join(errors))
