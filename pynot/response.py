@@ -128,7 +128,7 @@ def flux_calibrate(input_fname, *, output, response_fname):
 
     t = instrument.get_exptime(hdr)
     if t is None:
-        user_input = input("          > Please give the exposure time:\n          > ")
+        user_input = input("          > Please give the exposure time in seconds:\n          > ")
         try:
             t = float(user_input)
         except ValueError:
@@ -136,7 +136,7 @@ def flux_calibrate(input_fname, *, output, response_fname):
             msg.append("")
             return "\n".join(msg)
 
-    msg.append("          - exposure time: %.1f" % t)
+    msg.append("          - exposure time: %.1f sec" % t)
     msg.append("          - airmass: %.3f" % airmass)
     # ext_correction = 10**(0.4*airm * ext)
     # flux_calibration = ext_correction / 10**(0.4*resp_int)
@@ -147,11 +147,11 @@ def flux_calibrate(input_fname, *, output, response_fname):
 
     with fits.open(input_fname) as hdu:
         hdu[0].data = flux2D
-        hdu[0].header['BUNIT'] = 'erg/s/cm2/A'
+        hdu[0].header['BUNIT'] = 'erg / (s cm2 Angstrom)'
         hdu[0].header['RESPONSE'] = response_fname
 
         hdu['ERR'].data = err2D
-        hdu['ERR'].header['BUNIT'] = 'erg/s/cm2/A'
+        hdu['ERR'].header['BUNIT'] = 'erg / (s cm2 Angstrom)'
 
         hdu.writeto(output, overwrite=True)
     msg.append(" [OUTPUT] - Saving flux calibrated 2D image: %s" % output)
@@ -212,14 +212,14 @@ def flux_calibrate_1d(input_fname, *, output, response_fname):
 
         t = instrument.get_exptime(hdr)
         if t is None:
-            user_input = input("          > Please give the exposure time:\n          > ")
+            user_input = input("          > Please give the exposure time in seconds:\n          > ")
             try:
                 t = float(user_input)
             except ValueError:
                 msg.append(" [ERROR]  - Invalid exposure time: %r" % user_input)
                 msg.append("")
                 return "\n".join(msg)
-        msg.append("          - exposure time: %.1f" % t)
+        msg.append("          - exposure time: %.1f sec" % t)
         msg.append("          - airmass: %.3f" % airmass)
 
         cdelt = np.mean(np.diff(wl))
@@ -227,7 +227,7 @@ def flux_calibrate_1d(input_fname, *, output, response_fname):
         flux1d = spec1d / (t * cdelt) * flux_calibration
         err1d = err1d / (t * cdelt) * flux_calibration
 
-        hdr['BUNIT'] = 'erg/s/cm2/A'
+        hdr['BUNIT'] = 'erg / (s cm2 Angstrom)'
         hdr['RESPONSE'] = response_fname
         msg.append("          - Applied flux calibration to object ID: %r" % hdu.name)
 
