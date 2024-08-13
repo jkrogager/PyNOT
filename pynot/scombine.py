@@ -121,8 +121,8 @@ def combine_2d(files, output=None, method='mean', scale=False, extended=False, d
             spatial = (np.arange(naxis1) - (crpix1 - 1))*cdelt1 + crval1
             wavelength = (np.arange(naxis2) - (crpix2 - 1))*cdelt2 + crval2
             N_pix = len(spatial)
-            lower_bound = int(0.1*N_pix)
-            upper_bound = int(0.9*N_pix)
+            lower_bound = None
+            upper_bound = None
             SPSF = np.nanmedian(data2D[lower_bound:upper_bound, :], axis=0)
 
         elif dispaxis == 1:
@@ -131,8 +131,8 @@ def combine_2d(files, output=None, method='mean', scale=False, extended=False, d
             wavelength = (np.arange(naxis1) - (crpix1 - 1))*cdelt1 + crval1
             spatial = (np.arange(naxis2) - (crpix2 - 1))*cdelt2 + crval2
             N_pix = len(spatial)
-            lower_bound = int(0.1*N_pix)
-            upper_bound = int(0.9*N_pix)
+            lower_bound = None
+            upper_bound = None
             SPSF = np.nanmedian(data2D[:, lower_bound:upper_bound], axis=1)
         else:
             msg.append(" [ERROR]  - Invalid dispaxis!")
@@ -156,7 +156,7 @@ def combine_2d(files, output=None, method='mean', scale=False, extended=False, d
             trace_region = (y_pix > y0-10) * (y_pix < y0+10)
 
             # centroid:
-            trace_cen = np.sum((spatial*SPSF)[trace_region])/np.sum(SPSF[trace_region])
+            trace_cen = np.sum((spatial*SPSF)[trace_region]) / np.sum(SPSF[trace_region])
 
             # width:
             sumY2 = np.sum(((spatial-trace_cen)**2 * SPSF)[trace_region])
