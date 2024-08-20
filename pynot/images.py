@@ -147,37 +147,67 @@ class FitsImage:
             values[attr] = RegularGridInterpolator((self.y, self.x), array2D, bounds_error=False)(new_points)
         return self.__class__(**values)
 
+    def shift(self, dx=0, dy=0):
+        """
+        Shift the image by a given number of pixels in x and y directions.
+        Positive values of `dx` and `dy` will shift the image to the right, negative values
+        will apply a shift to the left. If non-integer values are applied, the image will
+        be interpolated onto a sub-pixel grid and then resampled back to its native sampling.
+        All image attributes of the FitsImage will be interpolated onto the new grid.
+
+        Parameters
+        ----------
+        dx : float | int
+            The number of pixels to shift the image along the x-axis, applied to `self.shape[1]`
+        dy : float | int
+            The number of pixels to shift the image along the y-axis, applied to `self.shape[0]`
+
+        Returns
+        -------
+        :class:`pynot.images.FitsImage`
+            The shifted 2D image with the same dimensions as the old image.
+        """
+        if isinstance(dx, (int, np.integer)) and isinstance(dy, (int, np.integer)):
+            use_interpolation = False
+        else:
+            use_interpolation = True
+
+        if use_interpolation:
+            pixsize_x = np.diff(self.x)[0]
+            pixsize_y = np.diff(self.y)[0]
+            self.header['CRPIX1'] += dx
+            self.header['CRPIX2'] += dy
+            return self.interpolate(self.x - dx*pixsize_x, self.y - dy*pixsize_y)
+
+        else:
+            self.header['CRPIX1'] += dx
+            self.header['CRPIX2'] += dy
+            values = {'header': self.header}
+            attributes = ['data', 'error', 'mask']
+            for attr in attributes:
+                array2D = self.__getattribute__(attr)
+                shifted = np.roll(array2D, shift=(dx, dy), axis=(1, 0))
+                if dy == 0:
+                    pass
+                elif dy < 0:
+                    shifted[dy:] = np.nan
+                elif dy > 0:
+                    shifted[:dy] = np.nan
+
+                if dx == 0:
+                    pass
+                elif dx < 0:
+                    shifted[:, dx:] = np.nan
+                elif dx > 0:
+                    shifted[:, :dx] = np.nan
+                values[attr] = shifted
+            return self.__class__(**values)
+
 
 def image_operation(img1, img2, func):
     same_size = img1.shape == img2.shape
-    if same_size:
-        dx = img1.x - img2.x
-        dy = img1.y - img2.y
-        pixsize_x = np.mean(np.diff(img1.x)) / 2
-        pixsize_y = np.mean(np.diff(img1.y)) / 2
-        array_shape_x = np.all(np.abs(dx) < 0.5*pixsize_x)
-        array_shape_y = np.all(np.abs(dy) < 0.5*pixsize_y)
-        if array_shape_x and array_shape_y:
-            interpolate = False
-        else:
-            interpolate = True
-    else:
-        interpolate = True
-
-    if interpolate:
-        print(f"          - Interpolating images onto the same grid")
-        xmin = np.max([np.min(ar) for ar in (img1.x, img2.x)])
-        xmax = np.min([np.max(ar) for ar in (img1.x, img2.x)])
-        ymin = np.max([np.min(ar) for ar in (img1.y, img2.y)])
-        ymax = np.min([np.max(ar) for ar in (img1.y, img2.y)])
-        xnew = np.arange(xmin, xmax, np.mean(np.diff(img1.x)))
-        ynew = np.arange(ymin, ymax, np.mean(np.diff(img1.y)))
-
-        img1 = img1.interpolate(xnew, ynew)
-        img2 = img2.interpolate(xnew, ynew)
-    else:
-        xnew = img1.x
-        ynew = img1.y
+    if not same_size:
+        raise ValueError(f"Cannot operate on images of different sizes!")
 
     new_data = func(img1.data, img2.data)
     new_mask = (img1.mask + img2.mask) > 1
@@ -187,16 +217,9 @@ def image_operation(img1, img2, func):
         new_err = new_data * np.sqrt((img1.error/img1.data)**2 + (img2.error/img2.data)**2)
     else:
         raise ValueError(f"Invalid operator on FitsImage: {func}")
-    new_header = img1.header.copy()
-    new_header.update(img2.header)
-    new_header['NAXIS1'] = len(xnew)
-    new_header['CRPIX1'] = 1
-    new_header['CRVAL1'] = xnew.min()
-    new_header['CD1_1'] = np.diff(xnew)[0]
-    new_header['NAXIS2'] = len(ynew)
-    new_header['CRPIX2'] = 1
-    new_header['CRVAL2'] = ynew.min()
-    new_header['CD2_2'] = np.diff(ynew)[0]
-    new_header['CD1_2'] = new_header['CD2_1'] = 0
 
-    return FitsImage(new_data, error=new_err, mask=new_mask, header=new_header)
+    return FitsImage(new_data, error=new_err, mask=new_mask, header=img1.header)
+
+
+def imshift(image, dx=0, dy=0):
+    return image.shift(dx, dy)

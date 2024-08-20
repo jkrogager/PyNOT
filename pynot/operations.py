@@ -1,17 +1,20 @@
 import os
 
-from pynot.images import FitsImage
+from pynot.images import FitsImage, imshift
 
 BLACKLIST = ['import', 'eval', 'rm', 'sudo', 'sh']
+functors = {
+    'shift': imshift,
+}
 
 def perform_operation(sequence, variables, output='output.fits'):
     print("\nRunning task: Arithmetic Operator")
-    if any(word in sequence for word in BLACKLIST):
+    if any(word in sequence.split() for word in BLACKLIST):
         print(" [ERROR]  - Invalid word in the operation. Cannot execute the task!")
         return
 
     try:
-        result = eval(sequence, variables)
+        result = eval(sequence, variables, functors)
         if isinstance(result, FitsImage):
             result.write(output)
         print(f"          - Result is: {result}")
