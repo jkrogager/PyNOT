@@ -30,6 +30,14 @@ class FitsImage:
             self.header = fits.Header()
             self.header['NAXIS1'] = self.data.shape[1]
             self.header['NAXIS2'] = self.data.shape[0]
+            axis_hdr = {'CRPIX1': 1,
+                        'CRVAL1': 0,
+                        'CDELT1': 1,
+                        'CRPIX2': 1,
+                        'CRVAL2': 0,
+                        'CDELT2': 1,
+                        }
+            self.header.update(axis_hdr)
         else:
             self.header = header
             self.set_image_axes()
@@ -70,7 +78,25 @@ class FitsImage:
     def __array__(self):
         return self.data
 
-    # def __array_wrap__(self):
+    def __getitem__(self, val):
+        values = {}
+        attributes = ['data', 'error', 'mask']
+        for attr in attributes:
+            values[attr] = self.__getattribute__(attr)[val]
+        if isinstance(val, tuple):
+            yslice, xslice = val
+        else:
+            yslice = val
+            xslice = slice(None, None, None)
+        new_x = self.x[xslice]
+        new_y = self.y[yslice]
+        new_hdr = self.header.copy()
+        new_hdr['CRVAL1'] = new_x[0]
+        new_hdr['CRVAL2'] = new_y[0]
+        new_hdr['NAXIS1'] = len(new_x)
+        new_hdr['NAXIS2'] = len(new_y)
+        values['header'] = new_hdr
+        return self.__class__(**values)
 
     def __add__(self, other):
         if isinstance(other, (int, float, np.number, np.integer)):

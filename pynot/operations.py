@@ -1,6 +1,9 @@
 import os
+import sys
 
 from pynot.images import FitsImage, imshift
+
+sys.tracebacklimit = 1
 
 BLACKLIST = ['import', 'eval', 'rm', 'sudo', 'sh']
 functors = {
