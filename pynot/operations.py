@@ -15,10 +15,11 @@ def perform_operation(sequence, variables, output='output.fits'):
 
     try:
         result = eval(sequence, variables, functors)
+        print(f"          - Result is: {result}")
         if isinstance(result, FitsImage):
             result.write(output)
-        print(f"          - Result is: {result}")
-        print(f" [OUTPUT] - Saved result to file: {output}")
+            print(f" [OUTPUT] - Saved result to file: {output}")
+        return result
 
     except Exception:
         print("")

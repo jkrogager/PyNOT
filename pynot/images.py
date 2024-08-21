@@ -65,7 +65,7 @@ class FitsImage:
             fits.ImageHDU(data=self.error, header=self.header, name='ERR'),
             fits.ImageHDU(data=1*(self.mask >= 1), header=self.header, name='MASK'),
         ])
-        hdu_list.writeto(filename, overwrite=True)
+        hdu_list.writeto(filename, overwrite=True, output_verify='silentfix')
 
     def __array__(self):
         return self.data
@@ -210,7 +210,7 @@ def image_operation(img1, img2, func):
         raise ValueError(f"Cannot operate on images of different sizes!")
 
     new_data = func(img1.data, img2.data)
-    new_mask = (img1.mask + img2.mask) > 1
+    new_mask = (img1.mask + img2.mask) >= 1
     if 'sub' in str(func) or 'add' in str(func):
         new_err = np.sqrt(img1.error**2 + img2.error**2)
     elif 'mult' in str(func) or 'div' in str(func):
