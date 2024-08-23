@@ -15,6 +15,7 @@ PyNOT can perform image operations directly on multi-extension images from the c
 The operations include:
 <ul>
 	<li><a href="#arithmetic">Arithmetic operations</a>: addition, subtraction, multiplication, division and raising to any numeral power</li>
+	<li><a href="#functions">Image functions</a>: apply mathematical functions on images</li>
 	<li><a href="#slice">Image slicing</a>: trimming images like they were numpy arrays</li>
 	<li><a href="#imshift">Image shifting</a>: shift the image by whole or sub-pixel steps along either axis</li>
 	<li><a href="#resample">Image resampling</a>: Interpolate the image onto a new grid size</li>
@@ -105,6 +106,28 @@ will create the FITS file <i><q>image_sub10.fits</q></i> as the result of the op
 	<pre><code>pynot operate 'x1**x2' x1=image1.fits x2=image2.fits</code></pre>
 	This operation will result in an error: <code>TypeError: Invalid operation with type: &ltclass 'pynot.images.FitsImage'&gt</code>
 </p>
+
+
+<h2 id="functions"> Image functions </h2>
+
+<p>
+	Apply mathematical functions to an image or a set of images. The error extensions will be propagated accordingly and the mask extension
+	will include the union of all masked pixels in all images. Currently, only the following set of functions are implemented:
+</p>
+
+<ul>
+	<li>
+		<code>mean</code>: Take the average of a series of images: <code>pynot operate 'mean(x, y, z)' x=img1.fits y=img2.fits z=img3.fits</code>
+	</li>
+	<li>
+		<code>median</code>: Construct the median of a series of images: <code>pynot operate 'median(x, y, z)' x=img1.fits y=img2.fits z=img3.fits</code>
+	</li>
+	<li>
+		<code>log</code>: Take the 10-base logarithm of an image: <code>pynot operate 'log(img)' img=img1.fits</code>.
+		Note that this may raise a warning if there are zero-valued entries in the image.
+	</li>
+</ul>
+
 
 <h2 id="slice"> Image slicing </h2>
 
