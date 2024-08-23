@@ -249,3 +249,25 @@ def image_operation(img1, img2, func):
 
 def imshift(image, dx=0, dy=0):
     return image.shift(dx, dy)
+
+
+def image_mean(*images):
+    return FitsImage(data=np.mean([img.data for img in images], axis=0),
+                     error=np.mean([img.error for img in images], axis=0)/len(images),
+                     mask=np.sum([img.error for img in images], axis=0) > 0,
+                     header=images[0].header,
+                     )
+
+def image_median(*images):
+    return FitsImage(data=np.median([img.data for img in images], axis=0),
+                     error=np.median([img.error for img in images], axis=0)/len(images),
+                     mask=np.sum([img.error for img in images], axis=0) > 0,
+                     header=images[0].header,
+                     )
+
+def image_log(image):
+    return FitsImage(data=np.log10(image.data),
+                     error=image.error / (image.data * np.log(10)),
+                     mask=image.mask,
+                     header=image.header,
+                     )

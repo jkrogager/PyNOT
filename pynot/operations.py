@@ -1,13 +1,16 @@
 import os
 import sys
 
-from pynot.images import FitsImage, imshift
+from pynot.images import FitsImage, imshift, image_mean, image_log, image_median
 
 sys.tracebacklimit = 1
 
 BLACKLIST = ['import', 'eval', 'rm', 'sudo', 'sh']
 functors = {
     'shift': imshift,
+    'mean': image_mean,
+    'median': image_median,
+    'log': image_log,
 }
 
 def perform_operation(sequence, variables, output='output.fits'):
