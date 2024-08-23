@@ -1,0 +1,257 @@
+<!DOCTYPE HTML>
+<!--
+	Editorial by HTML5 UP
+	html5up.net | @ajlkn
+	Free for personal and commercial use under the CCA 3.0 license (html5up.net/license)
+-->
+<html>
+	<head>
+		<title>FITS image operations using PyNOT : operate</title>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+		<link rel="stylesheet" href="./assets/css/main.css" />
+	</head>
+	<body class="is-preload">
+
+		<!-- Wrapper -->
+			<div id="wrapper">
+
+				<!-- Main -->
+					<div id="main">
+						<div class="inner">
+
+							<!-- Header -->
+								<header id="header">
+									<a href="./index.html" class="logo"><strong>PyNOT</strong> / data processing pipeline</a>
+									<ul class="icons">
+										<li><a href="https://jkrogager.github.io/"><span class="label">About Me</span></a></li>
+										<li><a href="https://github.com/jkrogager/pynot" class="icon brands fa-github"><span class="label">Github</span></a></li>
+									</ul>
+								</header>
+
+							<!-- Content -->
+                                <section>
+                                <header class="main">
+                                  <h1>FITS image operations using PyNOT : operate</h1>
+                                </header>
+                                
+                                <hr class="major" />
+                                
+                                <p>
+                                PyNOT can perform image operations directly on multi-extension images from the command line using the <code>pynot operate</code> command.
+                                The operations include:
+                                <ul>
+                                  <li><a href="#arithmetic">Arithmetic operations</a>: addition, subtraction, multiplication, division and raising to any numeral power</li>
+                                  <li><a href="#slice">Image slicing</a>: trimming images like they were numpy arrays</li>
+                                  <li><a href="#imshift">Image shifting</a>: shift the image by whole or sub-pixel steps along either axis</li>
+                                  <li><a href="#resample">Image resampling</a>: Interpolate the image onto a new grid size</li>
+                                </ul>
+                                
+                                <br>
+                                
+                                <h2>General Syntax</h2>
+                                The basic principle of <code>pynot operate</code> is a <q>sequence</q> of the operations outlined above. Each FITS image is loaded into a variable name
+                                which is used in the sequence. For example, to subtract a constant value from an image with filename <i><q>image.fits</q></i> do the following:
+                                <pre><code>pynot operate 'x - 10' x=image.fits</code></pre>
+                                
+                                This will subtract the value 10 from each pixel in the image and save the new image to the file <i><q>output.fits</q></i> by default.
+                                If you want to change the output filename, you can either use the <code>--output</code> (or <code>-o</code>) option <b>before the sequence</b>,
+                                or use <code>output=</code> to set the filename.
+                                <pre><code>pynot operate 'x - 10' x=image.fits output=image_sub10.fits</code></pre>
+                                will create the FITS file <i><q>image_sub10.fits</q></i> as the result of the operation.
+                                </p>
+                                
+                                
+                                  <h3 style="color:red;">A few rules to follow:</h3>
+                                  <ul>
+                                    <li>The sequence of operations <b>must be enclosed</b> in quotes: <code>pynot operate 'a + b'</code> and not <code>pynot operate a+b</code>!</li>
+                                    <li>All variables in the sequence must be declared using the <code>=</code> <b>without spaces around it</b>!</li>
+                                    <li>Blank spaces in the sequence are ignored. The syntax follows normal Python syntax for operations</li>
+                                  </ul>
+                                
+                                  <p class="note">
+                                    If you are using the <a href="">zsh</a> terminal, you can add support for tab-completion of filenames after the = in the expressions
+                                    by including the line: <code>setopt magic_equal_subst</code> in your <code>.zshrc</code> file.
+                                  </p>
+                                
+                                <h2 id="arithmetic"> Arithmetic operations </h2>
+                                
+                                <h3> Addition and Subtraction </h3>
+                                <p>
+                                  You can add or subtract numbers from an image using regular arithmetic operations <code>+</code> and <code>-</code>.
+                                  Two or more images can also be added or subtracted and their error extensions (if available) will be propagated accordingly.
+                                  <br><br>
+                                
+                                  <u>Example 1:</u>
+                                  <pre><code>pynot operate -o diff.fits 'a - b' a=image1.fits b=image2.fits</code></pre>
+                                  This will subtract <i><q>image2.fits</q></i> from <i><q>image1.fits</q></i>. The resulting image <i><q>diff.fits</q></i>
+                                  will have an error extension resulting from the square root of the individual images added in quadrature.
+                                  <br><br>
+                                
+                                  <u>Example 2:</u>
+                                  <pre><code>pynot operate -o mean.fits '(a + b + c)/3' a=image1.fits b=image2.fits c=image3.fits</code></pre>
+                                  This will calculate the mean of the three images and propagate the error extensions appropriately.
+                                </p>
+                                  <p class="note">
+                                    If the images have a boolean <code>MASK</code> extension as well, the resulting mask extension will be the union
+                                    of all flagged pixels in any of the images.
+                                  </p>
+                                
+                                
+                                <h3> Multiplication and Division </h3>
+                                <p>
+                                  As hinted already above, you can also multiply or divide and image by numbers or other images
+                                  using the arithmetic operations <code>*</code> and <code>/</code>.
+                                  Their error extensions (if available) will be propagated accordingly by adding the relative errors (err/data) in quadrature.
+                                  <br><br>
+                                
+                                  <u>Example 1:</u>
+                                  <pre><code>pynot operate -o flux.fits 'cts / exptime' cts=image_counts.fits exptime=900</code></pre>
+                                  This will divide the image in units of counts by the exposure time to yield an image in units of counts per second.
+                                  Note that units are not propagated yet, so this must be updated manually in the header for now.
+                                  <br><br>
+                                
+                                  <u>Example 2:</u>
+                                  <pre><code>pynot operate 'x1/x2' x1=image1.fits x2=image2.fits output=ratio.fits</code></pre>
+                                  This will divide the <i><q>image1.fits</q></i> image by the <i><q>image2.fits</q></i> image to provide
+                                  an image where every pixel is the ratio of the two images.
+                                </p>
+                                
+                                <h3> Exponentiation </h3>
+                                <p>
+                                  Last of the artihmetic operations is the exponentiation using the <code>**</code> operator. This can take any integer or real number as exponent,
+                                  but raising one image to the power of another will raise an error.
+                                
+                                  <u>Example 1:</u>
+                                  <pre><code>pynot operate -o sqrt.fits '(x**2 + y**2)**0.5' x=image1.fits y=image2.fits</code></pre>
+                                  This operation will calculate the square root of the two images added in quadrature. The error extensions will be propagated accordingly
+                                  using the approximation for 'small' errors.
+                                  <br><br>
+                                
+                                  <u>Example 2:</u>
+                                  <pre><code>pynot operate 'x1**x2' x1=image1.fits x2=image2.fits</code></pre>
+                                  This operation will result in an error: <code>TypeError: Invalid operation with type: &ltclass 'pynot.images.FitsImage'&gt</code>
+                                </p>
+                                
+                                <h2 id="slice"> Image slicing </h2>
+                                
+                                
+                                <pre><code>pynot classify raw -o dataset.pfc</code></pre>
+                                
+                                
+                                <h2 id="imshift"> Image shifting </h2>
+                                
+                                
+                                <h2 id="resample"> Image resampling </h2>
+                                
+                                
+								</section>
+
+						</div>
+					</div>
+
+				<!-- Sidebar -->
+					<div id="sidebar">
+						<div class="inner">
+
+							<!-- Search
+								<section id="search" class="alt">
+									<form method="post" action="#">
+										<input type="text" name="query" id="query" placeholder="Search" />
+									</form>
+								</section>
+                             -->
+
+							<!-- Menu -->
+							<nav id="menu">
+								<header class="major">
+									<h2>PyNOT</h2>
+								</header>
+                                <ul>
+                                    <li><a href="./index.html">Homepage</a></li>
+                                    <li><a href="./install.html">Installation</a></li>
+                                    <li><a href="./operate.html">image arithmetics</a></li>
+                                    <li><a href="./tutorial.html">tutorial: spectroscopy</a></li>
+                                    <li><a href="./tasks/init.html">PyNOT : init</a></li>
+                                    <li>
+                                    <span class="opener">SPEX: tasks</span>
+                                    <ul>
+                                        <li><a href="./tasks/spex/bias.html">bias</a></li>
+                                        <li><a href="./tasks/spex/corr.html">corr</a></li>
+                                        <li><a href="./tasks/spex/crr.html">crr</a></li>
+                                        <li><a href="./tasks/spex/extract.html">extract</a></li>
+                                        <li><a href="./tasks/spex/flux1d.html">flux1d</a></li>
+                                        <li><a href="./tasks/spex/flux2d.html">flux2d</a></li>
+                                        <li><a href="./tasks/spex/identify.html">identify</a></li>
+                                        <li><a href="./tasks/spex/response.html">response</a></li>
+                                        <li><a href="./tasks/spex/scombine.html">scombine</a></li>
+                                        <li><a href="./tasks/spex/sflat.html">sflat</a></li>
+                                        <li><a href="./tasks/spex/skysub.html">skysub</a></li>
+                                        <li><a href="./tasks/spex/wave1d.html">wave1d</a></li>
+                                        <li><a href="./tasks/spex/wave2d.html">wave2d</a></li>
+                                    </ul>
+                                    </li>
+                                    <li>
+                                    <span class="opener">PHOT: tasks</span>
+                                    <ul>
+                                        <li><a href="./tasks/phot/autozp.html">autozp</a></li>
+                                        <li><a href="./tasks/phot/bias.html">bias</a></li>
+                                        <li><a href="./tasks/phot/corr.html">corr</a></li>
+                                        <li><a href="./tasks/phot/findnew.html">findnew</a></li>
+                                        <li><a href="./tasks/phot/fringe.html">fringe</a></li>
+                                        <li><a href="./tasks/phot/imcombine.html">imcombine</a></li>
+                                        <li><a href="./tasks/phot/imflat.html">imflat</a></li>
+                                        <li><a href="./tasks/phot/imtrim.html">imtrim</a></li>
+                                        <li><a href="./tasks/phot/sep.html">sep</a></li>
+                                        <li><a href="./tasks/phot/wcs.html">wcs</a></li>
+                                    </ul>
+                                    </li>
+                                </ul>
+							</nav>
+
+							<!-- Section -->
+							<section>
+								<header class="major">
+									<h2>Get in touch</h2>
+								</header>
+								<div class="mini-posts">
+									<p>If you are having issues or find bugs in the code, please contact me. You can either contact me via GitHub or send an e-mail:</p>
+									<ul class="contact">
+										<li class="icon solid fa-envelope">
+											krogager.jk<span style="display:none">astro</span>@<span style="display:none">bar</span>gmail.com
+										</li>
+									</ul>
+									<article>
+										<p>For more information about me and my research, visit my homepage:</p>
+									</article>
+								</div>
+								<ul class="actions">
+									<li><a href="https://jkrogager.github.io/" class="button">jkrogager.github.io</a></li>
+								</ul>
+							</section>
+
+							<!-- Footer -->
+							<footer id="footer">
+								<p class="copyright">&copy; Jens-Kristian Krogager (2021) &mdash; MIT license<br>
+									Design: <a href="https://html5up.net">HTML5 UP</a>.</p>
+							</footer>
+
+						</div>
+					</div>
+
+			</div>
+
+		<!-- Scripts -->
+			<script src="./assets/js/jquery.min.js"></script>
+			<script src="./assets/js/browser.min.js"></script>
+			<script src="./assets/js/breakpoints.min.js"></script>
+			<script src="./assets/js/util.js"></script>
+			<script src="./assets/js/main.js"></script>
+
+			<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+			<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3.0.1/es5/tex-mml-chtml.js"></script>
+
+
+	</body>
+</html>
+
