@@ -1,13 +1,14 @@
 import os
 import sys
 
-from pynot.images import FitsImage, imshift, image_mean, image_log, image_median
+from pynot.images import FitsImage, imshift, resample, image_mean, image_log, image_median
 
 sys.tracebacklimit = 1
 
 BLACKLIST = ['import', 'eval', 'rm', 'sudo', 'sh']
 functors = {
     'shift': imshift,
+    'resample': resample,
     'mean': image_mean,
     'median': image_median,
     'log': image_log,

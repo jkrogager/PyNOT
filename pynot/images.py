@@ -166,7 +166,18 @@ class FitsImage:
             The new 2D image with the same dimensions as the new x and y coordinate arrays.
         """
         new_points = tuple(np.meshgrid(new_y, new_x, indexing='ij'))
-        values = {'header': self.header}
+        new_hdr = self.header.copy()
+        new_hdr['NAXIS1'] = len(new_x)
+        new_hdr['CRPIX1'] = 1
+        new_hdr['CRVAL1'] = new_x[0]
+        new_hdr['CD1_1'] = np.diff(new_x)[0]
+        new_hdr['NAXIS2'] = len(new_y)
+        new_hdr['CRPIX2'] = 1
+        new_hdr['CRVAL2'] = new_y[0]
+        new_hdr['CD2_2'] = np.diff(new_y)[0]
+        new_hdr['CD1_2'] = 0
+        new_hdr['CD2_1'] = 0
+        values = {'header': new_hdr}
         attributes = ['data', 'error', 'mask']
         for attr in attributes:
             array2D = self.__getattribute__(attr)
@@ -249,6 +260,14 @@ def image_operation(img1, img2, func):
 
 def imshift(image, dx=0, dy=0):
     return image.shift(dx, dy)
+
+
+def resample(image: FitsImage, Nx, Ny):
+    if Nx < 2 or Ny < 2:
+        raise ValueError(f"Invalid number of pixels: {Nx=}, {Ny=}")
+    newx = np.linspace(image.x.min(), image.x.max(), Nx)
+    newy = np.linspace(image.y.min(), image.y.max(), Ny)
+    return image.interpolate(newx, newy)
 
 
 def image_mean(*images):
