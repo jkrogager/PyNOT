@@ -9,7 +9,7 @@ To create a default parameter file, run:
     %] pynot init
 """
 
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, REMAINDER
 from copy import copy
 import os
 import sys
@@ -571,6 +571,15 @@ def main(inspect=False):
     parser_adderr.add_argument('-f', '--force', action='store_true',
                                help='Overwrite existing error extension (if name is `ERR`)')
 
+    parser_ops = tasks.add_parser('operate', formatter_class=set_help_width(30),
+                                  help="Perform a set of operations on FITS images")
+    parser_ops.add_argument('sequence', type=str,
+                            help='The arithmetic sequence to perform. Ex: x/2 - y')
+    parser_ops.add_argument('-o', '--output', type=str, default='output.fits',
+                            help="Filename of the image resulting from the arithmetic sequence")
+    parser_ops.add_argument('args', nargs=REMAINDER,
+                            help="List of variable assignments used in the sequence: x=file1.fits y=file2.fits. Must be a filename or a number.")
+
     if inspect:
         return parser
 
@@ -964,6 +973,15 @@ def main(inspect=False):
     elif task == 'add-error':
         from pynot.fitsio import create_error_image
         log = create_error_image(args.input, overwrite=args.force)
+
+    elif task == 'operate':
+        from pynot.operations import perform_operation, prepare_variables
+        variables = prepare_variables(args.args)
+        if 'output' in variables:
+            output = variables['output']
+        else:
+            output = args.output
+        perform_operation(args.sequence, variables, output=output)
     
     else:
         import pynot

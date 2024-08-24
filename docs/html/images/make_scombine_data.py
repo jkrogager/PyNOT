@@ -12,9 +12,9 @@ wl = sky['WAVE']
 sky_flux = gaussian_filter1d(sky['LOW'], 4)
 
 Ny = 200
-obj_pos = 149
-fname = 'obj1.fits'
-seeing = 6.0
+obj_pos = 69
+fname = 'obj2.fits'
+seeing = 6.6
 Npix = len(sky_flux)
 sky2d = np.resize(sky_flux, (Ny, Npix))
 
@@ -31,7 +31,7 @@ flux2d = obj2d + sky2d
 flux2d *= 10
 err2d = np.sqrt(flux2d + 1)
 flux2d_noise = flux2d + err2d*np.random.normal(0, 1, err2d.shape)
-flux2d_noise -= sky2d*10
+# flux2d_noise -= sky2d*10
 
 plt.subplot(2,1,1)
 plt.imshow(flux2d, aspect='auto')

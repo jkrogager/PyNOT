@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.interpolate import interp2d
+from scipy.interpolate import RegularGridInterpolator
 from astropy.io import fits
 from functools import reduce
 import warnings
@@ -121,8 +121,8 @@ def combine_2d(files, output=None, method='mean', scale=False, extended=False, d
             spatial = (np.arange(naxis1) - (crpix1 - 1))*cdelt1 + crval1
             wavelength = (np.arange(naxis2) - (crpix2 - 1))*cdelt2 + crval2
             N_pix = len(spatial)
-            lower_bound = int(0.1*N_pix)
-            upper_bound = int(0.9*N_pix)
+            lower_bound = None
+            upper_bound = None
             SPSF = np.nanmedian(data2D[lower_bound:upper_bound, :], axis=0)
 
         elif dispaxis == 1:
@@ -131,8 +131,8 @@ def combine_2d(files, output=None, method='mean', scale=False, extended=False, d
             wavelength = (np.arange(naxis1) - (crpix1 - 1))*cdelt1 + crval1
             spatial = (np.arange(naxis2) - (crpix2 - 1))*cdelt2 + crval2
             N_pix = len(spatial)
-            lower_bound = int(0.1*N_pix)
-            upper_bound = int(0.9*N_pix)
+            lower_bound = None
+            upper_bound = None
             SPSF = np.nanmedian(data2D[:, lower_bound:upper_bound], axis=1)
         else:
             msg.append(" [ERROR]  - Invalid dispaxis!")
@@ -156,7 +156,7 @@ def combine_2d(files, output=None, method='mean', scale=False, extended=False, d
             trace_region = (y_pix > y0-10) * (y_pix < y0+10)
 
             # centroid:
-            trace_cen = np.sum((spatial*SPSF)[trace_region])/np.sum(SPSF[trace_region])
+            trace_cen = np.sum((spatial*SPSF)[trace_region]) / np.sum(SPSF[trace_region])
 
             # width:
             sumY2 = np.sum(((spatial-trace_cen)**2 * SPSF)[trace_region])
@@ -209,7 +209,7 @@ def combine_2d(files, output=None, method='mean', scale=False, extended=False, d
     # Rescale to flux values of the order 10^0:
     rescale = 10**int(np.log10(np.max(SPSF)))
     if weight_by_t:
-        f0 = 1
+        f0 = 1 / rescale
     else:
         f0 = np.mean(scales) / rescale
     msg.append("          - Rescaling data by a factor of 10^%i" % (-int(np.log10(np.max(SPSF)))))
@@ -271,14 +271,15 @@ def combine_2d(files, output=None, method='mean', scale=False, extended=False, d
         for this_wl, y, f, e, s, m in zip(wl, space, flux, err, scales, mask):
             e = e/s*f0
             f = f/s*f0
-            f_i = interp2d(this_wl, y, f)
-            e_i = interp2d(this_wl, y, e)
-            m_i = interp2d(this_wl, y, m)
-            w_i = interp2d(this_wl, y, 1./e**2)
-            int_flux.append(f_i(final_wl, final_space))
-            int_var.append(e_i(final_wl, final_space)**2)
-            int_mask.append(m_i(final_wl, final_space))
-            weight.append(w_i(final_wl, final_space))
+            new_points = tuple(np.meshgrid(final_space, final_wl, indexing='ij'))
+            f_i = RegularGridInterpolator((y, this_wl), f, bounds_error=False)(new_points)
+            e_i = RegularGridInterpolator((y, this_wl), e, bounds_error=False)(new_points)
+            m_i = RegularGridInterpolator((y, this_wl), m, bounds_error=False)(new_points)
+            w_i = RegularGridInterpolator((y, this_wl), 1/e**2, bounds_error=False)(new_points)
+            int_flux.append(f_i)
+            int_var.append(e_i**2)
+            int_mask.append(m_i)
+            weight.append(w_i)
 
     # Combine spectra:
     with warnings.catch_warnings():

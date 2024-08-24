@@ -336,6 +336,7 @@ pre code {
   padding: 1em 1.5em;
   overflow-x: auto;
   font-size: 1em;
+  white-space: pre-line;
 }
 
 hr {
