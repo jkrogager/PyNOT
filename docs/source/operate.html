@@ -187,9 +187,54 @@ will create the FITS file <i><q>image_sub10.fits</q></i> as the result of the op
 
 <h2 id="imshift"> Image shifting </h2>
 
+<p>
+	FITS images can also be shifted along either x- or y-axes by a given number of pixels. If the shifts are whole numbers of pixels the image will simply
+	be shifted. The image size is maintained, and regions where the image has been shifted out of its former range are filled by NaN values. If the shifts
+	are fractional pixel values, the image will be interpolated in order to apply the sub-pixel shifts. The shift is applied to all extensions of the FITS 
+	image file.
+	<br>
+	The syntax for the <code>shift</code> operation is:
+	<pre><code>pynot operate 'shift(img, dx, dy)' img=image.fits</code></pre>
+	where <code>dx</code> and <code>dy</code> are the shifts in units of pixels. These values can either be defined as numbers in the expression
+	or as variables after the expression:
+	<pre><code>pynot operate 'shift(img, 2, 2)' img=image.fits</code></pre>
+	or
+	<pre><code>pynot operate 'shift(img, dx, dy)' img=image.fits dx=2 dy=2</code></pre>
+	both shift the image by 2 pixels to the right along the x-axis and 2 pixels up along the y-axis.
+</p>
+
+<p class="note"> Negative shifts will move the image towards the left along the x-axis and down along the y-axis.</p>
+
+<p>
+	<u>Example 1:</u><br>
+	To shift an image by 10 rows along the y-axis, do the following:
+	<pre><code>pynot operate 'shift(img, dy=10)' img=image.fits</code></pre>
+
+	<u>Example 2:</u><br>
+	To shift an image by 10.5 rows back along the x-axis, do the following:
+	<pre><code>pynot operate 'shift(img, dx=10.5)' img=image.fits</code></pre>
+</p>
+
+<p> You do not have to specify both shifts if you use the <code>dx=</code> or <code>dy=</code> syntax,
+	however, if you just provide the numerical values you must give both, otherwise a single value is assumed to be
+	a shift along the x-axis. That is, to shift an image by 100 pixels along the x-axis, you can do:
+	<pre><code>pynot operate 'shift(img, 100)' img=image.fits</code></pre>
+	but to shift the image by 100 pixels along the y-axis you must do:
+	<pre><code>pynot operate 'shift(img, 0, 100)' img=image.fits</code></pre>
+</p>
+
 
 <h2 id="resample"> Image resampling </h2>
 
-<p class="warning">
-	Not implemented yet... stay tuned!
+<p>
+	You can resample a FITS image into a new image size by specifying the new number of pixels along the x-axis and y-axis.
+	The new dimensions must be larger than at least 2 pixels! The syntax is straight-forward:
+	<pre><code>pynot operate 'resample(x, 100, 100)' x=image.fits output=image_small.fits</code></pre>
+
+	This operation will take the original image <i>image.fits</i> and resample it onto a new grid of 100 by 100 pixels using linear
+	interpolation on a regularly spaced grid.
+	The number of new pixels along the axes must be given as whole integer numbers. If not, the values will be truncated to the nearest
+	whole integer value, e.g., 100.9 will be truncated to 100 pixels.
+	<br>
+	All extensions of the FITS image file will be resampled onto the new image dimensions.
 </p>
