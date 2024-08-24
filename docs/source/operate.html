@@ -41,6 +41,7 @@ will create the FITS file <i><q>image_sub10.fits</q></i> as the result of the op
 		<li>The sequence of operations <b>must be enclosed</b> in quotes: <code>pynot operate 'a + b'</code> and not <code>pynot operate a+b</code>!</li>
 		<li>All variables in the sequence must be declared using the <code>=</code> <b>without spaces around it</b>!</li>
 		<li>Blank spaces in the sequence are ignored. The syntax follows normal Python syntax for operations</li>
+		<li>Images used in operations must have the same size!</li>
 	</ul>
 
 	<p class="note">
@@ -66,10 +67,11 @@ will create the FITS file <i><q>image_sub10.fits</q></i> as the result of the op
 	<pre><code>pynot operate -o mean.fits '(a + b + c)/3' a=image1.fits b=image2.fits c=image3.fits</code></pre>
 	This will calculate the mean of the three images and propagate the error extensions appropriately.
 </p>
-	<p class="note">
-		If the images have a boolean <code>MASK</code> extension as well, the resulting mask extension will be the union
-		of all flagged pixels in any of the images.
-	</p>
+
+<p class="note">
+	If the images have a boolean <code>MASK</code> extension as well, the resulting mask extension will be the union
+	of all flagged pixels in any of the images.
+</p>
 
 
 <h3> Multiplication and Division </h3>
@@ -104,7 +106,7 @@ will create the FITS file <i><q>image_sub10.fits</q></i> as the result of the op
 
 	<u>Example 2:</u>
 	<pre><code>pynot operate 'x1**x2' x1=image1.fits x2=image2.fits</code></pre>
-	This operation will result in an error: <code>TypeError: Invalid operation with type: &ltclass 'pynot.images.FitsImage'&gt</code>
+	This operation will result in an error: <code>TypeError: Invalid operation with type: &lt;class 'pynot.images.FitsImage'&gt;</code>
 </p>
 
 
@@ -115,24 +117,72 @@ will create the FITS file <i><q>image_sub10.fits</q></i> as the result of the op
 	will include the union of all masked pixels in all images. Currently, only the following set of functions are implemented:
 </p>
 
-<ul>
-	<li>
-		<code>mean</code>: Take the average of a series of images: <code>pynot operate 'mean(x, y, z)' x=img1.fits y=img2.fits z=img3.fits</code>
-	</li>
-	<li>
-		<code>median</code>: Construct the median of a series of images: <code>pynot operate 'median(x, y, z)' x=img1.fits y=img2.fits z=img3.fits</code>
-	</li>
-	<li>
-		<code>log</code>: Take the 10-base logarithm of an image: <code>pynot operate 'log(img)' img=img1.fits</code>.
-		Note that this may raise a warning if there are zero-valued entries in the image.
-	</li>
-</ul>
+<dl>
+	<dt>mean():</dt>
+		<dd>
+			Take the average of a series of images: <code>pynot operate 'mean(x, y, z)' x=img1.fits y=img2.fits z=img3.fits</code>
+		</dd>
+
+	<dt>median():</dt>
+		<dd>
+			Construct the median of a series of images: <code>pynot operate 'median(x, y, z)' x=img1.fits y=img2.fits z=img3.fits</code>
+		</dd>
+
+		<dt>log():</dt>
+		<dd>
+			Take the 10-base logarithm of an image: <code>pynot operate 'log(img)' img=img1.fits</code>.
+			Note that this may raise a warning if there are zero-valued entries in the image.
+		</dd>
+</dl>
 
 
 <h2 id="slice"> Image slicing </h2>
 
+<p>
+	If you want to cut only a part of the image, you can use <i>image slicing</i> following that for
+	<a href="https://numpy.org/doc/stable/user/basics.indexing.html" target="_blank">numpy arrays</a> in Python, i.e.,
+	the first index slices along the y-axis and the second index slices along the x-axis.
+	For example: 
+	<code>img[ystart:yend, xstart:xend]</code>
+	<br>
+	will return the image part from the <i>y<sub>start</sub></i><sup>th</sup> pixel until the <i>y<sub>end</sub></i><sup>th</sup> pixel in the y-axis
+	and similarly for the x-axis. You do not have to provide all the numbers in order to slice an image though.
+	So to trim off the first 50 rows of the image in the y-axis you can provide only the <i>y<sub>start</sub></i> index: <code>img[50:]</code>,
+	here <i>y<sub>end</sub></i> is assumed to be the end of the array axis. Similarly, if you want all the first 1000 rows along the y-axis, you do:
+	<code>img[:1000]</code>, where <i>y<sub>start</sub></i> is assumed to be 0, when not given.
+	<br>
+	If you only want to slice along the x-axis, you still have to give an empty slice along the y-axis (by giving a <code>:</code>).
+	So if you want to trim off the first and last 50 columns in the x-direction, you would do:
+	<code>img[:, 50:-50]</code>. Note here that a negative index counts backwards from the end of the array.
+	<br><br>
+	Technically, you can also provide a third number which is the step size for your slices. This is by default 1 when not given, i.e.,
+	all pixels from <i>x<sub>start</sub></i> to <i>x<sub>end</sub></i> are kept. If for some reason you would only want every 2<sup>nd</sup> pixel
+	you could do: <code>img[50:-50:2, 50:-50:2]</code> to trim off the first and last 50 pixels in both x- and y-direction and take only every second pixel.
+	Note however, that <b>skipping pixels like this does not conserve the flux!</b> A proper resampling should be done instead using the <a href="#resample">resample</a> operation.
+</p>
 
-<pre><code>pynot classify raw -o dataset.pfc</code></pre>
+<p class="note">
+	Note: the slicing is applied to all extensions of the given image file.
+</p>
+
+<p>
+	<u>Example:</u>
+	We try to subtract two images which do not have exactly the same image dimensions:
+	<pre><code>pynot operate 'a - b' a=image1.fits b=image2.fits</code></pre>
+	This results in the following error: <code>ValueError: Cannot operate on images of different sizes!</code>. PyNOT tells us the image dimensions
+	of each image that is loaded to a variable, so the command above will load the two images and provide the following log information in the terminal:
+</p>
+
+<pre><code>+ Assigned variable: a = &lt;FitsImage: (200, 6144)&gt;
++ Assigned variable: b = &lt;FitsImage: (199, 6144)&gt;
+</code></pre>
+
+<p>
+	From this, we can see that <i>image2.fits</i>, loaded to the variable <code>b</code> has one row of pixels less than <i>image1.fits</i>. If we are sure
+	that the images are otherwise aligned, we can perform the image subtraction simply by removing the last row of <i>image1.fits</i>:
+	<pre><code>pynot operate 'a[:-1] - b' a=image1.fits b=image2.fits</code></pre>
+	The result will be an image of dimensions <code>(199, 6144)</code>.
+</p>
 
 
 <h2 id="imshift"> Image shifting </h2>
@@ -140,3 +190,6 @@ will create the FITS file <i><q>image_sub10.fits</q></i> as the result of the op
 
 <h2 id="resample"> Image resampling </h2>
 
+<p class="warning">
+	Not implemented yet... stay tuned!
+</p>
