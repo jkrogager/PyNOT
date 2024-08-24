@@ -265,8 +265,8 @@ def imshift(image, dx=0, dy=0):
 def resample(image: FitsImage, Nx, Ny):
     if Nx < 2 or Ny < 2:
         raise ValueError(f"Invalid number of pixels: {Nx=}, {Ny=}")
-    newx = np.linspace(image.x.min(), image.x.max(), Nx)
-    newy = np.linspace(image.y.min(), image.y.max(), Ny)
+    newx = np.linspace(image.x.min(), image.x.max(), int(Nx))
+    newy = np.linspace(image.y.min(), image.y.max(), int(Ny))
     return image.interpolate(newx, newy)
 
 
