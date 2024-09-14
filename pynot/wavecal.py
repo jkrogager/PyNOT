@@ -78,7 +78,7 @@ def fit_lines(x, arc1D, ref_table, dx=20):
         cutout = (x > xlow) & (x < xhigh)
         try:
             pix_cen, cov = fit_gaussian_center(x[cutout], arc1D[cutout])
-        except:
+        except Exception:
             print("Something went wrong in Line Fitting. Here's the input:")
             print("pix: %r  wl: %r" % (pix, l_vac))
             print("x:", x[cutout])
@@ -185,7 +185,7 @@ def fit_2dwave_solution(pixtab2d, deg=5):
         # Fit Cheb. poly to each filtered column
         try:
             cheb_polyfit = Chebyshev.fit(col[mask], points[mask], deg=deg, domain=(col.min(), col.max()))
-        except:
+        except Exception:
             print("Something went wrong in Chebyshev polynomial fitting. Here's the input:")
             print("x:", col[mask])
             print("y:", points[mask])
@@ -307,7 +307,7 @@ def apply_transform(img2D, pix, fit_table2d, ref_table, err2D=None, mask2D=None,
         hdr_tr['CTYPE1'] = ctype+'-LOG'
         hdr_tr['CUNIT1'] = 'Angstrom'
         msg.append("          - Creating logarithmically sampled wavelength grid")
-        msg.append("          - Sampling: %.3f  (logÅ/pix)" % np.diff(np.log10(wl))[0])
+        msg.append("          - Sampling: ~%.3f  (logÅ/pix)" % np.diff(np.log10(wl))[0])
     else:
         wl = np.linspace(wl_central.min(), wl_central.max(), N_out)
         hdr_tr = header.copy()
@@ -319,6 +319,9 @@ def apply_transform(img2D, pix, fit_table2d, ref_table, err2D=None, mask2D=None,
         msg.append("          - Creating linearly sampled wavelength grid")
         msg.append("          - Sampling: %.3f  (Å/pix)" % np.diff(wl)[0])
 
+    cunit2 = hdr_tr.get('CUNIT2')
+    if not cunit2:
+        hdr_tr['CUNIT2'] = 'pixel'
     # Calculate the maximum curvature of the arc lines:
     max_curvature = table2D_max_curvature(fit_table2d)
     msg.append("          - Maximum curvature of arc lines: %.3f pixels" % max_curvature)
