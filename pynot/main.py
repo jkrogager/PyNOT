@@ -744,7 +744,7 @@ def main(inspect=False):
         if len(args.input) == 1:
             input_arg = args.input[0]
             if '*' in input_arg or '?' in input_arg:
-                filelist = glob.glob(input_arg)
+                filelist = glob(input_arg)
             else:
                 filelist = np.loadtxt(input_arg, usecols=(0,), dtype=str)
         else:
@@ -762,7 +762,7 @@ def main(inspect=False):
             else:
                 print("  [ERROR] - Could not recognize the data type!")
 
-        except OSError:
+        except (OSError, IndexError):
             data_is_1d = True
 
 

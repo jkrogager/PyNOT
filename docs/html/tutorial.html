@@ -258,10 +258,38 @@ identified emission line are small. If things go wrong here, consult the details
 
 <h2 id="response"> The instrument response function </h2>
 
-First extract standard star spectrum
+<p>
+First step in determining the instrument response is to extract the 1-dimensional spectrum of the standard star spectrum
+that we <a href="#corr">processed above</a>.
+We will do this using the task <a href="tasks/spex/extract.html"><code>pynot extract</code></a>. You can follow the steps
+of that task using the previous link. Make sure to give the 1D spectrum a sensible filename, such as 'EG21_1D.fits'.
+<br><br>
+
+Once the object has been extracted, you can apply the wavelength solution that we calculated in the previous step:
+<a href="#wavecal">wavelength calibration</a>. Since the spectrum is already extracted, we use the task
+<a href="tasks/spex/wave1d.html"><code>pynot wave1d</code></a> to apply the solution to the 1D spectrum:
+
+<pre><code>pynot wave1d  EG21_1D.fits  --table pixeltable_gr3.txt --output wavecal_EG21_1D.fits
+</code></pre>
+
+Last step in determining the instrument response function is to compare the number of counts received on the detector as a 
+function of wavelength to the known flux of the standard star.
+The list of standard stars that PyNOT knows about is given on the <a href="tasks/spex/response.html"><code>pynot response</code> page</a>.
+These stars have very well-measured fluxes at specific wavelengths making them ideal fluc calibration references.
+We calculate the response function by using the task <a href="tasks/spex/response.html"><code>pynot response</code></a>:
+
+<pre><code>pynot response  wavecal_EG21_1D.fits  --output response_gr3.fits
+</code></pre>
+
+For this task, it's important that the airmass and exposure time of the reference star observation is correctly stored in the FITS
+header otherwise PyNOT will ask the user for these values to be entered manually. We further need to know the typical extinction 
+imposed by the atmosphere, which increases with increasing airmass. This is measured and tabulated at different observatory sites
+and PyNOT includes such tables for the observatories La Silla, Paranal and Roque de los Muchachos (La Palma, home of the NOT).
+</p>
 
 
 <h2 id="crr"> Cosmic ray rejection </h2>
+
 
 
 <h2 id="flux"> Flux calibration </h2>

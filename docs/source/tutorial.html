@@ -39,202 +39,231 @@ In order to perform a full spectroscopic reduction, we will go through the follo
 	<li><a href="#extract"> Sky subtraction and object extraction </a></li>
 </ul>
 
+
 <h2 id="init"> Organizing your files </h2>
-<p>
-Before we get stared, you should ensure that you are using the EFOSC2 configuration of PyNOT:
-<pre><code>pynot use efosc2
-</code></pre>
+	<p>
+	Before we get stared, you should ensure that you are using the EFOSC2 configuration of PyNOT:
+	<pre><code>pynot use efosc2
+	</code></pre>
 
 
-The first step then is to organize our files and get an overview of what we're dealing with.
-To do this, run the following command which will create a file classification table:
+	The first step then is to organize our files and get an overview of what we're dealing with.
+	To do this, run the following command which will create a file classification table:
 
-<pre><code>pynot classify data -o dataset.pfc
-</code></pre>
+	<pre><code>pynot classify data -o dataset.pfc
+	</code></pre>
 
-where <code>data</code> here refers to the folder where you keep your raw data files.
-The output will look something like this:
+	where <code>data</code> here refers to the folder where you keep your raw data files.
+	The output will look something like this:
 
-<pre><code>## PyNOT File Classification Table
+	<pre><code>## PyNOT File Classification Table
 
-## ARC_HeAr:
-## FILENAME                                  TYPE      OBJECT  EXPTIME  GRISM   SLIT      FILTER  SHAPE
-	data/EFOSC.2022-01-26T19:37:39.560.fits  ARC_HeAr  WAVE    1.6      ef-gr3  slit_1.2  Free    1030x1030
+	## ARC_HeAr:
+	## FILENAME                                  TYPE      OBJECT  EXPTIME  GRISM   SLIT      FILTER  SHAPE
+		data/EFOSC.2022-01-26T19:37:39.560.fits  ARC_HeAr  WAVE    1.6      ef-gr3  slit_1.2  Free    1030x1030
 
-## BIAS:
-## FILENAME                                  TYPE  OBJECT  EXPTIME  GRISM   SLIT        FILTER  SHAPE
+	## BIAS:
+	## FILENAME                                  TYPE  OBJECT  EXPTIME  GRISM   SLIT        FILTER  SHAPE
+		data/EFOSC.2022-01-26T19:02:38.210.fits  BIAS  DARK    0.0      ef-gr1  holes_mask  Free    1030x1030
+		data/EFOSC.2022-01-26T19:03:08.542.fits  BIAS  DARK    0.0      ef-gr1  holes_mask  Free    1030x1030
+		data/EFOSC.2022-01-26T19:03:39.513.fits  BIAS  DARK    0.0      ef-gr1  holes_mask  Free    1030x1030
+		data/EFOSC.2022-01-26T19:04:10.535.fits  BIAS  DARK    0.0      ef-gr1  holes_mask  Free    1030x1030
+		data/EFOSC.2022-01-26T19:04:41.537.fits  BIAS  DARK    0.0      ef-gr1  holes_mask  Free    1030x1030
+	</code></pre>
+
+	You can inspect this table to verify that all the files have been correctly classified and that you have
+	all the needed calibration files.
+	</p>
+
+
+<h2 id="bias"> The "Master Bias" image </h2>
+	<p>
+	We can create a master bias frame by combining the files tagged as BIAS in the .pfc table.
+	This is done using the command <a href="tasks/spex/bias.html"><code>pynot bias</code></a>.
+	First we need to create a list of just the bias files we want to combine.
+	In this case, we want to combine all the files as they have all been obtained
+	with the same CCD configuration (the image shape is the same). We can do this straight from the command line:
+
+	<pre><code>cat dataset.pfc | grep BIAS > bias.list
+	</code></pre>
+
+	or you can open the text file and create a new file with just the filenames of the bias files, one filename on each line:
+	<pre><code>#bias.list
+	## BIAS:
 	data/EFOSC.2022-01-26T19:02:38.210.fits  BIAS  DARK    0.0      ef-gr1  holes_mask  Free    1030x1030
 	data/EFOSC.2022-01-26T19:03:08.542.fits  BIAS  DARK    0.0      ef-gr1  holes_mask  Free    1030x1030
 	data/EFOSC.2022-01-26T19:03:39.513.fits  BIAS  DARK    0.0      ef-gr1  holes_mask  Free    1030x1030
 	data/EFOSC.2022-01-26T19:04:10.535.fits  BIAS  DARK    0.0      ef-gr1  holes_mask  Free    1030x1030
 	data/EFOSC.2022-01-26T19:04:41.537.fits  BIAS  DARK    0.0      ef-gr1  holes_mask  Free    1030x1030
-</code></pre>
+	</code></pre>
 
-You can inspect this table to verify that all the files have been correctly classified and that you have
-all the needed calibration files.
-</p>
+	Note that anything after the filename will be ignored when passing it to pynot tasks.
 
+	We can then pass the 'bias.list' file to the pynot task:
+	<pre><code>pynot bias bias.list --method=median
+	</code></pre>
 
-<h2 id="bias"> The "Master Bias" image </h2>
-<p>
-We can create a master bias frame by combining the files tagged as BIAS in the .pfc table.
-This is done using the command <a href="tasks/spex/bias.html"><code>pynot bias</code></a>.
-First we need to create a list of just the bias files we want to combine.
-In this case, we want to combine all the files as they have all been obtained
-with the same CCD configuration (the image shape is the same). We can do this straight from the command line:
-
-<pre><code>cat dataset.pfc | grep BIAS > bias.list
-</code></pre>
-
-or you can open the text file and create a new file with just the filenames of the bias files, one filename on each line:
-<pre><code>#bias.list
-## BIAS:
-data/EFOSC.2022-01-26T19:02:38.210.fits  BIAS  DARK    0.0      ef-gr1  holes_mask  Free    1030x1030
-data/EFOSC.2022-01-26T19:03:08.542.fits  BIAS  DARK    0.0      ef-gr1  holes_mask  Free    1030x1030
-data/EFOSC.2022-01-26T19:03:39.513.fits  BIAS  DARK    0.0      ef-gr1  holes_mask  Free    1030x1030
-data/EFOSC.2022-01-26T19:04:10.535.fits  BIAS  DARK    0.0      ef-gr1  holes_mask  Free    1030x1030
-data/EFOSC.2022-01-26T19:04:41.537.fits  BIAS  DARK    0.0      ef-gr1  holes_mask  Free    1030x1030
-</code></pre>
-
-Note that anything after the filename will be ignored when passing it to pynot tasks.
-
-We can then pass the 'bias.list' file to the pynot task:
-<pre><code>pynot bias bias.list --method=median
-</code></pre>
-
-which creates the file 'MASTER_BIAS.fits'.
-Try to open this file with <code>ds9</code> and inspect the image. Is there any visible structure?
-</p>
+	which creates the file 'MASTER_BIAS.fits'.
+	Try to open this file with <code>ds9</code> and inspect the image. Is there any visible structure?
+	</p>
 
 
 <h2 id="flat"> The "Master Flat" field image </h2>
-<p>
-Next step is to create a normalized spectroscopic flat field image. This image will be used to correct pixel-to-pixel variations
-in the detector as well as some optical artefacts such as irregularities in the slit aperture or impurities in the optical elements.
-For this purpose we use the task <a href="tasks/spex/sflat.html"><code>pynot sflat</code></a>.
-<br>
-We repeat the step above in order to create a file list of only spectroscopic flat field images:
-<pre><code>cat dataset.pfc | grep SPEC_FLAT | grep slit_1.2 > sflat.list
-</code></pre>
-</p>
-<p class="note">Note: This time we have to further filter the list to only include files taken with the same
-	spectral setup; that is, the same slit width and grism.
-</p>
+	<p>
+	Next step is to create a normalized spectroscopic flat field image. This image will be used to correct pixel-to-pixel variations
+	in the detector as well as some optical artefacts such as irregularities in the slit aperture or impurities in the optical elements.
+	For this purpose we use the task <a href="tasks/spex/sflat.html"><code>pynot sflat</code></a>.
+	<br>
+	We repeat the step above in order to create a file list of only spectroscopic flat field images:
+	<pre><code>cat dataset.pfc | grep SPEC_FLAT | grep slit_1.2 > sflat.list
+	</code></pre>
+	</p>
+	<p class="note">Note: This time we have to further filter the list to only include files taken with the same
+		spectral setup; that is, the same slit width and grism.
+	</p>
 
-<p>
-We can then pass the 'sflat.list' file to the pynot task:
-<pre><code>pynot sflat sflat.list --bias MASTER_BIAS.fits --order=4
-</code></pre>
+	<p>
+	We can then pass the 'sflat.list' file to the pynot task:
+	<pre><code>pynot sflat sflat.list --bias MASTER_BIAS.fits --order=4
+	</code></pre>
 
-We start out using a low order polynomial to fit the slit illumination across the spatial direction.
-The task creates a figure showing the fitted spatial profile. Is this a good fit?
-<br><br>
-Try using a higher polynomial order (with the option <code>--order=</code>). Does this improve the fit?
+	We start out using a low order polynomial to fit the slit illumination across the spatial direction.
+	The task creates a figure showing the fitted spatial profile. Is this a good fit?
+	<br><br>
+	Try using a higher polynomial order (with the option <code>--order=</code>). Does this improve the fit?
 
-<br><br>
-Last thing remaining is to do the same step for all spectral settings (combinations of grism, slit width and any filters)
-in your data set.
-</p>
+	<br><br>
+	Last thing remaining is to do the same step for all spectral settings (combinations of grism, slit width and any filters)
+	in your data set.
+	</p>
 
 
 <h2 id="corr"> Correcting the science and reference exposures </h2>
 
-<p>
-We are now ready to correct our science and flux calibration frames with the master bias and flat files.
-We do this using the <a href="tasks/spex/corr.html"><code>pynot corr</code></a> task.
-<br>
-Our dataset has two science files and one flux calibration frame. Each of these have to be corrected with the corresponding
-spectroscopic flat created above.
+	<p>
+	We are now ready to correct our science and flux calibration frames with the master bias and flat files.
+	We do this using the <a href="tasks/spex/corr.html"><code>pynot corr</code></a> task.
+	<br>
+	Our dataset has two science files and one flux calibration frame. Each of these have to be corrected with the corresponding
+	spectroscopic flat created above.
 
-<br><br>
-We need to create the file list of science files first. Use the same steps as above to create a text file 'object.list'
-and pass it to pynot:
+	<br><br>
+	We need to create the file list of science files first. Use the same steps as above to create a text file 'object.list'
+	and pass it to pynot:
 
-<pre><code>pynot corr object.list --bias MASTER_BIAS.fits --flat NORM_FLAT_ef-gr3_slit_1.2.fits
-</code></pre>
+	<pre><code>pynot corr object.list --bias MASTER_BIAS.fits --flat NORM_FLAT_ef-gr3_slit_1.2.fits
+	</code></pre>
 
-If we are processing many science files, we can put them in a separate folder to keep things clean in our working directory.
-We do this by passing the option <code>--dir</code> to the above command.
+	If we are processing many science files, we can put them in a separate folder to keep things clean in our working directory.
+	We do this by passing the option <code>--dir</code> to the above command.
 
-<br><br>
-How does the raw object file compare to its corrected version? Do you notice any differences?
+	<br><br>
+	How does the raw object file compare to its corrected version? Do you notice any differences?
 
-<br><br>
-Before moving on, we should apply the same command to the calibration frame of the flux standard star "EG21".
-</p>
+	<br><br>
+	Before moving on, we should apply the same command to the calibration frame of the flux standard star "EG21".
+	</p>
 
 
 <h2 id="wavecal"> Wavelength Calibration </h2>
 
-<p>
-We have now come to point of calibrating the relation between detector position (in pixels) to wavelength in Angstrom.
-The first step is to subtract the bias level from the wavelength calibration frame (the so-called arc images).
-We do this using <a href="tasks/spex/corr.html"><code>pynot corr</code></a> as the step above:
+	<p>
+	We have now come to point of calibrating the relation between detector position (in pixels) to wavelength in Angstrom.
+	The first step is to subtract the bias level from the wavelength calibration frame (the so-called arc images).
+	We do this using <a href="tasks/spex/corr.html"><code>pynot corr</code></a> as the step above:
 
-<pre><code>pynot corr arc_frame.fits --bias MASTER_BIAS.fits --dir arcs
-</code></pre>
+	<pre><code>pynot corr arc_frame.fits --bias MASTER_BIAS.fits --dir arcs
+	</code></pre>
 
-where you have to replace the <code>arc_frame.fits</code> with the actual filename from the file classification table.
-When working with attached calibration files, I usually save these in a separate <code>arc/</code> folder.
-</p>
-<p class="note">
-	Note that we skip the spectroscopic flat here since we only care about the position
-	of the reference emission lines, not their accurate fluxes.
-</p>
+	where you have to replace the <code>arc_frame.fits</code> with the actual filename from the file classification table.
+	When working with attached calibration files, I usually save these in a separate <code>arc/</code> folder.
+	</p>
+	<p class="note">
+		Note that we skip the spectroscopic flat here since we only care about the position
+		of the reference emission lines, not their accurate fluxes.
+	</p>
 
-<p>
-We can now pass onto identifying the emission lines of the calibration lamp. In this case the calibration lamp
-contains a mixture of helium and argon gas which creates a series of emission lines in the optical wavelength range.
-Make sure you have your so-called 'line map' ready. This map indicates which emission features correspond to which emission lines.
-You can find the line map on ESO's instrument website for EFOSC2. I've included it below for reference:
-<figure>
-	<img width="50%" src="images/tutorial/HeAr_linemap.png" />
-	<figcaption>
-		Reference line map for grism 3 of EFOSC2.
-	</figcaption>
-</figure>
+	<p>
+	We can now pass onto identifying the emission lines of the calibration lamp. In this case the calibration lamp
+	contains a mixture of helium and argon gas which creates a series of emission lines in the optical wavelength range.
+	Make sure you have your so-called 'line map' ready. This map indicates which emission features correspond to which emission lines.
+	You can find the line map on ESO's instrument website for EFOSC2. I've included it below for reference:
+	<figure>
+		<img width="50%" src="images/tutorial/HeAr_linemap.png" />
+		<figcaption>
+			Reference line map for grism 3 of EFOSC2.
+		</figcaption>
+	</figure>
 
-We are then ready to launch the interactive window of <a href="tasks/spex/identify.html"><code>pynot identify</code></a>:
-</p>
+	We are then ready to launch the interactive window of <a href="tasks/spex/identify.html"><code>pynot identify</code></a>:
+	</p>
 
-<pre><code>pynot identify arcs/corr_arc_frame.fits
-</code></pre>
+	<pre><code>pynot identify arcs/corr_arc_frame.fits
+	</code></pre>
 
-<p>
-You now have to 'add' the reference lines by moving the cursor to a given emission line and click the <code>a</code> key
-and then input the reference wavelength in the new table entry. Note that the reference line list is given in the left-most
-table of <code>pynot identify</code>. See more details about the line identification on the task description of
-<a href="tasks/spex/identify.html"><code>pynot identify</code></a>.
+	<p>
+	You now have to 'add' the reference lines by moving the cursor to a given emission line and click the <code>a</code> key
+	and then input the reference wavelength in the new table entry. Note that the reference line list is given in the left-most
+	table of <code>pynot identify</code>. See more details about the line identification on the task description of
+	<a href="tasks/spex/identify.html"><code>pynot identify</code></a>.
 
-<br><br>
+	<br><br>
 
-When you are happy with the fitted wavelength solution you can save the pixel table to a file, such as 'pixeltable_gr3.txt'.
+	When you are happy with the fitted wavelength solution you can save the pixel table to a file, such as 'pixeltable_gr3.txt'.
 
-<br><br>
+	<br><br>
 
-We can now apply this wavelength solution to the first science image in order to 'rectify' the image,
-that is, apply the wavelength solution to each column of the image (as these are dipersed vertically).
-We do this step using the task <a href="tasks/spex/wave2d.html"><code>pynot wave2d</code></a>.
-</p>
+	We can now apply this wavelength solution to the first science image in order to 'rectify' the image,
+	that is, apply the wavelength solution to each column of the image (as these are dipersed vertically).
+	We do this step using the task <a href="tasks/spex/wave2d.html"><code>pynot wave2d</code></a>.
+	</p>
 
-<pre><code>pynot wave2d science_file.fits arcs/corr_arc_frame.fits --table pixeltable_gr3.txt --output wavecal_science.fits
-</code></pre>
+	<pre><code>pynot wave2d science_file.fits arcs/corr_arc_frame.fits --table pixeltable_gr3.txt --output wavecal_science.fits
+	</code></pre>
 
-<p>
-We have now created the wavelength calibrated image 'wavecal_science.fits' together with a diagnostic plot of the fitted
-2D wavelength solution in the PDF file: PixTable2D.pdf. This file should show the arc calibration image 
-with the traced position of the emission lines along the spatial direction. Also check that the residuals around each
-identified emission line are small. If things go wrong here, consult the details of the task,
-<a href="tasks/spex/wave2d.html"><code>pynot wave2d</code></a>.
-</p>
+	<p>
+	We have now created the wavelength calibrated image 'wavecal_science.fits' together with a diagnostic plot of the fitted
+	2D wavelength solution in the PDF file: PixTable2D.pdf. This file should show the arc calibration image 
+	with the traced position of the emission lines along the spatial direction. Also check that the residuals around each
+	identified emission line are small. If things go wrong here, consult the details of the task,
+	<a href="tasks/spex/wave2d.html"><code>pynot wave2d</code></a>.
+	</p>
 
 
 <h2 id="response"> The instrument response function </h2>
 
-First extract standard star spectrum
+	<p>
+	First step in determining the instrument response is to extract the 1-dimensional spectrum of the standard star spectrum
+	that we <a href="#corr">processed above</a>.
+	We will do this using the task <a href="tasks/spex/extract.html"><code>pynot extract</code></a>. You can follow the steps
+	of that task using the previous link. Make sure to give the 1D spectrum a sensible filename, such as 'EG21_1D.fits'.
+	<br><br>
+
+	Once the object has been extracted, you can apply the wavelength solution that we calculated in the previous step:
+	<a href="#wavecal">wavelength calibration</a>. Since the spectrum is already extracted, we use the task
+	<a href="tasks/spex/wave1d.html"><code>pynot wave1d</code></a> to apply the solution to the 1D spectrum:
+
+	<pre><code>pynot wave1d  EG21_1D.fits  --table pixeltable_gr3.txt --output wavecal_EG21_1D.fits
+	</code></pre>
+
+	Last step in determining the instrument response function is to compare the number of counts received on the detector as a 
+	function of wavelength to the known flux of the standard star.
+	The list of standard stars that PyNOT knows about is given on the <a href="tasks/spex/response.html"><code>pynot response</code> page</a>.
+	These stars have very well-measured fluxes at specific wavelengths making them ideal fluc calibration references.
+	We calculate the response function by using the task <a href="tasks/spex/response.html"><code>pynot response</code></a>:
+
+	<pre><code>pynot response  wavecal_EG21_1D.fits  --output response_gr3.fits
+	</code></pre>
+
+	For this task, it's important that the airmass and exposure time of the reference star observation is correctly stored in the FITS
+	header otherwise PyNOT will ask the user for these values to be entered manually. We further need to know the typical extinction 
+	imposed by the atmosphere, which increases with increasing airmass. This is measured and tabulated at different observatory sites
+	and PyNOT includes such tables for the observatories La Silla, Paranal and Roque de los Muchachos (La Palma, home of the NOT).
+	</p>
 
 
 <h2 id="crr"> Cosmic ray rejection </h2>
+
 
 
 <h2 id="flux"> Flux calibration </h2>
