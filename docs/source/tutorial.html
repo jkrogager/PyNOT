@@ -264,6 +264,23 @@ In order to perform a full spectroscopic reduction, we will go through the follo
 
 <h2 id="crr"> Cosmic ray rejection </h2>
 
+	<p>
+	The best way to reject cosmic rays is to combine multiple exposures but if you only have one exposure
+	with a lot of cosmic ray hits you can flag and interpolate over these using the task
+	<a href="tasks/spex/crr.html"><code>pynot crr</code></a>:
+	<pre><code>pynot crr  science_file.fits  --output crr_science_file.fits
+	</code></pre>
+
+	The task takes several options to determine how the algorithm determines the locations of cosmic rays.
+	For details, see the dedicated page of the <a href="tasks/spex/crr.html">cosmic ray rejection task</a>
+	or the original algorithm by Van Dokkum (2001). Try to play around with the parameters and inspect the output
+	to get a feel for what the algorithm does. Most notably the options <code>objlim</code> and <code>sigclip</code>.
+	<br><br>
+
+	The rejection step keeps track of what pixels were flagged and stores these in a separate mask extensions of the output
+	FITS file. In this mask, values of 0 mean good pixels, and pixels with values 1 are bad. This mask image will be
+	used in further steps for the spectral extraction to exclude pixels in the extraction or image combination.
+	</p>
 
 
 <h2 id="flux"> Flux calibration </h2>
