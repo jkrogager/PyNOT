@@ -86,8 +86,8 @@ def trim_overscan(img, hdr):
     hdr['NAXIS1'] = img_trim.shape[1]
     hdr['NAXIS2'] = img_trim.shape[0]
     hdr['OVERSCAN'] = 'TRIMMED'
-    hdr['OVERSCAN_X'] = (np.sum(~img_region_x), "Number of pixels removed along X-axis")
-    hdr['OVERSCAN_Y'] = (np.sum(~img_region_y), "Number of pixels removed along Y-axis")
+    hdr['OVERSC_X'] = (np.sum(~img_region_x), "Number of pixels removed along X-axis")
+    hdr['OVERSC_Y'] = (np.sum(~img_region_y), "Number of pixels removed along Y-axis")
     return img_trim, hdr
 
 

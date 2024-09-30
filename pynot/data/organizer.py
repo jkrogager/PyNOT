@@ -652,8 +652,8 @@ class RawImage(object):
                 this_shape = (hdr['NAXIS2'], hdr['NAXIS1'])
                 if 'OVERSCAN' in hdr:
                     # use original image shape before overscan-sub
-                    over_x = hdr['OVERSCAN_X']
-                    over_y = hdr['OVERSCAN_Y']
+                    over_x = hdr['OVERSC_X']
+                    over_y = hdr['OVERSC_Y']
                     this_shape = (this_shape[0]+over_y, this_shape[1]+over_x)
 
                 criteria.append(this_shape == self.shape)

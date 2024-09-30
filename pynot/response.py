@@ -815,7 +815,7 @@ def task_response(options, database, status, log=None, verbose=True, app=None, o
 
             exptime = instrument.get_exptime(hdr)
             if exptime is None:
-                user_input = input("          > Please give the exposure time:\n          > ")
+                user_input = input("          > Please give the exposure time in seconds:\n          > ")
                 try:
                     exptime = float(user_input)
                 except ValueError:

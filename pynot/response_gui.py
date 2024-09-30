@@ -74,7 +74,7 @@ class ResponseGUI(QtWidgets.QMainWindow):
         self.ext_fname = instrument.extinction_fname
         try:
             ext_wl, ext = np.loadtxt(self.ext_fname, unpack=True)
-        except:
+        except Exception:
             ext_wl, ext = None, None
         self.ext_wl = ext_wl
         self.ext = ext
