@@ -47,6 +47,7 @@
                                     <li>Perform sky-subtraction</li>
                                     <li>Fit and optimize the extraction profile</li>
                                     <li>Extract the 1D spectrum using optimal or aperture extraction</li>
+                                    <li>What if there are multiple objects along the slit?</li>
                                   </ol>
                                 </p>
                               
@@ -253,6 +254,38 @@
                                 You can also save individual spectra by right-clicking on the given aperture model in the 
                                 <i>List of Extraction Apertures</i>. This also allows you to save the extraction model profile.
                                 You can also save the sky-subtracted 2D spectrum and the sky model by using the <i>File</i> menu.
+                              </p>
+                              
+                              
+                              <h3>What if there are multiple objects along the slit?</h3>
+                              
+                              <p>
+                                You can extract multiple objects simultaneously by adding more aperture models (click "Add Object").
+                                The steps are then the same as above. When fitting the spectral tracem the software fits a joint model
+                                of all the apertures that are defined (these are listed in the bottom-right part of the window).
+                                However, when adjusting the individual models in the "Fitting Points" view,
+                                it can be helpful to focus on one trace at a time. This can be done by switching off apertures in the bottom-right
+                                list of apertures. Clicking the tick box in front of each model will toggle them visible/invisible.
+                              </p>
+                              
+                              <p>
+                                By default, if there are multiply objects, PyNOT will try to identify these automatically. However, if this
+                                automatic detection fails, it is most likely due to the object being too faint. In that case, it can be difficult to
+                                fit the spectral trace an obtain a good model. If this is the case, it can help to observe a brighter object along
+                                the slit and use this as a reference trace. You can then fit the reference object and copy the aperture model to 
+                                another object. This is done by right-clicking on the reference aperture model and select, "copy aperture".
+                                A new aperture model will then appear in the list and in the SPSF view (top right). You can then drag the model to your
+                                desired position (in the SPSF view) or you can input the centroid of the object (as seen in the SPSF viewer) by double-clicking
+                                the new aperture model and input the new centroid position. In this pop-up window, you can also change the aperture model
+                                to a simple tophat aperture model, which will perform a simple sum (instead of an optimal extraction)
+                                of the flux inside the given limits around the expected centroid position. The trace centroid as a function of wavelength
+                                is still taken into account in this case (following the reference aperture model). However, this is not automatically updated
+                                if the reference object is refitted.
+                              </p>
+                              
+                              <p class="note">
+                                Note: In an upcoming version, you will be able to export and import trace models such that you can use the trace model
+                                from an observation of a standard star instead of relying on a reference object in the same slit.
                               </p>
                                                             
                               

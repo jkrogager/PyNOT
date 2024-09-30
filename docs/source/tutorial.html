@@ -259,6 +259,8 @@ In order to perform a full spectroscopic reduction, we will go through the follo
 	header otherwise PyNOT will ask the user for these values to be entered manually. We further need to know the typical extinction 
 	imposed by the atmosphere, which increases with increasing airmass. This is measured and tabulated at different observatory sites
 	and PyNOT includes such tables for the observatories La Silla, Paranal and Roque de los Muchachos (La Palma, home of the NOT).
+	The resulting 'response function' is saved, in this example, to the filename 'response_gr3.fits' which is a FITS file containing
+	a table of wavelength and the corresponding instrument response (or rather, the logarithm of the response).
 	</p>
 
 
@@ -275,6 +277,7 @@ In order to perform a full spectroscopic reduction, we will go through the follo
 	For details, see the dedicated page of the <a href="tasks/spex/crr.html">cosmic ray rejection task</a>
 	or the original algorithm by Van Dokkum (2001). Try to play around with the parameters and inspect the output
 	to get a feel for what the algorithm does. Most notably the options <code>objlim</code> and <code>sigclip</code>.
+	What happens if you lower these thresholds?
 	<br><br>
 
 	The rejection step keeps track of what pixels were flagged and stores these in a separate mask extensions of the output
@@ -285,6 +288,64 @@ In order to perform a full spectroscopic reduction, we will go through the follo
 
 <h2 id="flux"> Flux calibration </h2>
 
+	<p>
+	As of now, we have corrected the detector artefacts (bias and flat-field corrections)
+	and calibrated the wavelength solution. We therefore have a 2-dimensional image with wavelength increasing
+	positvely (left-to-right) along the horizontal axis, and spatial position (in pixels) along the slit along the
+	vertical axis. However, the data remain in units of counts (or ADUs) integrated over the whole exposure.
+	The last step in the data carlibration is therefore to convert these counts to physical flux density units.
+	This is where the response function, that we just calculated, comes in handy.
+	<br><br>
+	There are two ways to apply this flux calibration: 
+	<ol>
+	<li>
+		flux calibrate the 2-dimensional image such that each pixel
+		has a unit of flux density (per spatial pixel) and then extract a 1-dimensional spectrum from this image,
+		using the task <a href="tasks/spex/flux2d.html"><code>pynot flux2d</code></a>;
+	</li>
+	<li>
+		or firstly extract the 1-dimensional spectrum from the image and then apply the flux calibration
+		to the 1-dimensional spectrum, using the task <a href="tasks/spex/flux1d.html"><code>pynot flux1d</code></a>.
+	</li>
+	</ol>
+
+	In this example, we will first perform the flux calibration and then extract the spectrum. We therefore need to use the
+	<a href="tasks/spex/flux2d.html"><code>pynot flux2d</code> task</a> to calibrate the image that was corrected for cosmic
+	ray hits:
+	<pre><code>pynot flux2d  crr_science_file.fits  response_gr3.fits  --output science_2D_final.fits
+	</code></pre>
+
+	This task does not take any options, as all information needed has already been compiled into the response function.
+	The only thing missing might be the exposure time (in seconds) and the airmass, but these should be contained in the FITS
+	headers in this example. Repeat this step for all the science observations in the dataset.
+	</p>
+
+	<p class="note">
+		Note: It's a good idea to test your flux calibration by applying it to the standard star spectrum itself. For this,
+		we use the <a href="tasks/spex/flux1d.html"><code>pynot flux1d</code> task</a> as we already extracted the total
+		flux of the standard star. Try to find a reference spectrum of the standard star online (a google search should be enough).
+		How does this compare to the flux calibrated spectrum of the standard star that you have calculated here?
+	</p>
 
 <h2 id="extract"> Sky subtraction and object extraction </h2>
 
+	<p>
+		We are now ready for the final step in the data reduction process, namely the spectral extraction.
+		Due to dispersion by the instrument optics and most notably due to the seeing induced by the atmosphere,
+		the flux from our objects does not land on a single row of pixels on our detector. Instead the light is spread
+		out along the slit. This spread is what we will refer to as the "spatial profile" or the spectral PSF (SPSF,
+		which is 1-dimensional compared to a 2D image PSF). In this step, our goal is to sum up all the flux from the object
+		which has been spread out according to this SPSF. There are a few ways of doing this, and the simplest way is simply
+		to define an extraction aperture along the slit and sum up all the pixels in that range. This will add all the flux 
+		but also add a lot of noise from regions that are dominated mostly by the sky-background. Instead, we can use a more
+		efficient algorithm called the "optimal extraction", where we apply a weighting of each pixel according to how much
+		flux that given pixel should receive in agreement with the SPSF.
+		For details, see <a href="https://ui.adsabs.harvard.edu/abs/1986PASP...98..609H/abstract" target="_blank">Horne 1986</a>.
+	</p>
+	<p>
+		PyNOT allows you to perform the extraction using an interactive graphical interface which also allows you to determine
+		the sky background level (if enough clean sky regions are observed along the slit) and subtract it before extracting your object
+		spectrum. For more details, see the dedicated page of the <a href="tasks/spex/extract.html"><code>pynot extract</code> task</a>.
+		You can run the extraction software with the following command:
+		<pre><code>pynot extract  science_2D_final.fits</code></pre>
+	</p>
