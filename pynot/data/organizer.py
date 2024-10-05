@@ -11,9 +11,9 @@ from astropy.time import Time
 import warnings
 import re
 
-from pynot.response import lookup_std_star
 from pynot import instrument
 from pynot.fitsio import verify_header_key
+from pynot.functions import lookup_std_star
 
 # -- use os.path
 code_dir = os.path.dirname(os.path.abspath(__file__))
