@@ -110,7 +110,7 @@ setup(
     # have to be included in MANIFEST.in as well.
     package_data={
         'pynot/calib': ['alfosc_filters.dat',
-                        'efosc_filters.dat'
+                        'efosc_filters.dat',
                         'default_options.yml',
                         'default_options_img.yml',
                         'HeNe_linelist.dat',
