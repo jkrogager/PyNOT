@@ -496,7 +496,7 @@ class GraphicInterface(QtWidgets.QMainWindow):
         self.ax2.set_xlabel("Pixel Coordinate")
         self.ax2.set_ylabel("Ref. Wavelength")
 
-        self.ax2.get_shared_x_axes().join(self.ax, self.ax2)
+        self.ax.sharex(self.ax2)
         self.resid_view = ResidualView(self.ax2)
         self._fit_view = 'data'
 

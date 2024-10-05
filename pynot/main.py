@@ -647,7 +647,9 @@ def main(inspect=False):
             else:
                 input_list = [args.input]
         else:
-            input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
+            with open(args.input) as input_file:
+                all_lines = input_file.readlines()
+            input_list = [line.strip().split()[0] for line in all_lines if line[0] != '#']
 
         # Mode determines the header keywords to update (CDELT or CD-matrix)
         if args.img:

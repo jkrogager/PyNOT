@@ -2,6 +2,42 @@ import astropy.units as u
 import numpy as np
 import yaml
 import os
+import glob
+
+from pynot import instrument
+
+path = os.path.dirname(os.path.abspath(__file__))
+# --- Data taken from: ftp://ftp.stsci.edu/cdbs/current_calspec/
+_standard_star_files = glob.glob(path + '/calib/std/*.dat')
+_standard_star_files = [os.path.basename(fname) for fname in _standard_star_files]
+# List of star names in lowercase:
+standard_stars = [fname.strip('.dat') for fname in _standard_star_files]
+# Look-up table from target-names -> star names
+# (mostly used for ALFOSC where TCSTGT is different)
+std_fname = os.path.join(path, 'calib/std/tcs_namelist.txt')
+calib_names = np.loadtxt(std_fname, dtype=str, delimiter=':')
+tcs_standard_stars = {row[1].strip(): row[0].strip() for row in calib_names}
+
+
+def lookup_std_star(hdr):
+    """
+    Check if the given header contains an object or target name
+    which matches one of the defined standard calibration stars.
+
+    Returns `None` if no match is found.
+    """
+    object_name = instrument.get_object(hdr).replace(' ', '')
+    target_name = instrument.get_target_name(hdr).replace(' ', '')
+    if object_name.lower() in standard_stars:
+        return object_name.lower()
+    elif object_name.upper() in tcs_standard_stars:
+        return tcs_standard_stars[object_name.upper()]
+    elif target_name.lower() in standard_stars:
+        return target_name.lower()
+    elif target_name.upper() in tcs_standard_stars:
+        return tcs_standard_stars[target_name.upper()]
+    else:
+        return None
 
 
 def get_version_number():
