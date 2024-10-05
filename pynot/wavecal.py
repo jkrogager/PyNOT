@@ -495,9 +495,9 @@ def wavecal_1d(input_fname, pixtable_fname, *, output, order_wl=None, log=False,
             interp_flux = flux1d
             interp_err = err1d
 
-        col_wl = fits.Column(name='WAVE', array=final_wl, format='D', unit=hdr['CUNIT1'])
-        col_flux = fits.Column(name='FLUX', array=interp_flux, format='D', unit=hdr['BUNIT'])
-        col_err = fits.Column(name='ERR', array=interp_err, format='D', unit=hdr['BUNIT'])
+        col_wl = fits.Column(name='WAVE', array=final_wl, format='D', unit=hdr.get('CUNIT1'))
+        col_flux = fits.Column(name='FLUX', array=interp_flux, format='D', unit=hdr.get('BUNIT'))
+        col_err = fits.Column(name='ERR', array=interp_err, format='D', unit=hdr.get('BUNIT'))
         output_tab = fits.BinTableHDU.from_columns([col_wl, col_flux, col_err], header=hdr)
         output_hdu.append(output_tab)
 
