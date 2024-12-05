@@ -260,18 +260,13 @@ In order to perform a full spectroscopic reduction, we will go through the follo
 <h2 id="response"> The instrument response function </h2>
 
   <p>
-  First step in determining the instrument response is to extract the 1-dimensional spectrum of the standard star spectrum
-  that we <a href="#corr">processed above</a>.
+  First step in determining the instrument response is to apply the wavelength calibration to your standard star observation
+  that we <a href="#corr">processed above</a>. 
+  This is done the same way as in the previous step using the task <a href="tasks/spex/wave2d.html"><code>pynot wave2d</code></a>.
+  After the 2D data have been wavelength calibrated, we can extract the 1-dimensional spectrum of the standard star.
   We will do this using the task <a href="tasks/spex/extract.html"><code>pynot extract</code></a>. You can follow the steps
   of that task using the previous link. Make sure to give the 1D spectrum a sensible filename, such as 'EG21_1D.fits'.
   <br><br>
-
-  Once the object has been extracted, you can apply the wavelength solution that we calculated in the previous step:
-  <a href="#wavecal">wavelength calibration</a>. Since the spectrum is already extracted, we use the task
-  <a href="tasks/spex/wave1d.html"><code>pynot wave1d</code></a> to apply the solution to the 1D spectrum:
-
-  <pre><code>pynot wave1d  EG21_1D.fits  --table pixeltable_gr3.txt --output wavecal_EG21_1D.fits
-  </code></pre>
 
   Last step in determining the instrument response function is to compare the number of counts received on the detector as a 
   function of wavelength to the known flux of the standard star.
