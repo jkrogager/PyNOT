@@ -193,13 +193,13 @@ def run_pipeline(options_fname, object_id=None, verbose=True, interactive=False,
     identify_all = options['identify']['all']
     local_pixtables = glob.glob(os.path.join(output_base, "arcs", "pixtab_*.dat"))
     for fname in local_pixtables:
-        pixtab_id = os.path.splitext(fname)[0].split('_')[1]
+        pixtab_id = os.path.splitext(os.path.basename(fname))[0].split('_')[1]
         status[pixtab_id] = fname
     cached_pixtables = glob.glob(os.path.join(calib_dir, "*_pixeltable.dat"))
     for fname in cached_pixtables:
         # TODO: Potentially use `basename(fname)` to split
         # This avoids bugs if the filename contains more than one `_`
-        pixtab_id = fname.split('_')[0]
+        pixtab_id = os.path.basename(fname).split('_')[0]
         status[pixtab_id] = fname
 
 
