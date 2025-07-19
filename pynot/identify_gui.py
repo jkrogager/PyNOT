@@ -573,9 +573,9 @@ class GraphicInterface(QtWidgets.QMainWindow):
             self.reftable.setItem(rowPosition, 1, item2)
 
     def load_spectrum(self, arc_fname=None):
-        if arc_fname is False:
+        if not arc_fname:
             current_dir = './'
-            filters = "FITS files (*.fits | *.fit)"
+            filters = "FITS or txt files (*.fits | *.fit | *.txt | *.csv)"
             arc_fname = QtWidgets.QFileDialog.getOpenFileName(self, 'Open Pixeltable', current_dir, filters)
             arc_fname = str(arc_fname[0])
             if self.first_time_open:
@@ -591,16 +591,23 @@ class GraphicInterface(QtWidgets.QMainWindow):
                 self.arc1d = tab1d['flux']
                 self.update_arc1d()
                 return
-            except OSError:
-                print(" [ERROR] - Could not read the FITS file %s" % arc_fname)
+
+            except (OSError, ValueError):
                 try:
-                    tab1d = np.loadtxt(arc_fname)
-                    self.pix = tab1d[:, 0]
-                    self.arc1d = tab1d[:, 1]
+                    tab1d = Table.read(arc_fname, format='ascii')
+                    tab1d.rename_column(tab1d.colnames[0], 'pixel')
+                    tab1d.rename_column(tab1d.colnames[1], 'flux')
+                    self.pix = tab1d['pixel']
+                    self.arc1d = tab1d['flux']
                     self.update_arc1d()
                     return
                 except Exception:
-                    pass
+                    if 'fits' in arc_fname.lower():
+                        pass
+                    else:
+                        error_msg = "Could not read the spectrum. Must be a FITS or ASCII table, or a FITS 2D image"
+                        QtWidgets.QMessageBox.critical(None, 'Invalid Format!', error_msg)
+                        return
 
             self.arc_fname = arc_fname
             with fits.open(arc_fname) as hdu:
