@@ -21,6 +21,7 @@ from PyQt5 import QtWidgets
 from scipy.optimize import curve_fit
 from numpy.polynomial import Chebyshev
 from astropy.io import fits
+from astropy.table import Table
 
 from pynot import instrument
 from pynot.data import organizer
@@ -226,7 +227,7 @@ def load_linelist(fname):
 
 class GraphicInterface(QtWidgets.QMainWindow):
     def __init__(self, arc_fname='', grism_name='', pixtable='', linelist_fname='', output='',
-                 dispaxis=2, order_wl=3, air=False, loc=-1, parent=None, locked=False, vac=True):
+                 dispaxis=2, order_wl=3, air=False, loc=-1, parent=None, locked=False):
         QtWidgets.QMainWindow.__init__(self, parent)
         self.setWindowTitle('PyNOT: Identify Arc Lines')
         self._main = QtWidgets.QWidget()
@@ -572,9 +573,9 @@ class GraphicInterface(QtWidgets.QMainWindow):
             self.reftable.setItem(rowPosition, 1, item2)
 
     def load_spectrum(self, arc_fname=None):
-        if arc_fname is False:
+        if not arc_fname:
             current_dir = './'
-            filters = "FITS files (*.fits | *.fit)"
+            filters = "FITS or txt files (*.fits | *.fit | *.txt | *.csv)"
             arc_fname = QtWidgets.QFileDialog.getOpenFileName(self, 'Open Pixeltable', current_dir, filters)
             arc_fname = str(arc_fname[0])
             if self.first_time_open:
@@ -583,6 +584,31 @@ class GraphicInterface(QtWidgets.QMainWindow):
                 self.first_time_open = False
 
         if arc_fname:
+
+            try:
+                tab1d = Table.read(arc_fname, hdu=1, format='fits')
+                self.pix = tab1d['pixel']
+                self.arc1d = tab1d['flux']
+                self.update_arc1d()
+                return
+
+            except (OSError, ValueError):
+                try:
+                    tab1d = Table.read(arc_fname, format='ascii')
+                    tab1d.rename_column(tab1d.colnames[0], 'pixel')
+                    tab1d.rename_column(tab1d.colnames[1], 'flux')
+                    self.pix = tab1d['pixel']
+                    self.arc1d = tab1d['flux']
+                    self.update_arc1d()
+                    return
+                except Exception:
+                    if 'fits' in arc_fname.lower():
+                        pass
+                    else:
+                        error_msg = "Could not read the spectrum. Must be a FITS or ASCII table, or a FITS 2D image"
+                        QtWidgets.QMessageBox.critical(None, 'Invalid Format!', error_msg)
+                        return
+
             self.arc_fname = arc_fname
             with fits.open(arc_fname) as hdu:
                 primhdr = hdu[0].header
@@ -647,7 +673,9 @@ class GraphicInterface(QtWidgets.QMainWindow):
 
         self.arc1d = np.nanmean(self.arc_image_data[:, ilow:ihigh], axis=1)
         self.pix = instrument.create_pixel_array(self.primhdr, self.dispaxis)
+        self.update_arc1d()
 
+    def update_arc1d(self):
         self.ax.lines[0].set_data(self.pix, self.arc1d)
         self.ax.relim()
         self.ax.autoscale()

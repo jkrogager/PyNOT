@@ -5,7 +5,7 @@ from functools import reduce
 import warnings
 
 from pynot.functions import get_version_number
-from pynot.fitsio import load_fits_spectrum, save_fitstable_spectrum, save_fits_spectrum
+from pynot.fitsio import load_fits_spectrum, save_fitstable_spectrum, save_fits_spectrum, error_HDU_names
 from pynot.txtio import load_ascii_spectrum
 
 
@@ -55,18 +55,26 @@ def combine_2d(files, output=None, method='mean', scale=False, extended=False, d
         hdr = fits.getheader(fname)
         data2D = fits.getdata(fname)
 
-        try:
-            err2D = fits.getdata(fname, 'ERR')
-            err2D[err2D <= 0.] = np.nanmedian(err2D)*100
-            msg.append("          - Loaded error image")
-        except KeyError:
+        for err_name in error_HDU_names:
+            try:
+                err2D = fits.getdata(fname, err_name)
+                err2D[err2D <= 0.] = np.nanmedian(err2D)*100
+                msg.append(f"          - Loaded error image extension: {err_name}")
+                break
+            except KeyError:
+                pass
+        else:
             msg.append("[WARNING] - No ERR extension could be found in the FITS file!")
             err2D = np.ones_like(data2D)
 
-        try:
-            mask2D = fits.getdata(fname, 'MASK')
-            msg.append("          - Loaded mask image")
-        except KeyError:
+        for mask_name in ['MASK', 'QUAL']:
+            try:
+                mask2D = fits.getdata(fname, mask_name)
+                msg.append(f"          - Loaded mask image extension: {mask_name}")
+                break
+            except KeyError:
+                pass
+        else:
             msg.append("[WARNING] - No MASK extension could be found in the FITS file!")
             mask2D = np.zeros_like(data2D)
 

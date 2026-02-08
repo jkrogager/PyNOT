@@ -23,6 +23,7 @@ def get_header_info(fname):
         slit = hdr['SLIT']
         filter = '...'
         shape = "..."
+        binning = "NxM_NA"
     else:
         hdr = instrument.get_header(fname)
         object = instrument.get_object(hdr)
@@ -31,7 +32,8 @@ def get_header_info(fname):
         slit = instrument.get_slit(hdr)
         filter = instrument.get_filter(hdr)
         shape = "%ix%i" % (hdr['NAXIS1'], hdr['NAXIS2'])
-    return object, exptime, grism, slit, filter, shape
+        binning = instrument.get_binning_from_hdr(hdr)
+    return object, exptime, grism, slit, filter, shape, binning
 
 
 def save_database(database, output_fname):
@@ -46,20 +48,20 @@ def save_database(database, output_fname):
             for fname in sorted_files:
                 try:
                     if fname[0] == '#':
-                        object, exptime, grism, slit, filter, shape = get_header_info(fname[1:])
+                        object, exptime, grism, slit, filter, shape, binning = get_header_info(fname[1:])
                     else:
-                        object, exptime, grism, slit, filter, shape = get_header_info(fname)
+                        object, exptime, grism, slit, filter, shape, binning = get_header_info(fname)
                 except FileNotFoundError:
                     print("[WARNING] - File not found: %s" % fname)
                     continue
                 except Exception:
                     print("[WARNING] - Problem reading header information: %s" % fname)
-                    object, exptime, grism, slit, filter, shape = '-', '-', '-', '-', '-', '-'
-                file_list.append((fname, filetype, object, exptime, grism, slit, filter, shape))
+                    object, exptime, grism, slit, filter, shape, binning = '-', '-', '-', '-', '-', '-', '-'
+                file_list.append((fname, filetype, object, exptime, grism, slit, filter, shape, binning))
             file_list = np.array(file_list, dtype=str)
             if len(file_list) == 0:
                 continue
-            header_names = ('FILENAME', 'TYPE', 'OBJECT', 'EXPTIME', 'GRISM', 'SLIT', 'FILTER', 'SHAPE')
+            header_names = ('FILENAME', 'TYPE', 'OBJECT', 'EXPTIME', 'GRISM', 'SLIT', 'FILTER', 'SHAPE', 'BINNING')
             max_len = np.max(veclen(file_list), 0)
             max_len = np.max([max_len, [len(n) for n in header_names]], 0)
             line_fmt = "  ".join(["%-{}s".format(n) for n in max_len])

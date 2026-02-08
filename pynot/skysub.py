@@ -30,6 +30,7 @@ def fit_background_row(x, row, mask=None, order_bg=3, med_kernel=15, kappa=5):
         mask = np.ones(len(row), dtype=bool)
 
     # Median filter the data to remove outliers:
+    row = row.astype(np.float64)
     med_row = median_filter(row, med_kernel)
     noise = mad(row) * 1.4826
     this_mask = mask * (np.abs(row - med_row) < kappa*noise)

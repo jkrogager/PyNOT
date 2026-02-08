@@ -200,7 +200,8 @@ def sort_bias(file_list, date=False):
     for fname in file_list:
         hdr = instrument.get_header(fname)
         size = "%ix%i" % (hdr['NAXIS1'], hdr['NAXIS2'])
-        file_id = size
+        binning = instrument.get_binning_from_hdr(hdr)
+        file_id = f"{size}_{binning}"
         if date:
             date_str = instrument.get_date(hdr)
             if 'T' in date_str:
@@ -676,6 +677,10 @@ class RawImage(object):
                 this_filter = instrument.get_filter(this_hdr)
                 criteria.append(this_filter == self.filter)
                 criteria_name.append('filter')
+
+            if debug:
+                print(criteria_name)
+                print(criteria)
 
             if np.all(criteria):
                 matches.append(fname)
