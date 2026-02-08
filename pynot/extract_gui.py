@@ -285,8 +285,8 @@ class BackgroundModel(object):
         self.patches[index].remove()
         self.patches.pop(index)
         self.ranges[index] = [i_low, i_high]
-        self.vlines[index][0].set_xdata(i_low)
-        self.vlines[index][1].set_xdata(i_high)
+        self.vlines[index][0].set_xdata([i_low])
+        self.vlines[index][1].set_xdata([i_high])
         patch = self.axis.axvspan(i_low, i_high, color='#29b6f6', alpha=0.3, picker=True)
         self.patches.insert(index, patch)
 
@@ -407,13 +407,13 @@ class TraceModel(object):
 
     def set_centroid(self, cen):
         self.cen = cen
-        self.vlines[1].set_xdata(cen)
+        self.vlines[1].set_xdata([cen])
 
     def set_range(self, lower, upper):
         self.lower = lower
         self.upper = upper
-        self.vlines[0].set_xdata(lower)
-        self.vlines[2].set_xdata(upper)
+        self.vlines[0].set_xdata([lower])
+        self.vlines[2].set_xdata([upper])
 
     def get_range(self):
         return (self.lower, self.upper)
@@ -1380,11 +1380,11 @@ class ExtractGUI(QtWidgets.QMainWindow):
 
         elif artist.get_label() == 'lower':
             trace_model.lower = new_position
-            artist.set_xdata(new_position)
+            artist.set_xdata([new_position])
 
         elif artist.get_label() == 'upper':
             trace_model.upper = new_position
-            artist.set_xdata(new_position)
+            artist.set_xdata([new_position])
         self.canvas_spsf.draw()
 
     def on_release(self, event):
@@ -1394,12 +1394,12 @@ class ExtractGUI(QtWidgets.QMainWindow):
         if artist.get_label() == 'lower':
             if trace_model.lower > trace_model.cen - 1:
                 trace_model.lower = trace_model.cen - 1
-                artist.set_xdata(trace_model.cen - 1)
+                artist.set_xdata([trace_model.cen - 1])
                 self.canvas_spsf.draw()
         elif artist.get_label() == 'upper':
             if trace_model.upper < trace_model.cen + 1:
                 trace_model.upper = trace_model.cen + 1
-                artist.set_xdata(trace_model.cen + 1)
+                artist.set_xdata([trace_model.cen + 1])
                 self.canvas_spsf.draw()
         centroid_shift = trace_model.cen - old_centroid
         if np.abs(centroid_shift) > 0:

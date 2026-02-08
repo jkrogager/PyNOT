@@ -130,12 +130,12 @@ def get_wavelength_from_header(hdr):
 # -- These names are used to define proper column names for Wavelength, Flux and Error:
 wavelength_column_names = ['wl', 'lam', 'lambda', 'loglam', 'wave', 'wavelength', 'awav']
 flux_column_names = ['data', 'spec', 'flux', 'flam', 'fnu', 'flux_density']
-error_column_names = ['err', 'sig', 'error', 'ivar', 'sigma', 'var']
+error_column_names = ['err', 'sig', 'error', 'ivar', 'sigma', 'var', 'err_flux']
 mask_column_names = ['mask', 'qual', 'dq', 'qc']
 
 # -- These names are used to define proper ImageHDU names for Flux and Error:
 flux_HDU_names = ['FLUX', 'SCI', 'FLAM', 'FNU']
-error_HDU_names = ['ERR', 'ERRS', 'SIG', 'SIGMA', 'ERROR', 'ERRORS', 'IVAR', 'VAR']
+error_HDU_names = ['ERR', 'ERRS', 'SIG', 'SIGMA', 'ERROR', 'ERRORS', 'IVAR', 'VAR', 'ERR_FLUX']
 mask_HDU_names = ['MASK', 'QUAL', 'QC', 'DQ']
 
 
@@ -208,6 +208,7 @@ def get_spectrum_fits_table(tbdata):
 
     return wavelength.flatten(), data.flatten(), error.flatten(), mask.flatten()
 
+
 # Hack the doc-string of the function to input the variable names:
 output_column_names = {'WL_COL_NAMES': wavelength_column_names,
                        'FLUX_COL_NAMES': flux_column_names,
@@ -269,6 +270,7 @@ def get_spectrum_hdulist(HDUlist):
         mask = np.ones_like(data, dtype=bool)
 
     return data, error, mask, data_hdr
+
 
 # Hack the doc-string of the function to input the variable names:
 output_hdu_names = {'FLUX_HDU_NAMES': flux_HDU_names,
