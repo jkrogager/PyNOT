@@ -389,6 +389,14 @@ def main(inspect=False):
     set_default_pars(parser_ext, section='extract', default_type=int,
                      ignore_pars=['interactive'])
 
+    # -- view :: View 1D spectra in an interactive window
+    parser_view = tasks.add_parser('view', formatter_class=set_help_width(31),
+                                   help="Display and interact with 1D spectra")
+    parser_view.add_argument("files", type=str, nargs='?',
+                             help="Filenames of spectral data to load. Each file is loaded as one target")
+    parser_view.add_argument("-t", "--table", type=str,
+                             help="Filename of association table, all files in one row are loaded as a single target")
+
 
     # Spectral Redux:
     parser_redux = tasks.add_parser('spex', formatter_class=set_help_width(30),
@@ -796,6 +804,21 @@ def main(inspect=False):
             gui.show()
             app.exit(app.exec_())
 
+    elif task == 'view':
+        from PyQt5 import QtWidgets
+        from pynot.viewer.viewer import MainWindow
+
+        app = QtWidgets.QApplication(sys.argv)
+        screenSize = app.primaryScreen().size()
+        ratio = 0.85
+
+        main = MainWindow(args.files,
+                          assn_table=args.table,
+                          width=ratio*screenSize.width(),
+                          height=ratio*screenSize.height(),
+                          )
+        main.show()
+        app.exit(app.exec_())
 
     # -- Imaging tasks:
     elif task == 'phot':
