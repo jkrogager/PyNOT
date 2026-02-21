@@ -51,27 +51,6 @@ def run_gui(input_fname, output_fname, app=None, **ext_kwargs):
     del gui
 
 
-# def save_ascii_spectrum(fname, wl, flux, err, hdr, bg=None):
-#     """Write spectrum to an ascii text file with header saved to separate text file."""
-#     if bg is not None:
-#         data_table = np.column_stack([wl, flux, err, bg])
-#         fmt = "%12.4f  % .3e  %.3e  %.3e"
-#         col_names = "# Wavelength       Flux        Error      Sky"
-#     else:
-#         data_table = np.column_stack([wl, flux, err])
-#         fmt = "%12.4f  % .3e  %.3e"
-#         col_names = "# Wavelength       Flux        Error"
-#
-#     basename, ext = os.path.splitext(fname)
-#     header_fname = basename + '_hdr.txt'
-#
-#     with open(fname, 'w') as output:
-#         output.write(col_names + "\n")
-#         np.savetxt(output, data_table, fmt=fmt)
-#     hdr.tofile(header_fname, sep='\n', endcard=False, padding=False, overwrite=True)
-#     return True, "File saved successfully"
-
-
 def get_FWHM(y, x=None):
     """
     Measure the FWHM of the profile given as `y`.
@@ -1669,7 +1648,10 @@ class ExtractGUI(QtWidgets.QMainWindow):
     def update_xmask_in_points(self):
         # Clear old shapes:
         for item in self.xmask:
-            item.remove()
+            try:
+                item.remove()
+            except NotImplementedError:
+                pass
         self.xmask = list()
         xmin, xmax, ymin, ymax = self.get_limits()
         if xmin > 0 or xmax < self.image2d.data.shape[1]+1:
