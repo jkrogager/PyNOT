@@ -35,10 +35,10 @@ class TableModel(QtCore.QAbstractTableModel):
             target = self._data[index.row()]
             return target.name
 
-    def rowCount(self, index):
+    def rowCount(self, index=None):
         return len(self._data)
 
-    def columnCount(self, index):
+    def columnCount(self, index=None):
         return 1
 
     def headerData(self, section, orientation, role):
@@ -66,10 +66,10 @@ class ActiveTableModel(QtCore.QAbstractTableModel):
             specID = f"{item.name}: {len(item.spectra)} spectr{declension}"
             return specID
 
-    def rowCount(self, index):
+    def rowCount(self, index=None):
         return len(self._data)
 
-    def columnCount(self, index):
+    def columnCount(self, index=None):
         return 1
 
     def headerData(self, section, orientation, role):

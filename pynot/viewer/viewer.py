@@ -11,11 +11,12 @@ from astropy import units as u
 from astropy.table import Table, QTable
 import numpy as np
 import sys
-from scipy.interpolate import UnivariateSpline as spline
+import logging
 
 from pynot.fitsio import load_fits_spectrum, save_fits_spectrum
 from pynot.viewer.tablemodels import TableModel, ActiveTableModel, AbstractIndex
 from pynot.viewer.spectrum import Spectrum, join_spectra
+from pynot.viewer.messages import QtLogHandler, LogViewerDialog
 
 all_linestyles = cycle([
         QtCore.Qt.PenStyle.SolidLine,
@@ -33,34 +34,9 @@ color_list = cycle([
 ])
 
 
-@dataclass
-class Template:
-    x: np.ndarray
-    template: np.ndarray
-    interp: str = 'cubic'
-    plot_line: pg.PlotItem = None
-
-    def __call__(self, new_x):
-        if self.interp == 'linear':
-            return np.interp(new_x, self.x, self.template)
-        elif self.interp == 'cubic':
-            return spline(self.x, self.template, s=0, k=3)(new_x)
-        else:
-            return spline(self.x, self.template, s=0, k=2)(new_x)
-
-
-@dataclass
-class ModelSpectrum:
-    expression: str
-    plot_line: pg.PlotItem = None
-
-    def __call__(self, x):
-        return eval(self.expression, {'x': x})
-
-
-
 class Target:
     def __init__(self, name=None, spectra=None, models=None, templates=None):
+        self.smooth_factor = 1
         if name is None:
             self.name = ""
         else:
@@ -71,26 +47,6 @@ class Target:
         else:
             self.spectra = spectra
 
-        if models is None:
-            self.models = []
-        else:
-            self.models = models
-
-        if templates is None:
-            self.templates = []
-        else:
-            self.templates = templates
-
-    def remove_template(self, num):
-        if num < len(self.templates):
-            this = self.templates.pop(num)
-            return this.plot_line
-
-    def remove_model(self, num):
-        if num < len(self.models):
-            this = self.models.pop(num)
-            return this.plot_line
-
     def remove_spectrum(self, num):
         if num < len(self.spectra):
             this = self.spectra.pop(num)
@@ -98,11 +54,10 @@ class Target:
 
     def get_all_plot_lines(self):
         lines = []
-        for quantity in [self.spectra, self.models, self.templates]:
-            for item in quantity:
-                if item.plot_line is None:
-                    continue
-                lines.append(item.plot_line)
+        for item in self.spectra:
+            if item.plot_line is None:
+                continue
+            lines.append(item.plot_line)
         return lines
 
 
@@ -133,6 +88,25 @@ class MainWindow(QtWidgets.QMainWindow):
         status_msg = ""
         self.status.showMessage(status_msg)
 
+
+        # --- Logging Setup ---
+        self.log_dialog = LogViewerDialog(self)
+        self.log_handler = QtLogHandler()
+        self.log_handler.signaler.signal.connect(self.status.showMessage)
+        self.log_handler.signaler.signal.connect(self.log_dialog.append_log)
+
+        formatter = logging.Formatter('%(asctime)s | %(levelname)s | %(message)s', "%Y-%m-%d %H:%M:%S")
+        self.log_handler.setFormatter(formatter)
+
+        # Add the handler to the root logger or a specific logger
+        logger = logging.getLogger()
+        logger.addHandler(self.log_handler)
+        logger.setLevel(logging.INFO)
+
+        self.log_btn = QtWidgets.QToolButton(self)
+        self.log_btn.setText("📜 View Log")
+        self.log_btn.clicked.connect(self.log_dialog.show)
+        self.status.addPermanentWidget(self.log_btn)
 
         # Main Layout
         self.main_layout = QtWidgets.QHBoxLayout(self._main)
@@ -172,6 +146,90 @@ class MainWindow(QtWidgets.QMainWindow):
         if width and height:
             self.resize(int(width), int(height))
 
+        # -- Define Keyboard Shortcuts
+        self.shortcut_plus = QtWidgets.QShortcut(QtGui.QKeySequence("Ctrl++"), self)
+        self.shortcut_plus.activated.connect(self.increase_smoothing)
+        self.shortcut_plus.setContext(Qt.ApplicationShortcut)
+
+        self.shortcut_minus = QtWidgets.QShortcut(QtGui.QKeySequence("Ctrl+-"), self)
+        self.shortcut_minus.activated.connect(self.decrease_smoothing)
+        self.shortcut_minus.setContext(Qt.ApplicationShortcut)
+
+        self.shortcut_zero = QtWidgets.QShortcut(QtGui.QKeySequence("Ctrl+0"), self)
+        self.shortcut_zero.activated.connect(self.reset_smoothing)
+        self.shortcut_zero.setContext(Qt.ApplicationShortcut)
+
+        self.shortcut_next = QtWidgets.QShortcut(QtGui.QKeySequence("Right"), self)
+        self.shortcut_next.activated.connect(self.plot_next_target)
+        self.shortcut_next.setContext(Qt.ApplicationShortcut)
+
+        self.shortcut_prev = QtWidgets.QShortcut(QtGui.QKeySequence("Left"), self)
+        self.shortcut_prev.activated.connect(self.plot_previous_target)
+        self.shortcut_prev.setContext(Qt.ApplicationShortcut)
+        self.current_index = None
+
+
+    def clear_active_targets(self):
+        rows = self.active_targets.rowCount()
+        for n in range(rows):
+            self.remove_target(n)
+
+    def change_display_target(self, increment=+1):
+        if self.current_index is None:
+            self.current_index = self.target_table.currentIndex().row()
+            logging.info(f"setting current index: {self.current_index}")
+
+        self.current_index += increment
+        # Check that index is in range:
+        Nrows = self.all_targets.rowCount()
+        if 0 <= self.current_index < Nrows:
+            logging.info(f"setting current index: {self.current_index}")
+            self.clear_active_targets()
+            self.add_active_target(self.current_index)
+        elif self.current_index < 0:
+            logging.info(f"current index reached the limit: 0")
+            self.current_index = 0
+        else:
+            logging.info(f"current index reached the limit: {Nrows - 1}")
+            self.current_index = Nrows - 1
+
+    def plot_next_target(self):
+        self.change_display_target(+1)
+
+    def plot_previous_target(self):
+        self.change_display_target(-1)
+
+    def reset_smoothing(self):
+        index = self.active_table.currentIndex()
+        target = self.active_targets._data[index.row()]
+        target.smooth_factor = 1
+        logging.info(f"Reset smooth level to: {target.smooth_factor} for target {target.name}")
+        self.replot_target(target)
+
+    def increase_smoothing(self):
+        # Get active target
+        index = self.active_table.currentIndex()
+        target = self.active_targets._data[index.row()]
+        target.smooth_factor += 2
+        logging.info(f"Increase smooth level to: {target.smooth_factor} for target {target.name}")
+        self.replot_target(target)
+
+    def decrease_smoothing(self):
+        # Get active target
+        index = self.active_table.currentIndex()
+        target = self.active_targets._data[index.row()]
+        target.smooth_factor = max(1, target.smooth_factor - 2)
+        logging.info(f"Decreased smooth level to: {target.smooth_factor} for target {target.name}")
+        self.replot_target(target)
+
+    def replot_target(self, target):
+        for spectrum in target.spectra:
+            if target.smooth_factor > 1:
+                kernel = np.ones(target.smooth_factor) / target.smooth_factor
+                smooth_flux = np.convolve(spectrum.flux, kernel, mode='same')
+            else:
+                smooth_flux = spectrum.flux
+            spectrum.plot_line.setData(spectrum.wavelength, smooth_flux)
 
     def add_target(self, files):
         target = Target()
@@ -181,7 +239,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.all_targets._data.append(target)
         self.all_targets.layoutChanged.emit()
         self.target_table.resizeColumnsToContents()
-
+        logging.info(f"Loaded target: {target.name}")
 
     def add_active_target(self, index):
         if isinstance(index, int):
@@ -192,6 +250,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.active_targets._data.append(self.all_targets._data[row])
         self.active_targets.layoutChanged.emit()
         self.active_table.resizeColumnsToContents()
+        self.target_table.selectRow(row)
         self.plot_spectrum(self.active_targets._data[-1])
 
 
@@ -199,8 +258,13 @@ class MainWindow(QtWidgets.QMainWindow):
         this_style = next(all_linestyles)
         color = next(color_list)
         for spec in target.spectra:
+            if target.smooth_factor > 1:
+                kernel = np.ones(target.smooth_factor) / target.smooth_factor
+                smooth_flux = np.convolve(spec.flux, kernel, mode='same')
+            else:
+                smooth_flux = spec.flux
             pen = pg.mkPen(color=color, style=this_style)
-            line = self.plot_graph.plot(spec.wavelength, spec.flux, pen=pen,
+            line = self.plot_graph.plot(spec.wavelength, smooth_flux, pen=pen,
                                         name=target.name)
             spec.plot_line = line
         self.plot_graph.setLabel("left", f"Flux  [{spec.flux.unit}]")
@@ -245,9 +309,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.grid_radio_button.stateChanged.connect(self.toggle_gridlines)
         toolbar.addWidget(self.grid_radio_button)
 
-        join_button = QtWidgets.QPushButton("Merge target")
-        join_button.clicked.connect(self.join_arms)
-        toolbar.addWidget(join_button)
+        resample_button = QtWidgets.QPushButton("Resample target spectra", self)
+        resample_button.clicked.connect(self.resample_target)
+        resample_button.setToolTip("Resample all spectra of the selected target(s) onto a new wavelength grid.")
+        resample_button.setWhatsThis("The resampling is done using flux-conservative resampling implemented "
+                                     "in the python package `spectres`. The new wavelength grid can be controlled "
+                                     "by the user in the pop-up window.")
+        toolbar.addWidget(resample_button)
 
         self.addToolBar(toolbar)
 
@@ -267,13 +335,13 @@ class MainWindow(QtWidgets.QMainWindow):
             row = index
         else:
             row = index.row()
-        line_group = self.plot_lines[row]
+        target = self.all_targets._data[row]
         if vis is None:
-            first_line = list(line_group.values())[0]
+            first_line = target.spectra[0].plot_line
             vis = not first_line.isVisible()
 
-        for arm, line in line_group.items():
-            line.setVisible(vis)
+        for spec in target.spectra:
+            spec.plot_line.setVisible(vis)
         self.plot_legend.setVisible(False)
         self.plot_legend.setVisible(True)
 
@@ -330,64 +398,17 @@ class MainWindow(QtWidgets.QMainWindow):
         self.listMenu.move(parentPosition + QPos)
         self.listMenu.show()
 
-    def join_arms(self, index=None):
-        if len(self.active_targets._data) <= 0:
-            QtWidgets.QMessageBox.critical(self, "Cannot join spectra",
-                                           "No valid spectra to join")
-            return
+    def resample_target(self):
+        current = self.active_table.selectedIndexes()
+        logging.info(f"Currently selected target(s): {current}")
 
-        all_active_targets, valid_spectra = self.get_joinable_spectra()
-        if not index:
-            if len(valid_spectra) == 1:
-                index = 0
-            else:
-                index = self.prompt_index_from_user()
-                                
-                if index is None:
-                    return
-        spec_group = self.active_targets._data[index]
-        joined_spectrum = join_spectra(spec_group, scale=False)
-        joined_group = {'joined': joined_spectrum}
-        self.active_targets._data.append(joined_group)
-        self.active_targets.layoutChanged.emit()
-        self.active_table.resizeColumnsToContents()
-        self.plot_spectrum(joined_group)
+    def show_log_window(self, event):
+            self.log_dialog.show()
+            self.log_dialog.raise_()
 
 
-    def get_joinable_spectra(self):
-        role = Qt.ItemDataRole.DisplayRole
-        all_active_targets = [self.active_targets.data(AbstractIndex(i, 0), role)
-                              for i in range(len(self.active_targets._data))]
-        valid_spectra = []
-        already_joined = []
-        for label in all_active_targets:
-            if 'JOINED' in label:
-                already_joined.append(label)
-            else:
-                valid_spectra.append(label)
 
-        for label in already_joined:
-            root = label.replace('JOINED', 'spec')
-            if root in valid_spectra:
-                valid_spectra.remove(root)
-        return all_active_targets, valid_spectra
-
-    def prompt_index_from_user(self):
-        all_active_targets, valid_spectra = self.get_joinable_spectra()
-        message = "Please select one of the valid objects:"
-
-        if len(valid_spectra) == 0:
-            QtWidgets.QMessageBox.critical(self, "Cannot join spectra",
-                                           "No valid spectra to join")
-            return
-
-        item, ok = QtWidgets.QInputDialog().getItem(self, "Select Spectra to Join",
-                                                    message, valid_spectra,
-                                                    0, False)
-        if item and ok:
-            return all_active_targets.index(item)
-
-
+# -- Start main loop
 
 def start_gui(args):
     

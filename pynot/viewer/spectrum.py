@@ -5,6 +5,10 @@ import numpy as np
 import spectres
 import pyqtgraph as pg
 
+from pynot.viewer.models import ModelSpectrum, Template
+
+import warnings
+warnings.simplefilter('error', RuntimeWarning)
 
 @dataclass
 class Spectrum:
@@ -16,6 +20,15 @@ class Spectrum:
     filename: str = ''
     meta: dict = None
     plot_line: pg.PlotItem = None
+    models: list[ModelSpectrum] = None
+    templates: list[Template] = None
+
+    def __post_init__(self):
+        if self.models is None:
+            self.models = []
+
+        if self.templates is None:
+            self.templates = []
 
     @staticmethod
     def read(filename):
@@ -23,13 +36,16 @@ class Spectrum:
         try:
             error = data['ERR_FLUX'].flatten()
         except KeyError:
-            error = 1 / np.sqrt(data['FLUX_IVAR'].flatten())
+            ivar = data['FLUX_IVAR'].flatten()
+            invalid = np.isfinite(ivar) & (ivar > 0)
+            ivar[invalid] = np.nan
+            with np.errstate(divide='ignore', invalid='ignore'):
+                error = 1 / np.sqrt(ivar)
         return Spectrum(data['WAVE'].flatten(),
                         data['FLUX'].flatten(),
                         error,
                         filename=filename,
                         meta=data.meta)
-        
 
 
 def join_spectra(spec_group, scale=None):
