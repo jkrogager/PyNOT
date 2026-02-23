@@ -23,7 +23,7 @@ class LogViewerDialog(QtWidgets.QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Full Log History")
-        self.resize(500, 400)
+        self.resize(600, 400)
         
         self.layout = QtWidgets.QVBoxLayout(self)
         self.text_edit = QtWidgets.QPlainTextEdit(self)

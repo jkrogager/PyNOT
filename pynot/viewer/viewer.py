@@ -12,11 +12,14 @@ from astropy.table import Table, QTable
 import numpy as np
 import sys
 import logging
+import os
 
 from pynot.fitsio import load_fits_spectrum, save_fits_spectrum
 from pynot.viewer.tablemodels import TableModel, ActiveTableModel, AbstractIndex
-from pynot.viewer.spectrum import Spectrum, join_spectra
+from pynot.viewer.spectrum import Spectrum, join_spectra, Template
 from pynot.viewer.messages import QtLogHandler, LogViewerDialog
+from pynot.viewer.targets import Target, TemplateTarget
+from pynot.viewer.containers import QMEC, GenericFileContainer
 
 all_linestyles = cycle([
         QtCore.Qt.PenStyle.SolidLine,
@@ -33,36 +36,12 @@ color_list = cycle([
     "#202020",
 ])
 
-
-class Target:
-    def __init__(self, name=None, spectra=None, models=None, templates=None):
-        self.smooth_factor = 1
-        if name is None:
-            self.name = ""
-        else:
-            self.name = name
-
-        if spectra is None:
-            self.spectra = []
-        else:
-            self.spectra = spectra
-
-    def remove_spectrum(self, num):
-        if num < len(self.spectra):
-            this = self.spectra.pop(num)
-            return this.plot_line
-
-    def get_all_plot_lines(self):
-        lines = []
-        for item in self.spectra:
-            if item.plot_line is None:
-                continue
-            lines.append(item.plot_line)
-        return lines
+here = os.path.dirname(os.path.abspath(__file__))
+TEMPLATE_DIR = os.path.join(here, 'templates')
 
 
 class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self, files=None, assn_table=None, width=None, height=None):
+    def __init__(self, files=None, assn_table=None, container_mode=False, width=None, height=None):
         super().__init__()
 
         self.setWindowTitle('Pynot Viewer')
@@ -71,6 +50,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.all_targets = TableModel([])
         self.active_targets = ActiveTableModel([])
+        self.container = None
 
         self.create_toolbar()
 
@@ -131,16 +111,21 @@ class MainWindow(QtWidgets.QMainWindow):
         self.plot_graph.viewport().setAttribute(QtCore.Qt.WidgetAttribute.WA_AcceptTouchEvents, False)
 
         if files is not None:
-            for fname in files:
-                self.add_target([fname])
-            self.add_active_target(0)
+            if container_mode:
+                self.load_container(files)
+
+            else:
+                for fname in files:
+                    self.load_target_from_files([fname])
 
         if assn_table is not None:
             with open(assn_table) as tab:
                 lines = tab.readlines()
             assoc = [line.strip().split(',') for line in lines]
             for row in assoc:
-                self.add_target([fname.strip() for fname in row])
+                self.load_target_from_files([fname.strip() for fname in row])
+
+        if len(self.all_targets._data) > 0:
             self.add_active_target(0)
 
         if width and height:
@@ -169,10 +154,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self.current_index = None
 
 
+    def load_container(self, filenames):
+        if len(filenames) == 1:
+            self.container = QMEC.read(filenames[0])
+        else:
+            self.container = GenericFileContainer(filenames)
+        self.all_targets._data = self.container.view
+        self.all_targets.layoutChanged.emit()
+        self.target_table.resizeColumnsToContents()
+
     def clear_active_targets(self):
         rows = self.active_targets.rowCount()
-        for n in range(rows):
-            self.remove_target(n)
+        while self.active_targets.rowCount() > 0:
+            self.remove_target(-1)
 
     def change_display_target(self, increment=+1):
         if self.current_index is None:
@@ -231,15 +225,44 @@ class MainWindow(QtWidgets.QMainWindow):
                 smooth_flux = spectrum.flux
             spectrum.plot_line.setData(spectrum.wavelength, smooth_flux)
 
-    def add_target(self, files):
+    def load_spectral_template(self):
+        current_dir = TEMPLATE_DIR
+        filters = "Spectral files (*.fits | *.fit | *.csv | *.txt | *.dat | *.spec)"
+        fname, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Open 2D Spectrum', current_dir, filters)
+        fname = str(fname)
+        if not fname:
+            return
+
+        template = TemplateTarget(
+                        Template.read(fname)
+                        )
+        self.add_target(template)
+        self.add_active_target(-1)
+
+    def load_target_from_files(self, files):
         target = Target()
-        spectra = [Spectrum.read(fname) for fname in files]
-        target.spectra = spectra
-        target.name = spectra[0].meta.get('OBJECT', 'None')
+        target.spectra = []
+        for fname in files:
+            spec = Spectrum.read(fname)
+            if spec:
+                target.spectra.append(spec)
+        if len(target.spectra) > 0:
+            target.name = target.spectra[0].meta.get('OBJECT', 'None')
+            self.add_target(target)
+
+    def add_target(self, target):
         self.all_targets._data.append(target)
         self.all_targets.layoutChanged.emit()
         self.target_table.resizeColumnsToContents()
         logging.info(f"Loaded target: {target.name}")
+        all_wl_units = [spec.wavelength.unit for spec in target.spectra]
+        if len(set(all_wl_units)) > 1:
+            try:
+                for spec in target.spectra:
+                    spec.wavelength = spec.wavelength.to('Angstrom')
+                logging.info("Converted all wavelength units to Angstrom")
+            except u.UnitConversionError:
+                logging.warning("Could not convert units to Angstrom")
 
     def add_active_target(self, index):
         if isinstance(index, int):
@@ -247,7 +270,10 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             row = index.row()
 
-        self.active_targets._data.append(self.all_targets._data[row])
+        if self.container is None:
+            self.active_targets._data.append(self.all_targets._data[row])
+        else:
+            self.active_targets._data.append(self.container[row])
         self.active_targets.layoutChanged.emit()
         self.active_table.resizeColumnsToContents()
         self.target_table.selectRow(row)
@@ -265,10 +291,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 smooth_flux = spec.flux
             pen = pg.mkPen(color=color, style=this_style)
             line = self.plot_graph.plot(spec.wavelength, smooth_flux, pen=pen,
-                                        name=target.name)
+                                        name=f"{target.name} {spec.name}")
             spec.plot_line = line
-        self.plot_graph.setLabel("left", f"Flux  [{spec.flux.unit}]")
-        self.plot_graph.setLabel("bottom", f"Spectral Axis  [{spec.wavelength.unit}]")
+            self.plot_graph.setLabel("left", f"Flux  [{spec.flux.unit}]")
+            self.plot_graph.setLabel("bottom", f"Spectral Axis  [{spec.wavelength.unit}]")
 
 
     def make_table_label(self, text):
@@ -292,8 +318,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 )
         table.setModel(self.active_targets)
         table.customContextMenuRequested.connect(self.listItemRightClicked)
-        table.doubleClicked.connect(self.remove_target)
-        table.setToolTip("Double click on row to remove the given spectrum.\n"
+        table.doubleClicked.connect(self.show_target_details)
+        table.setToolTip("Double click to show target details.\n"
                          "Right click for more options...")
         return table
 
@@ -316,6 +342,11 @@ class MainWindow(QtWidgets.QMainWindow):
                                      "in the python package `spectres`. The new wavelength grid can be controlled "
                                      "by the user in the pop-up window.")
         toolbar.addWidget(resample_button)
+
+        new_template_btn = QtWidgets.QPushButton("Add Spectral Template", self)
+        new_template_btn.clicked.connect(self.load_spectral_template)
+        new_template_btn.setToolTip("Load a spectral template from a file")
+        toolbar.addWidget(new_template_btn)
 
         self.addToolBar(toolbar)
 
@@ -379,6 +410,16 @@ class MainWindow(QtWidgets.QMainWindow):
         save_fits_spectrum(spec_group, filename=fname)
 
 
+    def show_target_details(self, index):
+        """Show details for the target at the given `row` from the Active Targets View"""
+        if isinstance(index, int):
+            row = index
+        else:
+            row = index.row()
+        target = self.active_targets._data[row]
+        target.show_details(self)
+
+
     def listItemRightClicked(self, QPos):
         index = self.active_table.currentIndex()
         if not index.isValid():
@@ -394,6 +435,8 @@ class MainWindow(QtWidgets.QMainWindow):
         hide_menu_item.triggered.connect(lambda x: self.set_visible_obj(row, False))
         save_menu_item = self.listMenu.addAction("Save FITS")
         save_menu_item.triggered.connect(lambda x: self.save_spectrum(index))
+        details_menu_item = self.listMenu.addAction("Show details")
+        details_menu_item.triggered.connect(lambda x: self.show_target_details(row))
         parentPosition = self.active_table.mapToGlobal(QtCore.QPoint(0, 0))
         self.listMenu.move(parentPosition + QPos)
         self.listMenu.show()
@@ -403,8 +446,8 @@ class MainWindow(QtWidgets.QMainWindow):
         logging.info(f"Currently selected target(s): {current}")
 
     def show_log_window(self, event):
-            self.log_dialog.show()
-            self.log_dialog.raise_()
+        self.log_dialog.show()
+        self.log_dialog.raise_()
 
 
 

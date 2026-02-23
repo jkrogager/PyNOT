@@ -1,14 +1,71 @@
+from itertools import cycle
 from astropy.table import QTable
 from dataclasses import dataclass
 import astropy.units as u
 import numpy as np
+from scipy.interpolate import UnivariateSpline as spline
 import spectres
 import pyqtgraph as pg
-
-from pynot.viewer.models import ModelSpectrum, Template
+import os
+import logging
 
 import warnings
 warnings.simplefilter('error', RuntimeWarning)
+
+from pynot.txtio import load_ascii_spectrum
+from pynot.fitsio import load_fits_spectrum, detect_4most_MEC
+
+
+functors = [np.abs, np.sin, np.cos, np.tan, np.cosh, np.sinh, np.tanh,
+            np.arccos, np.arcsin, np.arctan, np.arctan2, np.log, np.log10,
+            np.sqrt, np.min, np.max, np.ceil, np.floor, np.power, np.exp, np.poly1d]
+numpy_functions = {f.__name__: f for f in functors}
+
+function_name_cycle = cycle(['f(x)', 'g(x)', 'h(x)', 'p(x)', 'q(x)'])
+
+
+@dataclass
+class ModelSpectrum:
+    expression: str
+    plot_line: pg.PlotItem = None
+    name: str = None
+    xmin: float = None
+    xmax: float = None
+    dx: float = None
+    log: bool = False
+
+    def __post_init__(self):
+        if self.name is None:
+            self.name = next(function_name_cycle)
+
+    @property
+    def x(self):
+        if self.xmin and self.xmax and self.dx:
+            pass
+        else:
+            raise AxisDefinitionError("Must specify x-axis: xmin, xmax, dx and log")
+
+        if self.log:
+            x = np.arange(np.log10(self.xmin),
+                          np.log10(self.xmax),
+                          self.dx)
+        else:
+            x = np.arange(self.xmin, self.xmax, self.dx)
+        return x
+
+
+    def __call__(self, x=None):
+        if x is None:
+            x = self.x
+
+        variables = {'x': x}
+        variables.update(numpy_functions)
+        return eval(self.expression, variables)
+
+
+class AxisDefinitionError(Exception):
+    pass
+
 
 @dataclass
 class Spectrum:
@@ -17,35 +74,99 @@ class Spectrum:
     error: np.ndarray = None
     noss: np.ndarray = None
     R: float = None
+    name: str = ''
     filename: str = ''
     meta: dict = None
     plot_line: pg.PlotItem = None
-    models: list[ModelSpectrum] = None
-    templates: list[Template] = None
 
     def __post_init__(self):
-        if self.models is None:
-            self.models = []
+        if not hasattr(self.wavelength, 'unit'):
+            self.wavelength *= u.Angstrom
+            self.flux *= u.Unit("")
+            logging.warning("No wavelength units given. Assuming Angstrom")
 
-        if self.templates is None:
-            self.templates = []
+        if self.meta is None:
+            self.meta = {}
 
     @staticmethod
     def read(filename):
-        data = QTable.read(filename)
+        is_fits_file = filename.endswith('.fits') | filename.endswith('.fit') | filename.endswith('.fits.gz')
+        if is_fits_file:
+            try:
+                x, y, err, mask, hdr, output_msg = load_fits_spectrum(filename)
+                if output_msg:
+                    logging.info(output_msg)
+                return Spectrum(x, y, err, filename=filename, meta=hdr)
+            except Exception as e:
+                logging.exception(e)
+                logging.error(f"Failed to load spectrum: {filename}")
+                if detect_4most_MEC(filename):
+                    msg = "The file seems to be a 4MOST container. "
+                    msg += "Try loading with --container or -c"
+                    logging.info(msg)
+                    print(f"\n\n{msg}\n\n")
+
+        else:
+            try:
+                table_items = load_ascii_spectrum(filename)
+                x, y, err, mask, sky, output_msg = table_items
+                if output_msg:
+                    logging.info(output_msg)
+                return Spectrum(x, y, err, filename=filename)
+            except Exception as e:
+                logging.exception(e)
+                logging.error(f"Failed to load spectrum: {filename}")
+
+
+class Template:
+    def __init__(self, wavelength, flux, name='', filename=''):
+        super().__init__()
+        self.wavelength = wavelength
+        self.flux = flux
+        self.interp = 'cubic'
+        self.error = None
+        self.noss = None
+        self.R = None
+        self.name = name
+        self.filename = filename
+        self.meta = {}
+        self.plot_line = None
+
+        if np.any(np.diff(self.wavelength) < 0):
+            isort = np.argsort(self.wavelength)
+            self.wavelength = self.wavelength[isort]
+            self.flux = self.flux[isort]
+            logging.info("Template x-points must be increasing. I sorted the array for you!")
+
+        if not hasattr(wavelength, 'unit'):
+            self.wavelength *= u.Angstrom
+            self.flux *= u.Unit("")
+
+    def __call__(self, new_x):
+        if self.interp == 'linear':
+            return np.interp(new_x, self.wavelength, self.flux)
+        elif self.interp == 'cubic':
+            return spline(self.wavelength, self.flux, s=0, k=3)(new_x)
+        else:
+            return spline(self.wavelength, self.flux, s=0, k=2)(new_x)
+
+    @staticmethod
+    def read(filename: str):
+        tname = os.path.basename(filename)
+        is_fits_file = filename.endswith('.fits') | filename.endswith('.fit') | filename.endswith('.fits.gz')
+        if is_fits_file:
+            x, y, err, mask, hdr = load_fits_spectrum(filename)
+            return Template(x, y, name=tname)
+
         try:
-            error = data['ERR_FLUX'].flatten()
-        except KeyError:
-            ivar = data['FLUX_IVAR'].flatten()
-            invalid = np.isfinite(ivar) & (ivar > 0)
-            ivar[invalid] = np.nan
-            with np.errstate(divide='ignore', invalid='ignore'):
-                error = 1 / np.sqrt(ivar)
-        return Spectrum(data['WAVE'].flatten(),
-                        data['FLUX'].flatten(),
-                        error,
-                        filename=filename,
-                        meta=data.meta)
+            temp = np.genfromtxt(filename)
+            x = temp[:, 0]
+            y = temp[:, 1]
+        except Exception:
+            table_items = load_ascii_spectrum(filename)
+            x, y, err, mask, sky, output_msg = table_items
+
+        return Template(x, y, name=tname, filename=filename)
 
 
 def join_spectra(spec_group, scale=None):

@@ -3,6 +3,7 @@ __author__ = "Jens-Kristian Krogager"
 
 import warnings
 from astropy.io import fits
+from astropy.table import QTable
 import numpy as np
 import os
 
@@ -129,8 +130,8 @@ def get_wavelength_from_header(hdr):
 
 # -- These names are used to define proper column names for Wavelength, Flux and Error:
 wavelength_column_names = ['wl', 'lam', 'lambda', 'loglam', 'wave', 'wavelength', 'awav']
-flux_column_names = ['data', 'spec', 'flux', 'flam', 'fnu', 'flux_density']
-error_column_names = ['err', 'sig', 'error', 'ivar', 'sigma', 'var', 'err_flux']
+flux_column_names = ['data', 'spec', 'flux', 'flam', 'fnu', 'flux_density', 'reduced_flux']
+error_column_names = ['err', 'sig', 'error', 'ivar', 'sigma', 'var', 'err_flux', 'flux_ivar', 'flux_var', 'flux_err']
 mask_column_names = ['mask', 'qual', 'dq', 'qc']
 
 # -- These names are used to define proper ImageHDU names for Flux and Error:
@@ -139,7 +140,7 @@ error_HDU_names = ['ERR', 'ERRS', 'SIG', 'SIGMA', 'ERROR', 'ERRORS', 'IVAR', 'VA
 mask_HDU_names = ['MASK', 'QUAL', 'QC', 'DQ']
 
 
-def get_spectrum_fits_table(tbdata):
+def get_spectrum_fits_table(table_hdu):
     """
     Scan the TableData for columns containing wavelength, flux, error and mask.
     All arrays of {wavelength, flux and error} must be present.
@@ -163,7 +164,12 @@ def get_spectrum_fits_table(tbdata):
         Numpy boolean array of pixel mask. `True` if the pixel is 'good',
         `False` if the pixel is bad and should not be used.
     """
-    table_names = [name.lower() for name in tbdata.names]
+    tbdata = QTable.read(table_hdu)
+    # table_names = [name.lower() for name in tbdata.names]
+    for colname in tbdata.colnames:
+        tbdata.rename_column(colname, colname.lower())
+    table_names = tbdata.colnames
+
     wl_in_table = False
     for colname in wavelength_column_names:
         if colname in table_names:
@@ -185,9 +191,10 @@ def get_spectrum_fits_table(tbdata):
     for colname in error_column_names:
         if colname in table_names:
             error_in_table = True
-            if colname == 'ivar':
-                error = 1./np.sqrt(tbdata[colname])
-            elif colname == 'var':
+            if 'ivar' in colname.lower():
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    error = 1 / np.sqrt(tbdata[colname])
+            elif 'var' in colname.lower():
                 error = np.sqrt(tbdata[colname])
             else:
                 error = tbdata[colname]
@@ -365,17 +372,17 @@ def load_fits_spectrum(fname, ext=None, iraf_obj=None):
         else:
             is_fits_table = isinstance(HDUlist[1], fits.BinTableHDU) or isinstance(HDUlist[1], fits.TableHDU)
             if is_fits_table:
-                if ext:
-                    tbdata = HDUlist[ext].data
-                    data_hdr = HDUlist[ext].header
-                else:
-                    tbdata = HDUlist[1].data
-                    data_hdr = HDUlist[1].header
+                if not ext:
+                    ext = 1
+
+                table_hdu = HDUlist[ext]
+                tbdata = table_hdu.data
+                data_hdr = table_hdu.header
 
                 has_multi_extensions = len(HDUlist) > 2
                 if has_multi_extensions and (ext is None):
                     msg = "[WARNING] - More than one data extension detected in the file"
-                wavelength, data, error, mask = get_spectrum_fits_table(tbdata)
+                wavelength, data, error, mask = get_spectrum_fits_table(table_hdu)
                 return wavelength, data, error, mask, data_hdr, msg
 
             elif len(HDUlist) == 2:
@@ -538,3 +545,11 @@ def create_error_image(base_fname, overwrite=False):
             hdu.append(ext)
     output_msg = "          - Successfully created an error image"
     return output_msg
+
+
+def detect_4most_MEC(fname):
+    prim = fits.getheader(fname)
+    is_qmost = prim.get('INSTRUME').strip() == 'QMOST'
+    hdr = fits.getheader(fname, 1)
+    has_mec_extname = hdr.get('EXTNAME') in ['OBMETATAB', 'SPECTAB', 'FIBMETATAB']
+    return is_qmost & has_mec_extname

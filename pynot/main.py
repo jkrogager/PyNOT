@@ -392,10 +392,13 @@ def main(inspect=False):
     # -- view :: View 1D spectra in an interactive window
     parser_view = tasks.add_parser('view', formatter_class=set_help_width(31),
                                    help="Display and interact with 1D spectra")
-    parser_view.add_argument("files", type=str, nargs='?',
+    parser_view.add_argument("files", type=str, nargs='*',
                              help="Filenames of spectral data to load. Each file is loaded as one target")
     parser_view.add_argument("-t", "--table", type=str,
                              help="Filename of association table, all files in one row are loaded as a single target")
+    parser_view.add_argument("-c", "--container", action="store_true",
+                             help="Load the file(s) as a FITS container "
+                             "(such as 4MOST MEC, SDSS bricks, or a large collection of files)")
 
 
     # Spectral Redux:
@@ -814,6 +817,7 @@ def main(inspect=False):
 
         main = MainWindow(args.files,
                           assn_table=args.table,
+                          container_mode=args.container,
                           width=ratio*screenSize.width(),
                           height=ratio*screenSize.height(),
                           )
