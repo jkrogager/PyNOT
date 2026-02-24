@@ -60,7 +60,7 @@ class QMEC:
                                 name=f"[{index}]",
                                 filename=self.filename+f"[{index}]",
                                 meta=dict(hdr))
-            target.spectra = [spectrum]
+            target.add_spectrum(spectrum)
             return target
 
 

@@ -2,6 +2,7 @@ import logging
 from PyQt5 import QtWidgets, QtGui
 
 from pynot.viewer.tablemodels import TargetDetailTableModel, SpectrumNameDelegate, ColorPickerDelegate
+from pynot.viewer.spectrum import Spectrum
 
 class Target:
     def __init__(self, name=None, spectra=None):
@@ -14,13 +15,21 @@ class Target:
         if spectra is None:
             self.spectra = []
         else:
-            self.spectra = spectra
+            for spec in spectra:
+                self.add_spectrum(spec)
 
     def __repr__(self):
         return self.name
 
     def __str__(self):
         return self.name
+
+    def add_spectrum(self, spectrum):
+        if not isinstance(spectrum, Spectrum):
+            logging.error(f"Cannot append invalid object of type: {type(spectrum)} as Spectrum")
+            return
+        spectrum.set_parent(self)
+        self.spectra.append(spectrum)
 
     def remove_spectrum(self, num):
         if num < len(self.spectra):
@@ -44,6 +53,7 @@ class Target:
 class TemplateTarget(Target):
     def __init__(self, template):
         super().__init__()
+        template.set_parent(self)
         self.name = template.name
         self.spectra = [template]
 

@@ -5,6 +5,7 @@ import astropy.units as u
 import numpy as np
 from scipy.interpolate import UnivariateSpline as spline
 import spectres
+from PyQt5.QtCore import Qt
 import pyqtgraph as pg
 import os
 import logging
@@ -82,11 +83,50 @@ class Spectrum:
     def __post_init__(self):
         if not hasattr(self.wavelength, 'unit'):
             self.wavelength *= u.Angstrom
-            self.flux *= u.Unit("")
             logging.warning("No wavelength units given. Assuming Angstrom")
+
+        if not hasattr(self.flux, 'unit'):
+            self.flux *= u.Unit("")
+            logging.warning("No flux units given. Assuming unitless")
 
         if self.meta is None:
             self.meta = {}
+
+        self.parent = None
+
+    def set_parent(self, parent):
+        """`parent` must be of type `Target`"""
+        self.parent = parent
+
+    def plot(self, plot_graph, color='black', ls=Qt.PenStyle.SolidLine):
+        if self.parent is None:
+            logging.error("Attempted to plot without a parent `Target`.")
+            return
+
+        smooth_factor = self.parent.smooth_factor
+        if smooth_factor > 1:
+            kernel = np.ones(smooth_factor) / smooth_factor
+            smooth_flux = np.convolve(self.flux, kernel, mode='same')
+        else:
+            smooth_flux = self.flux
+        pen = pg.mkPen(color=color, style=ls)
+        line = plot_graph.plot(self.wavelength, smooth_flux, pen=pen,
+                               name=f"{self.parent.name} {self.name}")
+        self.plot_line = line
+        plot_graph.setLabel("left", f"Flux  [{self.flux.unit}]")
+        plot_graph.setLabel("bottom", f"Spectral Axis  [{self.wavelength.unit}]")
+
+    def update_plot_data(self):
+        if self.plot_line is None:
+            return
+
+        smooth_factor = self.parent.smooth_factor
+        if smooth_factor > 1:
+            kernel = np.ones(smooth_factor) / smooth_factor
+            smooth_flux = np.convolve(self.flux, kernel, mode='same')
+        else:
+            smooth_flux = self.flux
+        self.plot_line.setData(self.wavelength, smooth_flux)
 
     @staticmethod
     def read(filename):
@@ -119,7 +159,8 @@ class Spectrum:
 
 
 class Template:
-    def __init__(self, wavelength, flux, name='', filename=''):
+    def __init__(self, wavelength, flux, name='', filename='', parent=None):
+        """ The `parent` is of type `Target` """
         super().__init__()
         self.wavelength = wavelength
         self.flux = flux
@@ -131,6 +172,8 @@ class Template:
         self.filename = filename
         self.meta = {}
         self.plot_line = None
+        self.z = 0.
+        self.parent = parent
 
         if np.any(np.diff(self.wavelength) < 0):
             isort = np.argsort(self.wavelength)
@@ -140,15 +183,70 @@ class Template:
 
         if not hasattr(wavelength, 'unit'):
             self.wavelength *= u.Angstrom
+            logging.warning("No wavelength units given. Assuming Angstrom")
+        if not hasattr(flux, 'unit'):
             self.flux *= u.Unit("")
+            logging.warning("No flux units given. Assuming unitless")
+
+        self.C1 = 0. * self.flux.unit
+        self.C2 = 1. * self.flux.unit
+        self.scaled_flux = self.C1 + self.C2*self.flux
+
+    def set_parent(self, parent):
+        self.parent = parent
 
     def __call__(self, new_x):
         if self.interp == 'linear':
-            return np.interp(new_x, self.wavelength, self.flux)
+            return np.interp(new_x, self.wavelength*(self.z+1), self.scaled_flux)
         elif self.interp == 'cubic':
-            return spline(self.wavelength, self.flux, s=0, k=3)(new_x)
+            return spline(self.wavelength*(self.z+1), self.scaled_flux, s=0, k=3)(new_x)
         else:
-            return spline(self.wavelength, self.flux, s=0, k=2)(new_x)
+            return spline(self.wavelength*(self.z+1), self.scaled_flux, s=0, k=2)(new_x)
+
+    def plot(self, plot_graph, color='blue', ls=Qt.PenStyle.DashLine):
+        if self.parent is None:
+            logging.error("Attempted to plot without a parent `Target`.")
+            return
+        ydata = self.apply_smoothing()
+        pen = pg.mkPen(color=color, style=ls)
+        line = plot_graph.plot(self.wavelength, ydata, pen=pen,
+                               name=f"{self.parent.name} {self.name}")
+        self.plot_line = line
+        plot_graph.setLabel("left", f"Flux  [{self.flux.unit}]")
+        plot_graph.setLabel("bottom", f"Spectral Axis  [{self.wavelength.unit}]")
+
+    def apply_smoothing(self):
+        smooth_factor = self.parent.smooth_factor
+        if smooth_factor > 1:
+            kernel = np.ones(smooth_factor) / smooth_factor
+            smooth_flux = np.convolve(self.scaled_flux, kernel, mode='same')
+        else:
+            smooth_flux = self.scaled_flux
+        return smooth_flux
+
+    def update_plot_data(self):
+        if self.plot_line is None:
+            return
+
+        ydata = self.apply_smoothing()
+        self.plot_line.setData(self.wavelength*(self.z+1), ydata)
+
+    def scale_flux(self, c1=0, c2=1):
+        if isinstance(c1, (float, int)):
+            self.C1 = c1 * self.flux.unit
+
+        if isinstance(c2, (float, int)):
+            self.C2 = c2 * self.flux.unit
+
+        self.scaled_flux = self.C1 + self.C2*self.flux
+        self.update_plot_data()
+
+    def set_redshift(self, z):
+        if not isinstance(z, (float, u.Quantity)):
+            return
+        self.z = z
+        self.update_plot_data()
+        
 
     @staticmethod
     def read(filename: str):

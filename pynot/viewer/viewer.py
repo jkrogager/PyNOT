@@ -211,6 +211,8 @@ class MainWindow(QtWidgets.QMainWindow):
     def decrease_smoothing(self):
         # Get active target
         index = self.active_table.currentIndex()
+        if index.row() >= self.active_targets.rowCount():
+            return
         target = self.active_targets._data[index.row()]
         target.smooth_factor = max(1, target.smooth_factor - 2)
         logging.info(f"Decreased smooth level to: {target.smooth_factor} for target {target.name}")
@@ -218,12 +220,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def replot_target(self, target):
         for spectrum in target.spectra:
-            if target.smooth_factor > 1:
-                kernel = np.ones(target.smooth_factor) / target.smooth_factor
-                smooth_flux = np.convolve(spectrum.flux, kernel, mode='same')
-            else:
-                smooth_flux = spectrum.flux
-            spectrum.plot_line.setData(spectrum.wavelength, smooth_flux)
+            spectrum.update_plot_data()
 
     def load_spectral_template(self):
         current_dir = TEMPLATE_DIR
@@ -237,7 +234,7 @@ class MainWindow(QtWidgets.QMainWindow):
                         Template.read(fname)
                         )
         self.add_target(template)
-        self.add_active_target(-1)
+        self.add_active_target(None, target_override=template)
 
     def load_target_from_files(self, files):
         target = Target()
@@ -251,9 +248,12 @@ class MainWindow(QtWidgets.QMainWindow):
             self.add_target(target)
 
     def add_target(self, target):
-        self.all_targets._data.append(target)
-        self.all_targets.layoutChanged.emit()
-        self.target_table.resizeColumnsToContents()
+        if isinstance(target, TemplateTarget):
+            pass
+        else:
+            self.all_targets._data.append(target)
+            self.all_targets.layoutChanged.emit()
+            self.target_table.resizeColumnsToContents()
         logging.info(f"Loaded target: {target.name}")
         all_wl_units = [spec.wavelength.unit for spec in target.spectra]
         if len(set(all_wl_units)) > 1:
@@ -264,37 +264,33 @@ class MainWindow(QtWidgets.QMainWindow):
             except u.UnitConversionError:
                 logging.warning("Could not convert units to Angstrom")
 
-    def add_active_target(self, index):
+    def add_active_target(self, index, target_override=None):
         if isinstance(index, int):
             row = index
+        elif index is None:
+            row = None
         else:
             row = index.row()
 
-        if self.container is None:
-            self.active_targets._data.append(self.all_targets._data[row])
+        if target_override is None:
+            if self.container is None:
+                target = self.all_targets._data[row]
+            else:
+                target = self.container[row]
+            self.target_table.selectRow(row)
         else:
-            self.active_targets._data.append(self.container[row])
+            target = target_override
+
+        self.active_targets._data.append(target)
         self.active_targets.layoutChanged.emit()
         self.active_table.resizeColumnsToContents()
-        self.target_table.selectRow(row)
-        self.plot_spectrum(self.active_targets._data[-1])
+        self.plot_spectrum(target)
 
 
     def plot_spectrum(self, target):
-        this_style = next(all_linestyles)
         color = next(color_list)
         for spec in target.spectra:
-            if target.smooth_factor > 1:
-                kernel = np.ones(target.smooth_factor) / target.smooth_factor
-                smooth_flux = np.convolve(spec.flux, kernel, mode='same')
-            else:
-                smooth_flux = spec.flux
-            pen = pg.mkPen(color=color, style=this_style)
-            line = self.plot_graph.plot(spec.wavelength, smooth_flux, pen=pen,
-                                        name=f"{target.name} {spec.name}")
-            spec.plot_line = line
-            self.plot_graph.setLabel("left", f"Flux  [{spec.flux.unit}]")
-            self.plot_graph.setLabel("bottom", f"Spectral Axis  [{spec.wavelength.unit}]")
+            spec.plot(self.plot_graph, color=color)
 
 
     def make_table_label(self, text):
@@ -387,6 +383,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.active_table.resizeColumnsToContents()
         for line in target.get_all_plot_lines():
             self.plot_graph.removeItem(line)
+        logging.info(f"Removed target: {target.name}")
 
 
     def save_spectrum(self, index):
