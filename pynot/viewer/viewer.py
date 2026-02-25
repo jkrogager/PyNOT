@@ -262,7 +262,7 @@ class MainWindow(QtWidgets.QMainWindow):
             active_targets = self.active_targets._data
             active_specflux = []
             for targ in active_targets:
-                active_specflux += [spec.flux.value for spec in targ.spectra if isinstance(spec, Spectrum)]
+                active_specflux += [np.array(spec.flux.value) for spec in targ.spectra if isinstance(spec, Spectrum)]
             if len(active_specflux) > 0:
                 mean_flux = np.nanmedian([np.nanmedian(flux) for flux in active_specflux])
                 f0 = np.nanmedian(template.spectra[0].flux)
@@ -330,7 +330,6 @@ class MainWindow(QtWidgets.QMainWindow):
         color = next(color_list)
         for spec in target.spectra:
             spec.plot(self.plot_graph, color=color)
-
 
     def make_table_label(self, text):
         label = QtWidgets.QLabel(text)

@@ -43,6 +43,8 @@ class Target:
             if item.plot_line is None:
                 continue
             lines.append(item.plot_line)
+            if item.error_line is not None:
+                lines.append(item.error_line)
         return lines
 
     def show_details(self, parent=None):
@@ -100,6 +102,9 @@ class TargetInspectorDialog(QtWidgets.QDialog):
         for spec in self.target.spectra:
             label = self.parent.plot_legend.getLabel(spec.plot_line)
             label.setText(f"{text} {spec.name}")
+            if spec.error_line is not None:
+                e_label = self.parent.plot_legend.getLabel(spec.error_line)
+                e_label.setText(f"{text} {spec.name} 1σ")
         self.parent.plot_legend.updateSize()
         self.parent.all_targets.layoutChanged.emit()
         self.parent.target_table.resizeColumnsToContents()

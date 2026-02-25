@@ -6,6 +6,7 @@ import numpy as np
 from scipy.interpolate import UnivariateSpline as spline
 import spectres
 from PyQt5.QtCore import Qt
+from PyQt5 import QtGui
 import pyqtgraph as pg
 import os
 import logging
@@ -80,11 +81,13 @@ class Spectrum:
     filename: str = ''
     meta: dict = None
     plot_line: pg.PlotItem = None
+    error_line: pg.PlotItem = None
 
     def __post_init__(self):
         if not hasattr(self.wavelength, 'unit'):
             self.wavelength *= u.Angstrom
             logging.warning("No wavelength units given. Assuming Angstrom")
+        self.wavelength = self.wavelength.to('Angstrom')
 
         if not hasattr(self.flux, 'unit'):
             self.flux *= u.Unit("")
@@ -104,28 +107,44 @@ class Spectrum:
             logging.error("Attempted to plot without a parent `Target`.")
             return
 
+        ydata, yerr = self.apply_smoothing()
+        color = QtGui.QColor(color)
+        pen = pg.mkPen(color=color, style=ls)
+        line = plot_graph.plot(self.wavelength, ydata, pen=pen,
+                               name=f"{self.parent.name} {self.name}")
+        plot_graph.setLabel("bottom", f"Spectral Axis  [{self.wavelength.unit}]")
+        self.plot_line = line
+        if yerr is not None:
+            err_color = QtGui.QColor(color)
+            h, s, l, a = err_color.getHsl()
+            err_color.setHsl(h, int(s*0.5), min(int(l*2), 255), 128)
+            err_pen = pg.mkPen(color=err_color, style=ls)
+            error_line = plot_graph.plot(self.wavelength, yerr, pen=err_pen,
+                                         name=f"{self.parent.name} {self.name} 1σ")
+            self.error_line = error_line
+
+    def apply_smoothing(self):
         smooth_factor = self.parent.smooth_factor
         if smooth_factor > 1:
             kernel = np.ones(smooth_factor) / smooth_factor
             smooth_flux = np.convolve(self.flux, kernel, mode='same')
+            if self.error is not None:
+                smooth_error = np.convolve(self.error, kernel, mode='same') / np.sqrt(smooth_factor)
+            else:
+                smooth_error = None
         else:
             smooth_flux = self.flux
-        pen = pg.mkPen(color=color, style=ls)
-        line = plot_graph.plot(self.wavelength, smooth_flux, pen=pen,
-                               name=f"{self.parent.name} {self.name}")
-        self.plot_line = line
+            smooth_error = self.error
+        return smooth_flux, smooth_error
 
     def update_plot_data(self):
         if self.plot_line is None:
             return
 
-        smooth_factor = self.parent.smooth_factor
-        if smooth_factor > 1:
-            kernel = np.ones(smooth_factor) / smooth_factor
-            smooth_flux = np.convolve(self.flux, kernel, mode='same')
-        else:
-            smooth_flux = self.flux
-        self.plot_line.setData(self.wavelength, smooth_flux)
+        ydata, yerr = self.apply_smoothing()
+        self.plot_line.setData(self.wavelength, ydata)
+        if self.error_line is not None:
+            self.error_line.setData(self.wavelength, yerr)
 
     @staticmethod
     def read(filename):
@@ -214,7 +233,6 @@ class Template:
         line = plot_graph.plot(self.wavelength, ydata, pen=pen,
                                name=f"{self.parent.name} {self.name}")
         self.plot_line = line
-        plot_graph.setLabel("bottom", f"Spectral Axis  [{self.wavelength.unit}]")
 
     def apply_smoothing(self):
         smooth_factor = self.parent.smooth_factor

@@ -3,6 +3,7 @@ __author__ = "Jens-Kristian Krogager"
 
 import warnings
 from astropy.io import fits
+from astropy import units as u
 from astropy.table import QTable
 import numpy as np
 import os
@@ -383,6 +384,8 @@ def load_fits_spectrum(fname, ext=None, iraf_obj=None):
                 if has_multi_extensions and (ext is None):
                     msg = "[WARNING] - More than one data extension detected in the file"
                 wavelength, data, error, mask = get_spectrum_fits_table(table_hdu)
+                if 'CUNIT1' in data_hdr:
+                    wavelength *= u.Unit(data_hdr['CUNIT1'])
                 return wavelength, data, error, mask, data_hdr, msg
 
             elif len(HDUlist) == 2:
@@ -549,7 +552,7 @@ def create_error_image(base_fname, overwrite=False):
 
 def detect_4most_MEC(fname):
     prim = fits.getheader(fname)
-    is_qmost = prim.get('INSTRUME').strip() == 'QMOST'
+    is_qmost = prim.get('INSTRUME', 'NONE').strip() == 'QMOST'
     hdr = fits.getheader(fname, 1)
     has_mec_extname = hdr.get('EXTNAME') in ['OBMETATAB', 'SPECTAB', 'FIBMETATAB']
     return is_qmost & has_mec_extname
