@@ -374,6 +374,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.linelist_combo = QtWidgets.QComboBox()
         self.linelist_combo.addItems(self.linelists.keys())
         self.linelist_combo.currentTextChanged.connect(self.load_linelist)
+        self.linelist_combo.setToolTip("Choose a list of emission or absorption lines to overlay")
 
         self.linelist_edit_btn = QtWidgets.QPushButton("Edit lines")
         self.linelist_edit_btn.setToolTip("Edit the selected linelist")

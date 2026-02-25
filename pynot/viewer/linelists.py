@@ -39,6 +39,8 @@ class LineManagerDialog(QDialog):
         # Buttons
         load_btn = QPushButton("Load Line List")
         load_btn.clicked.connect(self.load_linelist)
+        load_btn.setToolTip("Load a new linelist from file (FITS or ASCII).\n"
+                            "The linelist must contain at least two columns with a label and a wavelength")
 
         close_btn = QPushButton("Close Window")
         close_btn.clicked.connect(self.close)
