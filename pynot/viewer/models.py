@@ -126,6 +126,11 @@ class TemplateConfigurationDialog(QtWidgets.QDialog):
 
         c1 = float(self.c1_editor.text())
         c2 = float(self.c2_editor.text())
+        Av = float(self.Av_editor.text())
+        model_name = self.dust_editor.currentText()
+        dust_model = DUST_MODELS[model_name]
+        self.template.dust_model = dust_model()
+        self.template.Av = Av
         self.template.scale_flux(c1, c2)
         self.raise_()
 

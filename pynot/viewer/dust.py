@@ -8,7 +8,7 @@ parameters = {
     }
 
 
-def MW_reddening(wl, pars):
+def MW_reddening(wl, Rv=3.1):
     """
     Average Galactic reddening law parametrized by Fitzpatrick & Massa (2007).
 
@@ -19,12 +19,6 @@ def MW_reddening(wl, pars):
 
     Returns A(l)/A(V) evaluated at the input wavelengths.
     """
-    if isinstance(pars, (float, int)):
-        Rv = pars
-    elif isinstance(pars, dict) and 'Rv' in pars:
-        Rv = pars['Rv']
-    else:
-        Rv = 3.1
 
     if isinstance(wl, float):
         wl = np.array([wl])
@@ -39,17 +33,18 @@ def MW_reddening(wl, pars):
     c2 = 5.0/Rv - 0.85
     c1 = 2.09 - 2.84*c2
     x0 = 4.592
-    gam = 0.922
-    pars_avg = (c1, c2, c3, c4, x0, gam, Rv)
+    gamma = 0.922
+    pars_avg = {'c1': c1, 'c2': c2, 'c3': c3, 'c4': c4,
+                'x0': x0, 'gamma': gamma, 'Rv': Rv}
 
-    ksi = FM2007(k_in, pars_avg)
+    ksi = FM2007(k_in, **pars_avg)
 
     if convert2float:
         ksi = float(ksi)
     return ksi
 
 
-def FM2007(wl, pars):
+def FM2007(wl, c1, c2, c3, c4, Rv, x0=4.579, gamma=0.934):
     """
     Fitzpatrick & Mazza extinction curve
     Return ksi = A(lambda)/A(V) instead of E(B-lambda)/E(B-V).
@@ -74,9 +69,7 @@ def FM2007(wl, pars):
     """
     k = 1 / (wl*1.e-4)
 
-    c1, c2, c3, c4, x0, gam, Rv = pars
-
-    D = k**2/((k**2 - x0**2)**2 + k**2*gam**2)
+    D = k**2/((k**2 - x0**2)**2 + k**2*gamma**2)
 
     F = 0.5392*(k-5.9)**2 + 0.05644*(k-5.9)**3
     F[k < 5.9] = 0.
@@ -94,8 +87,8 @@ def FM2007(wl, pars):
     # Anchor to UV and IR parts to make smooth transition: (FM2007)
     U1 = 3.85                                    # anchor at 2600A
     U2 = 3.7                                    # anchor at 2700A
-    O_UV1 = c1 + c2*U1 + c3*U1**2/((U1**2 - x0**2)**2 + U1**2*gam**2)
-    O_UV2 = c1 + c2*U2 + c3*U2**2/((U2**2 - x0**2)**2 + U2**2*gam**2)
+    O_UV1 = c1 + c2*U1 + c3*U1**2/((U1**2 - x0**2)**2 + U1**2*gamma**2)
+    O_UV2 = c1 + c2*U2 + c3*U2**2/((U2**2 - x0**2)**2 + U2**2*gamma**2)
     O_IRopt = (-0.83 + 0.63*Rv)*1.0**1.84 - Rv    # anchor at 1.0
     O_IR = (-0.83 + 0.63*Rv)*0.75**1.84 - Rv    # anchor at 0.75
 
@@ -124,8 +117,9 @@ class DustModel:
         self.pars = pars
         self.functor = functor
 
-    def __call__(self, x: np.ndarray):
-        return functor(x, self.pars)
+    def __call__(self, x: np.ndarray, Av=1.0):
+        model = 10**(-0.4 * self.functor(x, **self.pars) * Av)
+        return 10**(-0.4 * self.functor(x, **self.pars) * Av)
 
     def __repr__(self):
         return self.__str__()
@@ -137,8 +131,8 @@ class DustModel:
 class SMCDustModel(DustModel):
     name = 'SMC'
 
-    def __init__(self, name='SMC', pars=parameters['SMC']):
-        super().__init__()
+    def __init__(self):
+        super().__init__(name='SMC', pars=parameters['SMC'])
 
 
 class LMCDustModel(DustModel):

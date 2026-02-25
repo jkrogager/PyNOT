@@ -117,7 +117,7 @@ class Spectrum:
         if yerr is not None:
             err_color = QtGui.QColor(color)
             h, s, l, a = err_color.getHsl()
-            err_color.setHsl(h, int(s*0.5), min(int(l*2), 255), 128)
+            err_color.setHsl(h, int(s*0.5), 192, 128)
             err_pen = pg.mkPen(color=err_color, style=ls)
             error_line = plot_graph.plot(self.wavelength, yerr, pen=err_pen,
                                          name=f"{self.parent.name} {self.name} 1σ")
@@ -190,6 +190,7 @@ class Template:
         self.filename = filename
         self.meta = {}
         self.plot_line = None
+        self.error_line = None
         self.parent = parent
 
         if np.any(np.diff(self.wavelength) < 0):
@@ -201,9 +202,6 @@ class Template:
         if not hasattr(wavelength, 'unit'):
             self.wavelength *= u.Angstrom
             logging.warning("No wavelength units given. Assuming Angstrom")
-        # if not hasattr(flux, 'unit'):
-        #     self.flux *= u.Unit("")
-        #     logging.warning("No flux units given. Assuming unitless")
 
         # Initiate template model parameters:
         self.z = 0.
@@ -211,25 +209,25 @@ class Template:
         self.C2 = 1. * self.flux
         self.scaled_flux = self.C1 + self.C2*self.flux
         self.Av = 0.
-        self.dust_model = SMCDustModel
+        self.dust_model = SMCDustModel()
 
     def set_parent(self, parent):
         self.parent = parent
 
-    def __call__(self, new_x):
-        if self.interp == 'linear':
-            return np.interp(new_x, self.wavelength*(self.z+1), self.scaled_flux)
-        elif self.interp == 'cubic':
-            return spline(self.wavelength*(self.z+1), self.scaled_flux, s=0, k=3)(new_x)
-        else:
-            return spline(self.wavelength*(self.z+1), self.scaled_flux, s=0, k=2)(new_x)
+    # def __call__(self, new_x):
+    #     if self.interp == 'linear':
+    #         return np.interp(new_x, self.wavelength*(self.z+1), self.scaled_flux)
+    #     elif self.interp == 'cubic':
+    #         return spline(self.wavelength*(self.z+1), self.scaled_flux, s=0, k=3)(new_x)
+    #     else:
+    #         return spline(self.wavelength*(self.z+1), self.scaled_flux, s=0, k=2)(new_x)
 
     def plot(self, plot_graph, color='blue', ls=Qt.PenStyle.DashLine):
         if self.parent is None:
             logging.error("Attempted to plot without a parent `Target`.")
             return
         ydata = self.apply_smoothing()
-        pen = pg.mkPen(color=color, style=ls)
+        pen = pg.mkPen(color=color, style=ls, width=2)
         line = plot_graph.plot(self.wavelength, ydata, pen=pen,
                                name=f"{self.parent.name} {self.name}")
         self.plot_line = line
@@ -247,7 +245,7 @@ class Template:
         if self.plot_line is None:
             return
 
-        ydata = self.apply_smoothing()
+        ydata = self.apply_smoothing() * self.dust_model(self.wavelength.value, self.Av)
         self.plot_line.setData(self.wavelength*(self.z+1), ydata)
 
     def scale_flux(self, c1=0, c2=1):

@@ -322,6 +322,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.active_targets._data.append(target)
         self.active_targets.layoutChanged.emit()
+        if row is not None:
+            self.current_index = row
+            index = self.all_targets.index(row, 0)
+            self.target_table.setCurrentIndex(index)
         self.active_table.resizeColumnsToContents()
         self.plot_spectrum(target)
 
@@ -330,6 +334,7 @@ class MainWindow(QtWidgets.QMainWindow):
         color = next(color_list)
         for spec in target.spectra:
             spec.plot(self.plot_graph, color=color)
+        self.plot_graph.setFocus()
 
     def make_table_label(self, text):
         label = QtWidgets.QLabel(text)
