@@ -4,6 +4,7 @@ from PyQt5 import QtWidgets, QtGui
 from pynot.viewer.tablemodels import TargetDetailTableModel, SpectrumNameDelegate, ColorPickerDelegate
 from pynot.viewer.spectrum import Spectrum
 
+
 class Target:
     def __init__(self, name=None, spectra=None):
         self.smooth_factor = 1
@@ -48,18 +49,8 @@ class Target:
         dialog = TargetInspectorDialog(target=self, parent=parent)
         dialog.show()
         dialog.raise_()
+        return dialog
 
-
-class TemplateTarget(Target):
-    def __init__(self, template):
-        super().__init__()
-        template.set_parent(self)
-        self.name = template.name
-        self.spectra = [template]
-
-    def show_details(self, parent=None):
-        QtWidgets.QMessageBox.warning(None, "No Template Details", "No information to show for Spectral Templates")
-        return
 
 # -- Target Inspector
 

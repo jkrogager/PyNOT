@@ -15,6 +15,7 @@ warnings.simplefilter('error', RuntimeWarning)
 
 from pynot.txtio import load_ascii_spectrum
 from pynot.fitsio import load_fits_spectrum, detect_4most_MEC
+from pynot.viewer.dust import SMCDustModel
 
 
 functors = [np.abs, np.sin, np.cos, np.tan, np.cosh, np.sinh, np.tanh,
@@ -113,8 +114,6 @@ class Spectrum:
         line = plot_graph.plot(self.wavelength, smooth_flux, pen=pen,
                                name=f"{self.parent.name} {self.name}")
         self.plot_line = line
-        plot_graph.setLabel("left", f"Flux  [{self.flux.unit}]")
-        plot_graph.setLabel("bottom", f"Spectral Axis  [{self.wavelength.unit}]")
 
     def update_plot_data(self):
         if self.plot_line is None:
@@ -172,7 +171,6 @@ class Template:
         self.filename = filename
         self.meta = {}
         self.plot_line = None
-        self.z = 0.
         self.parent = parent
 
         if np.any(np.diff(self.wavelength) < 0):
@@ -184,13 +182,17 @@ class Template:
         if not hasattr(wavelength, 'unit'):
             self.wavelength *= u.Angstrom
             logging.warning("No wavelength units given. Assuming Angstrom")
-        if not hasattr(flux, 'unit'):
-            self.flux *= u.Unit("")
-            logging.warning("No flux units given. Assuming unitless")
+        # if not hasattr(flux, 'unit'):
+        #     self.flux *= u.Unit("")
+        #     logging.warning("No flux units given. Assuming unitless")
 
-        self.C1 = 0. * self.flux.unit
-        self.C2 = 1. * self.flux.unit
+        # Initiate template model parameters:
+        self.z = 0.
+        self.C1 = 0. * self.flux
+        self.C2 = 1. * self.flux
         self.scaled_flux = self.C1 + self.C2*self.flux
+        self.Av = 0.
+        self.dust_model = SMCDustModel
 
     def set_parent(self, parent):
         self.parent = parent
@@ -212,7 +214,6 @@ class Template:
         line = plot_graph.plot(self.wavelength, ydata, pen=pen,
                                name=f"{self.parent.name} {self.name}")
         self.plot_line = line
-        plot_graph.setLabel("left", f"Flux  [{self.flux.unit}]")
         plot_graph.setLabel("bottom", f"Spectral Axis  [{self.wavelength.unit}]")
 
     def apply_smoothing(self):
@@ -233,10 +234,10 @@ class Template:
 
     def scale_flux(self, c1=0, c2=1):
         if isinstance(c1, (float, int)):
-            self.C1 = c1 * self.flux.unit
+            self.C1 = c1
 
         if isinstance(c2, (float, int)):
-            self.C2 = c2 * self.flux.unit
+            self.C2 = c2
 
         self.scaled_flux = self.C1 + self.C2*self.flux
         self.update_plot_data()
@@ -264,7 +265,7 @@ class Template:
             table_items = load_ascii_spectrum(filename)
             x, y, err, mask, sky, output_msg = table_items
 
-        return Template(x, y, name=tname, filename=filename)
+        return Template(x, y, filename=filename)
 
 
 def join_spectra(spec_group, scale=None):

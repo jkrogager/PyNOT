@@ -18,7 +18,8 @@ from pynot.fitsio import load_fits_spectrum, save_fits_spectrum
 from pynot.viewer.tablemodels import TableModel, ActiveTableModel, AbstractIndex
 from pynot.viewer.spectrum import Spectrum, join_spectra, Template
 from pynot.viewer.messages import QtLogHandler, LogViewerDialog
-from pynot.viewer.targets import Target, TemplateTarget
+from pynot.viewer.targets import Target
+from pynot.viewer.models import TemplateTarget
 from pynot.viewer.containers import QMEC, GenericFileContainer
 from pynot.viewer.linelists import LineManagerDialog
 
@@ -255,8 +256,24 @@ class MainWindow(QtWidgets.QMainWindow):
         template = TemplateTarget(
                         Template.read(fname)
                         )
+
+        # Scale the template to the median of data if a spectrum is already loaded:
+        if len(self.active_targets._data) > 0:
+            active_targets = self.active_targets._data
+            active_specflux = []
+            for targ in active_targets:
+                active_specflux += [spec.flux.value for spec in targ.spectra if isinstance(spec, Spectrum)]
+            if len(active_specflux) > 0:
+                mean_flux = np.nanmedian([np.nanmedian(flux) for flux in active_specflux])
+                f0 = np.nanmedian(template.spectra[0].flux)
+                if np.isfinite(mean_flux):
+                    template.spectra[0].scale_flux(0, mean_flux / f0)
+                    logging.info(f"Rescaled template to median flux of data: {mean_flux:.3e}")
         self.add_target(template)
         self.add_active_target(None, target_override=template)
+        dialog = template.show_details(self)
+        dialog.show()
+        dialog.raise_()
 
     def load_target_from_files(self, files):
         target = Target()

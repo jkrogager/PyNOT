@@ -53,7 +53,7 @@ class QMEC:
             npix = len(flux)
             wavelength = np.arange(npix) * hdr['1CDLT1'] + hdr['1CRVL1']
             wavelength *= u.Unit(hdr['1CUNI1'])
-            flux_unit = u.Unit(hdr['1CUNI2'])
+            flux_unit = u.Unit(hdr['TUNIT1'])
             spectrum = Spectrum(wavelength=wavelength,
                                 flux=flux*flux_unit,
                                 error=error*flux_unit,

@@ -69,6 +69,9 @@ class ActiveTableModel(QtCore.QAbstractTableModel):
             specID = f"{item.name}: {len(item.spectra)} spectr{declension}"
             return specID
 
+        if role == Qt.ItemDataRole.EditRole:
+            return self._data[index.row()]
+
     def rowCount(self, index=None):
         return len(self._data)
 
