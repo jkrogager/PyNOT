@@ -1,7 +1,7 @@
 
 from dataclasses import dataclass
 from itertools import cycle
-
+import json
 import pyqtgraph as pg
 from PyQt5 import QtCore, QtWidgets, QtGui
 from PyQt5.QtCore import Qt
@@ -20,12 +20,8 @@ from pynot.viewer.spectrum import Spectrum, join_spectra, Template
 from pynot.viewer.messages import QtLogHandler, LogViewerDialog
 from pynot.viewer.targets import Target, TemplateTarget
 from pynot.viewer.containers import QMEC, GenericFileContainer
+from pynot.viewer.linelists import LineManagerDialog
 
-all_linestyles = cycle([
-        QtCore.Qt.PenStyle.SolidLine,
-        # QtCore.Qt.PenStyle.DashLine,
-        # QtCore.Qt.PenStyle.DotLine,
-        ])
 
 color_list = cycle([
     "#3949AB",
@@ -38,6 +34,7 @@ color_list = cycle([
 
 here = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_DIR = os.path.join(here, 'templates')
+DEFAULT_LINELIST_JSON = os.path.join(here, 'default_linelists.json')
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -47,6 +44,17 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setWindowTitle('Pynot Viewer')
         self._main = QtWidgets.QWidget()
         self.setCentralWidget(self._main)
+
+        with open(DEFAULT_LINELIST_JSON, 'r') as f:
+            self.linelists = json.load(f)
+        superset = []
+        for lines in self.linelists.values():
+            for line in lines:
+                if line not in superset:
+                    superset.append(line)
+        self.linelists["All"] = superset
+        self.line_objects = []
+        self.active_lines = []
 
         self.all_targets = TableModel([])
         self.active_targets = ActiveTableModel([])
@@ -60,14 +68,12 @@ class MainWindow(QtWidgets.QMainWindow):
         exit_action = QtWidgets.QAction("Exit", self)
         # exit_action.setShortcut(QtGui.QKeySequence.Quit)
         exit_action.triggered.connect(self.close)
-
         self.file_menu.addAction(exit_action)
 
         # Status Bar
         self.status = self.statusBar()
         status_msg = ""
         self.status.showMessage(status_msg)
-
 
         # --- Logging Setup ---
         self.log_dialog = LogViewerDialog(self)
@@ -109,6 +115,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.plot_graph.setLabel("bottom", "Spectral axis")
         self.plot_lines = []
         self.plot_graph.viewport().setAttribute(QtCore.Qt.WidgetAttribute.WA_AcceptTouchEvents, False)
+
+        # Create the vertical lines and labels
+        for name, wl, vis in self.active_lines:
+            line = pg.InfiniteLine(pos=wl, angle=90, pen='r', label=name,
+                                   labelOpts={'position': 0.9, 'color': (200, 200, 200)})
+            self.plot_graph.addItem(line)
+            self.line_objects.append(line)
 
         if files is not None:
             if container_mode:
@@ -153,6 +166,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.shortcut_prev.setContext(Qt.ApplicationShortcut)
         self.current_index = None
 
+    def load_linelist(self, name):
+        """Clears the current view and loads a new set of lines."""
+        # 1. Clear existing plot lines
+        for line in self.line_objects:
+            self.plot_graph.removeItem(line)
+        self.line_objects.clear()
+        
+        self.active_lines = self.linelists[name]
+        self.refresh_plot_lines()
 
     def load_container(self, filenames):
         if len(filenames) == 1:
@@ -242,7 +264,7 @@ class MainWindow(QtWidgets.QMainWindow):
         for fname in files:
             spec = Spectrum.read(fname)
             if spec:
-                target.spectra.append(spec)
+                target.add_spectrum(spec)
         if len(target.spectra) > 0:
             target.name = target.spectra[0].meta.get('OBJECT', 'None')
             self.add_target(target)
@@ -346,6 +368,77 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.addToolBar(toolbar)
 
+        # Make redshift slider and line-list selection toolbar
+        lines_toolbar = QtWidgets.QToolBar()
+        lines_toolbar.setMovable(True)
+        self.linelist_combo = QtWidgets.QComboBox()
+        self.linelist_combo.addItems(self.linelists.keys())
+        self.linelist_combo.currentTextChanged.connect(self.load_linelist)
+
+        self.linelist_edit_btn = QtWidgets.QPushButton("Edit lines")
+        self.linelist_edit_btn.setToolTip("Edit the selected linelist")
+        self.linelist_edit_btn.clicked.connect(self.open_line_manager)
+
+        self.slider = QtWidgets.QSlider(Qt.Horizontal)
+        self.slider_scale = 100000
+        self.slider.setRange(int(-0.1*self.slider_scale), int(10*self.slider_scale))
+
+        self.z_input = QtWidgets.QLineEdit("0.0")
+        self.z_input.setFixedWidth(60)
+
+        lines_toolbar.addWidget(self.linelist_combo)
+        lines_toolbar.addWidget(self.linelist_edit_btn)
+        lines_toolbar.addWidget(QtWidgets.QLabel("Redshift: "))
+        lines_toolbar.addWidget(self.slider)
+        lines_toolbar.addWidget(self.z_input)
+        self.slider.valueChanged.connect(self.update_from_slider)
+        self.z_input.editingFinished.connect(self.update_from_text)
+        self.addToolBar(lines_toolbar)
+
+    def open_line_manager(self):
+        # Create dialog and pass current lines
+        self.dialog = LineManagerDialog(self.active_lines, self)
+        self.dialog.linesChanged.connect(self.update_line_data)
+        self.dialog.show()
+        self.dialog.raise_()
+
+    def update_line_data(self, new_line_data):
+        self.active_lines = new_line_data
+        self.refresh_plot_lines()
+
+    def refresh_plot_lines(self):
+        # Clear existing
+        for obj in self.line_objects:
+            self.plot_graph.removeItem(obj)
+        self.line_objects.clear()
+
+        z = self.slider.value() / self.slider_scale
+        for label, wl, visible in self.active_lines:
+            if visible:
+                obs_wl = wl * (1 + z)
+                line = pg.InfiniteLine(pos=obs_wl, angle=90, label=label,
+                                       labelOpts={
+                                            'position': 0.95,
+                                            # 'color': (0, 0, 255),
+                                            'rotateAxis': (1, 0),
+                                            'fill': (255, 255, 255, 200),  # set semi-transparent white background
+                                            }
+                                       )
+                self.plot_graph.addItem(line)
+                self.line_objects.append(line)
+
+    def update_from_slider(self):
+        z = self.slider.value() / self.slider_scale
+        self.z_input.setText(f"{z:.5f}")
+        self.refresh_plot_lines()
+
+    def update_from_text(self):
+        try:
+            z = float(self.z_input.text())
+            self.slider.setValue(int(z * self.slider_scale))
+            self.refresh_plot_lines()
+        except (ValueError, TypeError):
+            logging.error("Invalid redshift input: {z}. Must be a numeral")
 
     def toggle_gridlines(self):
         show_grid = self.grid_radio_button.isChecked()
