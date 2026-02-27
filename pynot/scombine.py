@@ -353,7 +353,7 @@ def combine_2d(files, output=None, method='mean', scale=False, extended=False, d
 
 
 
-def combine_1d(files, output=None, method='mean', scale=False, table_output=True):
+def combine_1d(files, output=None, method='mean', scale=False, table_output=True, imin=0, imax=None):
     """Combine a list of 1d-spectra using either median or mean combination.
     For median combination, only the overlapping parts of the spectra will be
     combined. The mean combination uses a weighted average over the entire
@@ -376,6 +376,12 @@ def combine_1d(files, output=None, method='mean', scale=False, table_output=True
 
     table_output : bool   [default=True]
         Use FITS table for the output format? Otherwise use a MultiExtension Fits File
+
+    imin : int
+        Apply slicing to each spectrum from imin to imax.
+
+    imax : int | None
+        Apply slicing to each spectrum from imin to imax.
     """
 
     wl_all = list()
@@ -385,6 +391,7 @@ def combine_1d(files, output=None, method='mean', scale=False, table_output=True
     size_all = list()
     scales = list()
 
+    cut = slice(imin, imax)
     msg = list()
     for fname in files:
         if fname.endswith('.fits') or fname.endswith('.fit'):
@@ -401,11 +408,11 @@ def combine_1d(files, output=None, method='mean', scale=False, table_output=True
                 msg.append(load_msg)
             msg.append("          - Loaded ASCII spectrum: %s" % fname)
 
-        wl_all.append(wl)
-        flux_all.append(flux)
-        err_all.append(err)
-        mask_all.append(mask)
-        size_all.append(len(wl))
+        wl_all.append(wl[cut])
+        flux_all.append(flux[cut])
+        err_all.append(err[cut])
+        mask_all.append(mask[cut])
+        size_all.append(len(wl[cut]))
         if scale:
             nonzero = flux.nonzero()[0]
             idx_0 = min(nonzero) + len(nonzero)/2

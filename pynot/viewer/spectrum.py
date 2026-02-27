@@ -84,14 +84,19 @@ class Spectrum:
     error_line: pg.PlotItem = None
 
     def __post_init__(self):
-        if not hasattr(self.wavelength, 'unit'):
+        if not hasattr(self.wavelength, 'unit') or self.wavelength.unit is None:
             self.wavelength *= u.Angstrom
             logging.warning("No wavelength units given. Assuming Angstrom")
+        if str(self.wavelength.unit).lower() == 'angstroms':
+            self.wavelength = self.wavelength.value * u.Angstrom
         self.wavelength = self.wavelength.to('Angstrom')
 
         if not hasattr(self.flux, 'unit'):
             self.flux *= u.Unit("")
             logging.warning("No flux units given. Assuming unitless")
+        if 'counts' in str(self.flux.unit).lower():
+            flux_unit = str(self.flux.unit).lower().replace('counts', 'count')
+            self.flux = self.flux.value * u.Unit(flux_unit)
 
         if self.meta is None:
             self.meta = {}
@@ -154,6 +159,7 @@ class Spectrum:
                 x, y, err, mask, hdr, output_msg = load_fits_spectrum(filename)
                 if output_msg:
                     logging.info(output_msg)
+
                 return Spectrum(x, y, err, filename=filename, meta=hdr)
             except Exception as e:
                 logging.exception(e)

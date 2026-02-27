@@ -67,5 +67,11 @@ class QMEC:
     @staticmethod
     def read(filename):
         with fits.open(filename) as hdu:
-            view = hdu['FIBMETATAB'].data['OBJECT']
+            names_columns = ['OBJECT', 'OBJ_NME', 'OBJ_UID']
+            for colname in names_columns:
+                if colname in hdu['FIBMETATAB'].data.names:
+                    view = hdu['FIBMETATAB'].data[colname]
+                    break
+            else:
+                view = [f"Object #{num}" for num in range(len(hdu['FIBMETATAB'].data))]
         return QMEC(filename, view)

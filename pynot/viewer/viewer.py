@@ -13,6 +13,7 @@ import numpy as np
 import sys
 import logging
 import os
+import warnings
 
 from pynot.fitsio import load_fits_spectrum, save_fits_spectrum
 from pynot.viewer.tablemodels import TableModel, ActiveTableModel, AbstractIndex
@@ -36,6 +37,8 @@ color_list = cycle([
 here = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_DIR = os.path.join(here, 'templates')
 DEFAULT_LINELIST_JSON = os.path.join(here, 'default_linelists.json')
+
+warnings.simplefilter('ignore', u.UnitsWarning)
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -93,7 +96,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.log_btn = QtWidgets.QToolButton(self)
         self.log_btn.setText("📜 View Log")
         self.log_btn.clicked.connect(self.log_dialog.show)
-        self.status.addPermanentWidget(self.log_btn)
 
         # Main Layout
         self.main_layout = QtWidgets.QHBoxLayout(self._main)
@@ -116,6 +118,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.plot_graph.setLabel("bottom", "Spectral axis")
         self.plot_lines = []
         self.plot_graph.viewport().setAttribute(QtCore.Qt.WidgetAttribute.WA_AcceptTouchEvents, False)
+
+        self.proxy = pg.SignalProxy(self.plot_graph.scene().sigMouseMoved, rateLimit=60, slot=self.get_cursor_coordinates)
+        self.coordinate_label = QtWidgets.QLabel("(λ, flux)")
+        self.status.addPermanentWidget(self.coordinate_label)
+        self.status.addPermanentWidget(self.log_btn)
 
         # Create the vertical lines and labels
         for name, wl, vis in self.active_lines:
@@ -145,7 +152,19 @@ class MainWindow(QtWidgets.QMainWindow):
         if width and height:
             self.resize(int(width), int(height))
 
+        # State variables
+        self.selection_mode = False
+        self.active_region = None
+        self.is_dragging = False
+        self.start_x = None
+        self.data_stats_labels = []
+        # Connect to the Scene signals
+        self.scene = self.plot_graph.scene()
+        self.scene.sigMouseClicked.connect(self.on_mouse_click)
+        self.scene.sigMouseMoved.connect(self.on_mouse_move)
+
         # -- Define Keyboard Shortcuts
+        # Smoothing:
         self.shortcut_plus = QtWidgets.QShortcut(QtGui.QKeySequence("Ctrl++"), self)
         self.shortcut_plus.activated.connect(self.increase_smoothing)
         self.shortcut_plus.setContext(Qt.ApplicationShortcut)
@@ -158,6 +177,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.shortcut_zero.activated.connect(self.reset_smoothing)
         self.shortcut_zero.setContext(Qt.ApplicationShortcut)
 
+        # Navigation of spectra:
         self.shortcut_next = QtWidgets.QShortcut(QtGui.QKeySequence("Right"), self)
         self.shortcut_next.activated.connect(self.plot_next_target)
         self.shortcut_next.setContext(Qt.ApplicationShortcut)
@@ -166,6 +186,96 @@ class MainWindow(QtWidgets.QMainWindow):
         self.shortcut_prev.activated.connect(self.plot_previous_target)
         self.shortcut_prev.setContext(Qt.ApplicationShortcut)
         self.current_index = None
+
+        # Select analysis region:
+        self.shortcut_region = QtWidgets.QShortcut(QtGui.QKeySequence("Ctrl+R"), self)
+        self.shortcut_region.activated.connect(self.toggle_selection_mode)
+
+
+    def toggle_selection_mode(self):
+        self.selection_mode = True
+        # Disable default panning/zooming
+        self.plot_graph.setMouseEnabled(x=False, y=False)
+        self.plot_graph.setCursor(Qt.CrossCursor)
+        logging.info("Region Selection Activated: Click and drag on the plot to select x-range...")
+
+    def on_mouse_click(self, event):
+        if not self.selection_mode:
+            return
+
+        # Map scene coordinates to plot coordinates
+        vb = self.plot_graph.plotItem.vb
+        scene_pos = event.scenePos()
+        plot_pos = vb.mapSceneToView(scene_pos)
+
+        if not self.is_dragging:
+            # FIRST CLICK: Start the region
+            self.is_dragging = True
+            self.start_x = plot_pos.x()
+            
+            if self.active_region:
+                self.plot_graph.removeItem(self.active_region)
+            
+            self.active_region = pg.LinearRegionItem([self.start_x, self.start_x],
+                                                     brush=(200, 200, 200, 100))
+            self.plot_graph.addItem(self.active_region)
+        else:
+            # SECOND CLICK: Finish the region
+            self.is_dragging = False
+            self.selection_mode = False
+            
+            # Finalize stats
+            low, high = self.active_region.getRegion()
+            self.calculate_stats(low, high)
+            
+            # Restore defaults
+            self.plot_graph.setMouseEnabled(x=True, y=True)
+            self.plot_graph.setCursor(Qt.ArrowCursor)
+
+    def on_mouse_move(self, scene_pos):
+        if self.selection_mode and self.is_dragging:
+            vb = self.plot_graph.plotItem.vb
+            plot_pos = vb.mapSceneToView(scene_pos)
+            self.active_region.setRegion([self.start_x, plot_pos.x()])
+
+    def calculate_stats(self, x_min, x_max):
+        # Filter data within the bounds
+        for target in self.active_targets._data:
+            if isinstance(target, TemplateTarget):
+                continue
+
+            for spec in target.spectra:
+                x = spec.wavelength.value
+                mask = (x >= x_min) & (x <= x_max)
+                selected_y = spec.flux.value[mask]
+
+                if len(selected_y) == 0:
+                    continue
+                stats = {
+                        "Mean   ": np.nanmean(selected_y),
+                        "Median ": np.nanmedian(selected_y),
+                        "Std Dev": np.nanstd(selected_y),
+                    }
+                stats_text = f"--- Stats for Range [{x_min:.1f} : {x_max:.1f}] ---\n"
+                for k, v in stats.items():
+                    stats_text += f"{k}: {v:.3e}\n"
+                color = 'black'
+                box_color = QtGui.QColor(250, 250, 250, 156)
+                box_font = QtGui.QFont('Courier New')
+                text = pg.TextItem(text=stats_text, color=color, fill=box_color, border='gray')
+                text.setPos(x_max, np.nanmean(selected_y))
+                text.setFont(box_font)
+                self.plot_graph.addItem(text)
+                self.data_stats_labels.append(text)
+
+    def get_cursor_coordinates(self, event):
+        vb = self.plot_graph.getViewBox()
+        position = event[0]
+        if vb.sceneBoundingRect().contains(position):
+            mousePoint = vb.mapSceneToView(position)
+            self.coordinate_label.setText(f"{mousePoint.x():.2f}, {mousePoint.y():.2e}")
+        else:
+            self.coordinate_label.setText("(λ, flux)")
 
     def load_linelist(self, name):
         """Clears the current view and loads a new set of lines."""

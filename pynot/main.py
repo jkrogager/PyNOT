@@ -372,6 +372,10 @@ def main(inspect=False):
                               help="Set this option for 2D spectra of extended sources to turn off automatic localization")
     parser_scomb.add_argument("--mef", action="store_false",
                               help="Set this option to save output as a multiextension FITS file instead of a FITS table.")
+    parser_scomb.add_argument("--imin", type=int, default=0,
+                              help="Slice each input spectrum along dispersion axis [imin:imax], only for 1D spectra")
+    parser_scomb.add_argument("--imax", type=int, default=None,
+                              help="Slice each input spectrum along dispersion axis [imin:imax], only for 1D spectra")
 
 
     # -- extract :: Extraction of 1D spectrum from 2D
@@ -781,7 +785,7 @@ def main(inspect=False):
 
         if data_is_1d:
             out_args = combine_1d(filelist, output=args.output, method=args.method,
-                                  scale=args.scale, table_output=args.mef)
+                                  scale=args.scale, table_output=args.mef, imin=args.imin, imax=args.imax)
         else:
             out_args = combine_2d(filelist, output=args.output, method=args.method, trim=args.trim,
                                   scale=args.scale, extended=args.extended, dispaxis=args.axis)
