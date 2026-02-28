@@ -25,6 +25,24 @@ from pynot.viewer.containers import QMEC, GenericFileContainer
 from pynot.viewer.linelists import LineManagerDialog
 
 
+# if sys.platform == 'win32':
+#     # This tells Windows to treat this as a unique application
+#     import ctypes
+#     myappid = 'pynot.viewer.astro.1.0'
+#     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+
+# # --- If MacOS:
+# # Check if we are on Mac
+# elif sys.platform == 'darwin':
+#     # This helps macOS associate the icon with the process
+#     from Foundation import NSBundle
+#     bundle = NSBundle.mainBundle()
+#     if bundle:
+#         info = bundle.localizedInfoDictionary() or bundle.infoDictionary()
+#         if info:
+#             info['CFBundleName'] = "PyNOT Viewer"
+
+
 color_list = cycle([
     "#3949AB",
     "#D81B60",
@@ -37,7 +55,7 @@ color_list = cycle([
 here = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_DIR = os.path.join(here, 'templates')
 DEFAULT_LINELIST_JSON = os.path.join(here, 'default_linelists.json')
-
+main_icon_path = os.path.join(here, 'icons/main.png')
 warnings.simplefilter('ignore', u.UnitsWarning)
 
 
@@ -48,6 +66,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setWindowTitle('Pynot Viewer')
         self._main = QtWidgets.QWidget()
         self.setCentralWidget(self._main)
+        self.setWindowIcon(QtGui.QIcon(main_icon_path))
 
         with open(DEFAULT_LINELIST_JSON, 'r') as f:
             self.linelists = json.load(f)
@@ -63,6 +82,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.all_targets = TableModel([])
         self.active_targets = ActiveTableModel([])
         self.container = None
+        self.redshift_table = None
+        self.target_notes = {}
+        self.target_flags = {}
 
         self.create_toolbar()
 
@@ -197,9 +219,27 @@ class MainWindow(QtWidgets.QMainWindow):
         # Disable default panning/zooming
         self.plot_graph.setMouseEnabled(x=False, y=False)
         self.plot_graph.setCursor(Qt.CrossCursor)
-        logging.info("Region Selection Activated: Click and drag on the plot to select x-range...")
+        logging.info("Region Selection Activated: Click twice on the plot to select ranges in wavelength...")
 
     def on_mouse_click(self, event):
+
+        if event.double():
+            vb = self.plot_graph.plotItem.vb
+            scene_pos = event.scenePos()
+
+            if self.active_region is not None:
+                # Check if the double-click happened inside the region bounds
+                low, high = self.active_region.getRegion()
+                plot_pos = vb.mapSceneToView(scene_pos)
+                
+                if low <= plot_pos.x() <= high:
+                    self.plot_graph.removeItem(self.active_region)
+                    self.active_region = None
+                    label = self.data_stats_labels.pop()
+                    self.plot_graph.removeItem(label)
+                    logging.info("Region removed")
+                    return
+
         if not self.selection_mode:
             return
 
@@ -255,10 +295,14 @@ class MainWindow(QtWidgets.QMainWindow):
                         "Mean   ": np.nanmean(selected_y),
                         "Median ": np.nanmedian(selected_y),
                         "Std Dev": np.nanstd(selected_y),
+                        "MAD    ": np.nanmedian(np.abs(selected_y - np.nanmedian(selected_y))),
+                        "PTV    ": np.ptp(selected_y),
                     }
                 stats_text = f"--- Stats for Range [{x_min:.1f} : {x_max:.1f}] ---\n"
                 for k, v in stats.items():
                     stats_text += f"{k}: {v:.3e}\n"
+                logging.info(stats_text)
+                logging.info(f"Calculated region statistics: [{x_min:.1f} : {x_max:.1f}]")
                 color = 'black'
                 box_color = QtGui.QColor(250, 250, 250, 156)
                 box_font = QtGui.QFont('Courier New')
@@ -393,7 +437,11 @@ class MainWindow(QtWidgets.QMainWindow):
             if spec:
                 target.add_spectrum(spec)
         if len(target.spectra) > 0:
-            target.name = target.spectra[0].meta.get('OBJECT', 'None')
+            logging.info(repr(target.spectra[0].meta))
+            target_name = target.spectra[0].meta.get('OBJ_NME', 'None')
+            if target_name == 'None':
+                target.spectra[0].meta.get('OBJ_UID', 'None')
+            target.name = target_name
             self.add_target(target)
 
     def add_target(self, target):
@@ -670,36 +718,3 @@ class MainWindow(QtWidgets.QMainWindow):
     def show_log_window(self, event):
         self.log_dialog.show()
         self.log_dialog.raise_()
-
-
-
-# -- Start main loop
-
-def start_gui(args):
-    
-    app = QtWidgets.QApplication(sys.argv)
-    screenSize = app.primaryScreen().size()
-    ratio = 0.85
-    main = MainWindow(args.files,
-                      assn_table=args.table,
-                      width=ratio*screenSize.width(),
-                      height=ratio*screenSize.height(),
-                      )
-    main.show()
-    app.exec()
-
-
-def main():
-    parser = ArgumentParser(prog='PyNOT View',
-                            description='PyNOT Spectral Viewer')
-    parser.add_argument("files", type=str, nargs='?',
-                        help="Filenames of spectral data to load. Each file is loaded as one target")
-    parser.add_argument("-t", "--table", type=str,
-                        help="Filename of association table, all files in one row are loaded as a single target")
-
-    args = parser.parse_args()
-    start_gui(args)
-
-
-if __name__ == '__main__':
-    main()

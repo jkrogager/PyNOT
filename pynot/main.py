@@ -399,10 +399,14 @@ def main(inspect=False):
     parser_view.add_argument("files", type=str, nargs='*',
                              help="Filenames of spectral data to load. Each file is loaded as one target")
     parser_view.add_argument("-t", "--table", type=str,
-                             help="Filename of association table, all files in one row are loaded as a single target")
+                             help="Filename of association table. Each line in the file gives a comma-separated list of filenames. "
+                                  "All files in one line are loaded as a single target.")
     parser_view.add_argument("-c", "--container", action="store_true",
                              help="Load the file(s) as a FITS container "
-                             "(such as 4MOST MEC, SDSS bricks, or a large collection of files)")
+                                  "(such as 4MOST MEC, SDSS bricks, or a large collection of files)")
+    parser_view.add_argument("-l", "--list", type=str, default='',
+                             help="File list. Name of a text file where each line is the path of one spectrum."
+                                  "(Useful for loading many files in `container` mode with `-c`)")
 
 
     # Spectral Redux:
@@ -818,8 +822,12 @@ def main(inspect=False):
         app = QtWidgets.QApplication(sys.argv)
         screenSize = app.primaryScreen().size()
         ratio = 0.85
-
-        main = MainWindow(args.files,
+        if args.list:
+            with open(args.list) as l:
+                input_files = [line.strip() for line in l.readlines()]
+        else:
+            input_files = args.files
+        main = MainWindow(input_files,
                           assn_table=args.table,
                           container_mode=args.container,
                           width=ratio*screenSize.width(),

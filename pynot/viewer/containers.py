@@ -22,8 +22,10 @@ class GenericFileContainer:
         return len(self.filelist)
 
     def __getitem__(self, index):
+        target = Target(name=self.view[index])
         spec = Spectrum.read(self.filelist[index])
-        return Target(name=self.view[index], spectra=[spec])
+        target.add_spectrum(spec)
+        return target
 
 
 class QMEC:
