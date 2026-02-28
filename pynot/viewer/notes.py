@@ -12,7 +12,10 @@ class DataFlag(IntFlag):
     BAD_FLUXCALIB     = 2**1    # Problem with flux calibration
     BAD_SKYSUB        = 2**2    # Problem with sky subtraction
     WRONG_Z           = 2**3    # Incorrect redshift
-    WRONG_CLASS       = 2**4    # Incorrect classification
+    Z_VI_CONFIRM      = 2**4    # Assigned if the redshift has been updated
+    WRONG_CLASS       = 2**5    # Incorrect classification
+    CLASS_VI_CONFIRM  = 2**6    # Assigned if the classification has been updated
+
 
     def get_flags(self):
         return [flag.name for flag in DataFlag if flag in self]
@@ -26,10 +29,17 @@ class TargetNote:
     name: str
     note: str
     filenames: list[str]
+    redshift: float = np.nan
+    spectype: str = ""
     date: str | None = None
 
     def __post_init__(self):
         self.date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:&S")
+
+    @staticmethod
+    def from_target(target, note=""):
+        return TargetNote(target.name, note=note,
+                          filenames=[spec.filename for spec in target.spectra])
 
 
 REDSHIFT_NAMES = ['REDSHIFT', 'Z_SPEC', 'ZBEST', 'Z_PIPE', 'ZSPEC', 'Z', 'ZFIT', 'Z_VI']

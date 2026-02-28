@@ -16,6 +16,7 @@ import os
 import warnings
 
 from pynot.fitsio import load_fits_spectrum, save_fits_spectrum
+from pynot.viewer.notes import load_redshift_table, redshift_table_lookup, TargetNote, DataFlag
 from pynot.viewer.tablemodels import TableModel, ActiveTableModel, AbstractIndex
 from pynot.viewer.spectrum import Spectrum, join_spectra, Template
 from pynot.viewer.messages import QtLogHandler, LogViewerDialog
@@ -60,7 +61,8 @@ warnings.simplefilter('ignore', u.UnitsWarning)
 
 
 class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self, files=None, assn_table=None, container_mode=False, width=None, height=None):
+    def __init__(self, files=None, assn_table=None, container_mode=False, width=None, height=None,
+                 redshift_table=None, z_col=None, name_col=None, cls_col=None):
         super().__init__()
 
         self.setWindowTitle('Pynot Viewer')
@@ -78,15 +80,18 @@ class MainWindow(QtWidgets.QMainWindow):
         self.linelists["All"] = superset
         self.line_objects = []
         self.active_lines = []
+        self.linePen = pg.mkPen(color=(100, 100, 100, 150))
 
         self.all_targets = TableModel([])
         self.active_targets = ActiveTableModel([])
         self.container = None
-        self.redshift_table = None
-        self.target_notes = {}
-        self.target_flags = {}
+        self.redshift_table: Table = None
+        self.target_notes: dict[TargetNote] = {}
+        self.target_flags: dict[DataFlag] = {}
 
         self.create_toolbar()
+        self.create_notes_toolbar()
+        self.create_flags_toolbar()
 
         self.main_menu = self.menuBar()
         self.file_menu = self.main_menu.addMenu("File")
@@ -168,6 +173,13 @@ class MainWindow(QtWidgets.QMainWindow):
             for row in assoc:
                 self.load_target_from_files([fname.strip() for fname in row])
 
+        if redshift_table:
+            self.redshift_table = load_redshift_table(redshift_table,
+                                                      z_col=z_col, name_col=name_col, cls_col=cls_col)
+            if self.redshift_table is not None:
+                logging.info(f"Loaded redshift catalog: {redshift_table}")
+                self.linelist_combo.setCurrentText("Common Lines")
+
         if len(self.all_targets._data) > 0:
             self.add_active_target(0)
 
@@ -222,7 +234,6 @@ class MainWindow(QtWidgets.QMainWindow):
         logging.info("Region Selection Activated: Click twice on the plot to select ranges in wavelength...")
 
     def on_mouse_click(self, event):
-
         if event.double():
             vb = self.plot_graph.plotItem.vb
             scene_pos = event.scenePos()
@@ -487,6 +498,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self.active_table.resizeColumnsToContents()
         self.plot_spectrum(target)
 
+        if self.redshift_table and len(target.spectra) > 0:
+            z, spectype = redshift_table_lookup(self.redshift_table, target.spectra[0])
+            self.update_redshift(z)
+        self.sync_target_notes()
+        self.sync_target_flags()
+        target_flag: DataFlag = self.target_flags.get(target.name, DataFlag(0))
+        if DataFlag.Z_VI_CONFIRM in target_flag:
+            target_note = self.target_notes.get(target.name, None)
+            if target_note is None:
+                logging.error(f"No target note for {target.name} but Z_VI_CONFIRM is set?!")
+                return
+            self.z_input.setText(f"{target_note.redshift}")
+            self.update_from_text()
 
     def plot_spectrum(self, target):
         color = next(color_list)
@@ -520,6 +544,106 @@ class MainWindow(QtWidgets.QMainWindow):
                          "Right click for more options...")
         return table
 
+    def sync_target_notes(self):
+        if len(self.active_targets._data) != 1:
+            logging.error("Cannot add notes to more than one target at a time. Remove other targets.")
+            note_text = "Cannot add notes when more than one target is loaded."
+            self.note_input.setReadOnly(True)
+            self.note_input.setText(note_text)
+            return
+
+        target = self.active_targets._data[0]
+        if target.name in self.target_notes:
+            target_note = self.target_notes[target.name]
+            note_text = target_note.note
+        else:
+            note_text = ""
+        self.note_input.setReadOnly(False)
+        self.note_input.setText(note_text)
+
+    def sync_target_flags(self):
+        if len(self.active_targets._data) != 1:
+            logging.error("Cannot add notes to more than one target at a time. Remove other targets.")
+            for editor in self.flag_inputs:
+                editor.setCheckable(False)
+            return
+
+        target = self.active_targets._data[0]
+        for editor in self.flag_inputs:
+            editor.setCheckable(True)
+
+        target_flag = self.target_flags.get(target.name, DataFlag(0))
+
+        for checkbox, val in zip(self.flag_inputs, DataFlag):
+            if val in target_flag:
+                checkbox.blockSignals(True)
+                checkbox.setChecked(True)
+                checkbox.blockSignals(False)
+            else:
+                checkbox.blockSignals(True)
+                checkbox.setChecked(False)
+                checkbox.blockSignals(False)
+
+    def save_notes(self):
+        if len(self.active_targets._data) != 1:
+            logging.error("Cannot add notes to more than one target at a time. Remove other targets.")
+            return
+
+        note_text = self.note_input.text()
+        target: Target = self.active_targets._data[0]
+        target_note = TargetNote.from_target(target)
+
+        target_flag = self.target_flags.get(target.name, DataFlag(0))
+        if DataFlag.Z_VI_CONFIRM in target_flag:
+            this_redshift = float(self.z_input.text())
+            target_note.redshift = this_redshift
+
+        if DataFlag.CLASS_VI_CONFIRM in target_flag:
+            logging.warning("Object classification not yet implemented")
+            # target_note.spectype = ""
+
+        self.target_notes[target.name] = target_note
+
+    def save_flags(self):
+        if len(self.active_targets._data) != 1:
+            logging.error("Cannot add flags to more than one target at a time. Remove other targets.")
+            return
+        target_flag = DataFlag(0)
+        for checkbox, val in zip(self.flag_inputs, DataFlag):
+            if checkbox.isChecked():
+                target_flag |= val
+
+        target: Target = self.active_targets._data[0]
+        self.target_flags[target.name] = target_flag
+        target_note = self.target_notes.get(target.name, None)
+
+        if DataFlag.Z_VI_CONFIRM in target_flag:
+            if target.name not in self.target_notes:
+                target_note = TargetNote.from_target(target, "Visually updated redshift")
+                target_note.redshift = float(self.z_input.text())
+                self.target_notes[target.name] = target_note
+        elif target_note and target_note.note == "Visually updated redshift":
+            target_note.note = ""
+            self.note_input.setText("")
+
+    def create_notes_toolbar(self):
+        notes_toolbar = QtWidgets.QToolBar()
+        self.note_input = QtWidgets.QLineEdit("")
+        self.note_input.editingFinished.connect(self.save_notes)
+        notes_toolbar.addWidget(QtWidgets.QLabel("Notes: "))
+        notes_toolbar.addWidget(self.note_input)
+        self.addToolBar(Qt.BottomToolBarArea, notes_toolbar)
+
+    def create_flags_toolbar(self):
+        flags_toolbar = QtWidgets.QToolBar()
+        flags_toolbar.addWidget(QtWidgets.QLabel("Data Flags: "))
+        self.flag_inputs = []
+        for val in DataFlag:
+            editor = QtWidgets.QCheckBox(val.name)
+            editor.clicked.connect(self.save_flags)
+            self.flag_inputs.append(editor)
+            flags_toolbar.addWidget(editor)
+        self.addToolBar(Qt.RightToolBarArea, flags_toolbar)
 
     def create_toolbar(self):
         # Create Toolbar
@@ -561,7 +685,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.slider = QtWidgets.QSlider(Qt.Horizontal)
         self.slider_scale = 100000
-        self.slider.setRange(int(-0.1*self.slider_scale), int(10*self.slider_scale))
+        self.slider.setRange(int(-0.1*self.slider_scale), int(7*self.slider_scale))
 
         self.z_input = QtWidgets.QLineEdit("0.0")
         self.z_input.setFixedWidth(60)
@@ -597,15 +721,22 @@ class MainWindow(QtWidgets.QMainWindow):
             if visible:
                 obs_wl = wl * (1 + z)
                 line = pg.InfiniteLine(pos=obs_wl, angle=90, label=label,
+                                       pen=self.linePen,
                                        labelOpts={
-                                            'position': 0.95,
-                                            # 'color': (0, 0, 255),
+                                            'position': 0.9,
                                             'rotateAxis': (1, 0),
-                                            'fill': (255, 255, 255, 200),  # set semi-transparent white background
+                                            'color': (56, 56, 56, 200),
+                                            'fill': (255, 255, 255, 100),  # set semi-transparent white background
+                                            'movable': True,
                                             }
                                        )
                 self.plot_graph.addItem(line)
                 self.line_objects.append(line)
+                line.label.setPosition(0.9)
+
+    def update_redshift(self, z):
+        self.slider.setValue(int(z * self.slider_scale))
+        self.update_from_slider()
 
     def update_from_slider(self):
         z = self.slider.value() / self.slider_scale
@@ -615,7 +746,9 @@ class MainWindow(QtWidgets.QMainWindow):
     def update_from_text(self):
         try:
             z = float(self.z_input.text())
+            self.slider.blockSignals(True)
             self.slider.setValue(int(z * self.slider_scale))
+            self.slider.blockSignals(False)
             self.refresh_plot_lines()
         except (ValueError, TypeError):
             logging.error("Invalid redshift input: {z}. Must be a numeral")
@@ -657,6 +790,8 @@ class MainWindow(QtWidgets.QMainWindow):
         for line in target.get_all_plot_lines():
             self.plot_graph.removeItem(line)
         logging.info(f"Removed target: {target.name}")
+        self.sync_target_flags()
+        self.sync_target_notes()
 
 
     def save_spectrum(self, index):

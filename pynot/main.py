@@ -407,6 +407,16 @@ def main(inspect=False):
     parser_view.add_argument("-l", "--list", type=str, default='',
                              help="File list. Name of a text file where each line is the path of one spectrum."
                                   "(Useful for loading many files in `container` mode with `-c`)")
+    # redshift_table=None, z_col=None, name_col=None, cls_col=None
+    parser_view.add_argument("-z", type=str, default='',
+                             help="Filename of redshift catalog with a name, redshift and spectral type column. "
+                                  "Set column names using `--ncol`, `--zcol`, `--tcol`")
+    parser_view.add_argument("--ncol", type=str, default='',
+                             help="Name of the target name column in `-z REDSHIFT_TABLE`")
+    parser_view.add_argument("--zcol", type=str, default='',
+                             help="Name of the redshift column in `-z REDSHIFT_TABLE`")
+    parser_view.add_argument("--tcol", type=str, default='',
+                             help="Name of the spectral type column in `-z REDSHIFT_TABLE`")
 
 
     # Spectral Redux:
@@ -832,6 +842,8 @@ def main(inspect=False):
                           container_mode=args.container,
                           width=ratio*screenSize.width(),
                           height=ratio*screenSize.height(),
+                          redshift_table=args.z,
+                          z_col=args.zcol, name_col=args.ncol, cls_col=args.tcol,
                           )
         main.show()
         app.exit(app.exec_())

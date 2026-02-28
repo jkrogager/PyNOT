@@ -161,6 +161,7 @@ class Spectrum:
                     logging.info(output_msg)
 
                 return Spectrum(x, y, err, filename=filename, meta=hdr)
+
             except Exception as e:
                 logging.exception(e)
                 logging.error(f"Failed to load spectrum: {filename}")

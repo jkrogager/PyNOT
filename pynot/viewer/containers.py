@@ -12,9 +12,12 @@ class GenericFileContainer:
         self.filelist = filelist
         self.view = []
         for f in self.filelist:
-            try:
-                name = fits.getval(f, 'OBJECT')
-            except Exception:
+            for key in ['OBJ_NME', 'OBJ_UID', 'OBJECT']:
+                try:
+                    name = fits.getval(f, key)
+                except Exception:
+                    pass
+            else:
                 name = f
             self.view.append(os.path.basename(name))
 
