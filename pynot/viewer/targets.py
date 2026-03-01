@@ -98,6 +98,9 @@ class TargetInspectorDialog(QtWidgets.QDialog):
 
     def update_target_name(self):
         text = self.text_edit.text()
+        if ',' in text:
+            logging.warning("Invalid character in name: ','. Force conversion to ';'")
+            text = text.replace(',', ';')
         self.target.name = text
         for spec in self.target.spectra:
             label = self.parent.plot_legend.getLabel(spec.plot_line)

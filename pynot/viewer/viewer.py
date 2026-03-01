@@ -11,12 +11,13 @@ from astropy import units as u
 from astropy.table import Table, QTable
 import numpy as np
 import sys
+import glob
 import logging
 import os
 import warnings
 
 from pynot.fitsio import load_fits_spectrum, save_fits_spectrum
-from pynot.viewer.notes import load_redshift_table, redshift_table_lookup, TargetNote, DataFlag
+from pynot.viewer.notes import load_redshift_table, redshift_table_lookup, TargetNote, DataFlag, write_notes_to_file
 from pynot.viewer.tablemodels import TableModel, ActiveTableModel, AbstractIndex
 from pynot.viewer.spectrum import Spectrum, join_spectra, Template
 from pynot.viewer.messages import QtLogHandler, LogViewerDialog
@@ -88,18 +89,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self.redshift_table: Table = None
         self.target_notes: dict[TargetNote] = {}
         self.target_flags: dict[DataFlag] = {}
+        self.notes_filename = None
+
+        if os.path.exists("pynot_backup_target_notes.json"):
+            N_backup = len(glob.glob('pynot_backup_target_notes*.json'))
+            self.notes_backup_filename = f"pynot_backup_target_notes{N_backup:03}.json"
+        else:
+            self.notes_backup_filename = "pynot_backup_target_notes.json"
 
         self.create_toolbar()
         self.create_notes_toolbar()
         self.create_flags_toolbar()
 
-        self.main_menu = self.menuBar()
-        self.file_menu = self.main_menu.addMenu("File")
-        # Exit QAction
-        exit_action = QtWidgets.QAction("Exit", self)
-        # exit_action.setShortcut(QtGui.QKeySequence.Quit)
-        exit_action.triggered.connect(self.close)
-        self.file_menu.addAction(exit_action)
+        self.create_menubar()
 
         # Status Bar
         self.status = self.statusBar()
@@ -359,14 +361,13 @@ class MainWindow(QtWidgets.QMainWindow):
     def change_display_target(self, increment=+1):
         if self.current_index is None:
             self.current_index = self.target_table.currentIndex().row()
-            logging.info(f"setting current index: {self.current_index}")
 
         self.current_index += increment
         # Check that index is in range:
         Nrows = self.all_targets.rowCount()
         if 0 <= self.current_index < Nrows:
-            logging.info(f"setting current index: {self.current_index}")
             self.clear_active_targets()
+            logging.info(f"setting current index: {self.current_index}")
             self.add_active_target(self.current_index)
         elif self.current_index < 0:
             logging.info(f"current index reached the limit: 0")
@@ -545,11 +546,13 @@ class MainWindow(QtWidgets.QMainWindow):
         return table
 
     def sync_target_notes(self):
-        if len(self.active_targets._data) != 1:
+        if len(self.active_targets._data) > 1:
             logging.error("Cannot add notes to more than one target at a time. Remove other targets.")
             note_text = "Cannot add notes when more than one target is loaded."
             self.note_input.setReadOnly(True)
             self.note_input.setText(note_text)
+            return
+        elif len(self.active_targets._data) == 0:
             return
 
         target = self.active_targets._data[0]
@@ -562,10 +565,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.note_input.setText(note_text)
 
     def sync_target_flags(self):
-        if len(self.active_targets._data) != 1:
-            logging.error("Cannot add notes to more than one target at a time. Remove other targets.")
+        if len(self.active_targets._data) > 1:
             for editor in self.flag_inputs:
                 editor.setCheckable(False)
+            return
+        elif len(self.active_targets._data) == 0:
             return
 
         target = self.active_targets._data[0]
@@ -591,7 +595,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         note_text = self.note_input.text()
         target: Target = self.active_targets._data[0]
-        target_note = TargetNote.from_target(target)
+        target_note = TargetNote.from_target(target, note=note_text)
 
         target_flag = self.target_flags.get(target.name, DataFlag(0))
         if DataFlag.Z_VI_CONFIRM in target_flag:
@@ -603,6 +607,7 @@ class MainWindow(QtWidgets.QMainWindow):
             # target_note.spectype = ""
 
         self.target_notes[target.name] = target_note
+        self.write_notes(self.notes_backup_filename, backup=True)
 
     def save_flags(self):
         if len(self.active_targets._data) != 1:
@@ -853,3 +858,32 @@ class MainWindow(QtWidgets.QMainWindow):
     def show_log_window(self, event):
         self.log_dialog.show()
         self.log_dialog.raise_()
+
+    def write_notes(self, filename=None, backup=False):
+        if len(self.target_notes) == 0:
+            if not backup:
+                logging.warning("No target notes to save")
+            return
+
+        notes_filename = write_notes_to_file(self.target_notes, self.target_flags,
+                                             filename=filename)
+        if notes_filename and not backup:
+            self.notes_filename = str(notes_filename)
+            logging.info(f"Saved target notes to file: {notes_filename}")
+
+    def create_menubar(self):
+        self.main_menu = self.menuBar()
+        self.file_menu = self.main_menu.addMenu("File")
+        # load_action = QtWidgets.QAction("Load Spectrum")
+        # load_container_action = QtWidgets.QAction("Load Multiple Spectra")
+
+        save_action = QtWidgets.QAction("Save Notes", self)
+        save_action.triggered.connect(lambda x: self.write_notes())
+        save_action.setShortcut("Ctrl+S")
+
+        # Exit QAction
+        exit_action = QtWidgets.QAction("Exit", self)
+        exit_action.triggered.connect(self.close)
+        
+        self.file_menu.addAction(save_action)
+        self.file_menu.addAction(exit_action)

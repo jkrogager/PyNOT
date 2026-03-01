@@ -1,9 +1,12 @@
 from astropy.table import Table
 import logging
+import json
 import numpy as np
 from enum import IntFlag
 from dataclasses import dataclass
 import datetime
+
+from PyQt5.QtWidgets import QFileDialog
 
 
 class DataFlag(IntFlag):
@@ -20,7 +23,7 @@ class DataFlag(IntFlag):
     def get_flags(self):
         return [flag.name for flag in DataFlag if flag in self]
 
-    def to_string(self, delimiter='; '):
+    def to_string(self, delimiter='|'):
         return delimiter.join(self.get_flags())
 
 
@@ -40,6 +43,17 @@ class TargetNote:
     def from_target(target, note=""):
         return TargetNote(target.name, note=note,
                           filenames=[spec.filename for spec in target.spectra])
+
+    def asdict(self):
+        return self.__dict__
+
+    def rowdict(self):
+        row = self.asdict().copy()
+        row['filenames'] = ';'.join(self.filenames)
+        row['note'] = self.note.replace(',', ';')
+        if self.spectype:
+            row['spectype'] = self.spectype.replace(',', ';')
+        return row
 
 
 REDSHIFT_NAMES = ['REDSHIFT', 'Z_SPEC', 'ZBEST', 'Z_PIPE', 'ZSPEC', 'Z', 'ZFIT', 'Z_VI']
@@ -167,3 +181,75 @@ def redshift_table_lookup(redshift_table, spectrum):
     except KeyError:
         logging.error(f"No matching redshift for name: {name}")
         return np.nan, ""
+
+
+def to_json(target: TargetNote):
+    return target.asdict()
+
+
+def to_table(target: TargetNote):
+    return target.rowdict()
+
+
+def write_json(rows, filename):
+    try:
+        with open(filename, "w") as f:
+            json.dump(rows, f, indent=2)
+        return filename
+    except Exception as e:
+        logging.exception(e)
+        logging.error("An error occured when writing target notes to JSON")
+        return
+
+
+def write_table(rows, filename):
+    try:
+        tab = Table(rows)
+    except Exception as e:
+        logging.exception(e)
+        logging.error("An error occurred when converting target notes to a table")
+        return
+
+    tab.write(filename, overwrite=True)
+    return filename
+
+
+def write_notes_to_file(notes: dict[str, TargetNote], flags: dict[str, DataFlag], filename=None, parent=None):
+    """Launch GUI to select filename and file format, either JSON, CSV or FITS"""
+
+    if filename is None:
+        current_dir = "./"
+        filters = "CSV Files (*.csv);; JSON Files (*.json);; FITS Files (*.fits)"
+        fname, selected_filter = QFileDialog.getSaveFileName(parent, 'Save Target Notes',
+                                                             current_dir, filters)
+        if not fname:
+            return
+
+        filename = fname
+        if 'json' in selected_filter.lower():
+            if not filename.endswith(".json"):
+                filename += '.json'
+            serializer = to_json
+            writer = write_json
+        else:
+            serializer = to_table
+            writer = write_table
+
+    else:
+        if '.json' in filename.lower():
+            serializer = to_json
+            writer = write_json
+        else:
+            serializer = to_table
+            writer = write_table
+
+    rows = []
+    for key, notes in notes.items():
+        item = serializer(notes)
+        flag = flags.get(key, DataFlag(0))
+        item['flag'] = flag
+        item['flag_value'] = flag.to_string()
+        rows.append(item)
+
+    file_saved = writer(rows, filename)
+    return file_saved
