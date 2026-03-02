@@ -546,16 +546,18 @@ class MainWindow(QtWidgets.QMainWindow):
         return table
 
     def sync_target_notes(self):
-        if len(self.active_targets._data) > 1:
+        targets_in_view = self.get_real_active_targets()
+
+        if len(targets_in_view) > 1:
             logging.error("Cannot add notes to more than one target at a time. Remove other targets.")
             note_text = "Cannot add notes when more than one target is loaded."
             self.note_input.setReadOnly(True)
             self.note_input.setText(note_text)
             return
-        elif len(self.active_targets._data) == 0:
+        elif len(targets_in_view) == 0:
             return
 
-        target = self.active_targets._data[0]
+        target = targets_in_view[0]
         if target.name in self.target_notes:
             target_note = self.target_notes[target.name]
             note_text = target_note.note
@@ -565,14 +567,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.note_input.setText(note_text)
 
     def sync_target_flags(self):
-        if len(self.active_targets._data) > 1:
+        targets_in_view = self.get_real_active_targets()
+        if len(targets_in_view) > 1:
             for editor in self.flag_inputs:
                 editor.setCheckable(False)
             return
-        elif len(self.active_targets._data) == 0:
+        elif len(targets_in_view) == 0:
             return
 
-        target = self.active_targets._data[0]
+        target = targets_in_view[0]
         for editor in self.flag_inputs:
             editor.setCheckable(True)
 
@@ -689,7 +692,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.linelist_edit_btn.clicked.connect(self.open_line_manager)
 
         self.slider = QtWidgets.QSlider(Qt.Horizontal)
-        self.slider_scale = 100000
+        self.slider_scale = 100_000
         self.slider.setRange(int(-0.1*self.slider_scale), int(7*self.slider_scale))
 
         self.z_input = QtWidgets.QLineEdit("0.0")
@@ -721,6 +724,16 @@ class MainWindow(QtWidgets.QMainWindow):
             self.plot_graph.removeItem(obj)
         self.line_objects.clear()
 
+        # Determine data limits on x-axis:
+        active_spectra = self.get_active_spectra()
+        wl_arrays = [spec.wavelength for spec in active_spectra]
+        try:
+            data_xmin = np.min(wl_arrays)
+            data_xmax = np.max(wl_arrays)
+        except Exception:
+            data_xmin = 0
+            data_xmax = 0
+
         z = self.slider.value() / self.slider_scale
         for label, wl, visible in self.active_lines:
             if visible:
@@ -735,13 +748,18 @@ class MainWindow(QtWidgets.QMainWindow):
                                             'movable': True,
                                             }
                                        )
+                if (obs_wl < data_xmin) or (obs_wl > data_xmax):
+                    line.setVisible(False)
+                else:
+                    line.setVisible(True)
                 self.plot_graph.addItem(line)
                 self.line_objects.append(line)
                 line.label.setPosition(0.9)
 
     def update_redshift(self, z):
-        self.slider.setValue(int(z * self.slider_scale))
-        self.update_from_slider()
+        if np.isfinite(z):
+            self.slider.setValue(int(z * self.slider_scale))
+            self.update_from_slider()
 
     def update_from_slider(self):
         z = self.slider.value() / self.slider_scale
@@ -767,6 +785,20 @@ class MainWindow(QtWidgets.QMainWindow):
         for target in self.all_targets:
             all_lines += target.get_all_plot_lines()
         return all_lines
+
+    def get_active_spectra(self):
+        active_spectra = []
+        for target in self.active_targets._data:
+            active_spectra += target.spectra
+        return active_spectra
+
+    def get_real_active_targets(self):
+        targets_in_view = []
+        for target in self.active_targets._data:
+            if isinstance(target, TemplateTarget):
+                continue
+            targets_in_view.append(target)
+        return targets_in_view
 
     def set_visible_obj(self, index, vis):
         if isinstance(index, int):
