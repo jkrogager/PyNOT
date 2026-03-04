@@ -10,6 +10,7 @@ from PyQt5 import QtGui
 import pyqtgraph as pg
 import os
 import logging
+from typing import Any
 
 import warnings
 warnings.simplefilter('error', RuntimeWarning)
@@ -19,55 +20,17 @@ from pynot.fitsio import load_fits_spectrum, detect_4most_MEC
 from pynot.viewer.dust import SMCDustModel
 
 
+def gauss(x, mu, sigma):
+    return np.exp(-0.5*(x - mu)**2 / sigma**2)
+
+
 functors = [np.abs, np.sin, np.cos, np.tan, np.cosh, np.sinh, np.tanh,
             np.arccos, np.arcsin, np.arctan, np.arctan2, np.log, np.log10,
-            np.sqrt, np.min, np.max, np.ceil, np.floor, np.power, np.exp, np.poly1d]
+            np.sqrt, np.min, np.max, np.ceil, np.floor, np.power, np.exp, np.poly1d,
+            gauss]
 numpy_functions = {f.__name__: f for f in functors}
 
 function_name_cycle = cycle(['f(x)', 'g(x)', 'h(x)', 'p(x)', 'q(x)'])
-
-
-@dataclass
-class ModelSpectrum:
-    expression: str
-    plot_line: pg.PlotItem = None
-    name: str = None
-    xmin: float = None
-    xmax: float = None
-    dx: float = None
-    log: bool = False
-
-    def __post_init__(self):
-        if self.name is None:
-            self.name = next(function_name_cycle)
-
-    @property
-    def x(self):
-        if self.xmin and self.xmax and self.dx:
-            pass
-        else:
-            raise AxisDefinitionError("Must specify x-axis: xmin, xmax, dx and log")
-
-        if self.log:
-            x = np.arange(np.log10(self.xmin),
-                          np.log10(self.xmax),
-                          self.dx)
-        else:
-            x = np.arange(self.xmin, self.xmax, self.dx)
-        return x
-
-
-    def __call__(self, x=None):
-        if x is None:
-            x = self.x
-
-        variables = {'x': x}
-        variables.update(numpy_functions)
-        return eval(self.expression, variables)
-
-
-class AxisDefinitionError(Exception):
-    pass
 
 
 @dataclass
@@ -289,6 +252,80 @@ class Template:
             x, y, err, mask, sky, output_msg = table_items
 
         return Template(x, y, filename=filename)
+
+
+@dataclass
+class ModelSpectrum:
+    expression: str
+    plot_line: pg.PlotItem = None
+    error_line: pg.PlotItem = None
+    name: str = None
+    xmin: float = 3700
+    xmax: float = 9500
+    dx: float = 1
+    log: bool = False
+    parent: Any = None
+    spectrum: Spectrum = None
+    wavelength: float = 1. * u.Angstrom
+
+    def __post_init__(self):
+        if self.name is None:
+            self.name = next(function_name_cycle)
+
+    def set_parent(self, parent):
+        self.parent = parent
+
+    def set_spectrum(self, spectrum):
+        self.spectrum = spectrum
+
+    @property
+    def x(self):
+        if self.spectrum is not None:
+            return self.spectrum.wavelength.value
+
+        if self.xmin and self.xmax and self.dx:
+            pass
+        else:
+            logging.error("Must specify x-axis: xmin, xmax, dx and log")
+            return np.zeros(1)
+
+        if self.log:
+            x = np.arange(np.log10(self.xmin),
+                          np.log10(self.xmax),
+                          self.dx)
+        else:
+            x = np.arange(self.xmin, self.xmax, self.dx)
+        return x
+
+    def plot(self, plot_graph, color='red', ls=Qt.PenStyle.SolidLine):
+        if self.parent is None:
+            logging.error("Attempted to plot without a parent `Target`.")
+            return
+        ydata = self()
+        pen = pg.mkPen(color=color, style=ls, width=2)
+        line = plot_graph.plot(self.x, ydata, pen=pen,
+                               name=f"{self.parent.name} {self.name}")
+        self.plot_line = line
+
+    def update_plot_data(self):
+        if self.plot_line is None:
+            return
+
+        ydata = self()
+        self.plot_line.setData(self.x, ydata)
+
+    def __call__(self, x=None):
+        if x is None:
+            x = self.x
+
+        variables = {'x': x}
+        variables.update(numpy_functions)
+        logging.info(f"Evaluating model expression: {self.expression}")
+        try:
+            ydata = eval(self.expression, variables)
+        except (SyntaxError, NameError):
+            ydata = np.zeros_like(x)
+        return ydata
 
 
 def join_spectra(spec_group, scale=None):

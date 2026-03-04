@@ -19,10 +19,10 @@ import warnings
 from pynot.fitsio import load_fits_spectrum, save_fits_spectrum
 from pynot.viewer.notes import load_redshift_table, redshift_table_lookup, TargetNote, DataFlag, write_notes_to_file
 from pynot.viewer.tablemodels import TableModel, ActiveTableModel, AbstractIndex
-from pynot.viewer.spectrum import Spectrum, join_spectra, Template
+from pynot.viewer.spectrum import Spectrum, join_spectra, Template, ModelSpectrum
 from pynot.viewer.messages import QtLogHandler, LogViewerDialog
 from pynot.viewer.targets import Target
-from pynot.viewer.models import TemplateTarget
+from pynot.viewer.models import TemplateTarget, ModelTarget
 from pynot.viewer.containers import QMEC, GenericFileContainer
 from pynot.viewer.linelists import LineManagerDialog
 
@@ -248,8 +248,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 if low <= plot_pos.x() <= high:
                     self.plot_graph.removeItem(self.active_region)
                     self.active_region = None
-                    label = self.data_stats_labels.pop()
-                    self.plot_graph.removeItem(label)
+                    for label in self.data_stats_labels:
+                        self.plot_graph.removeItem(label)
                     logging.info("Region removed")
                     return
 
@@ -311,6 +311,9 @@ class MainWindow(QtWidgets.QMainWindow):
                         "MAD    ": np.nanmedian(np.abs(selected_y - np.nanmedian(selected_y))),
                         "PTV    ": np.ptp(selected_y),
                     }
+                if spec.error is not None:
+                    selected_err = spec.error.value[mask]
+                    stats["S/N    "] = np.nanmedian(selected_y) / np.nanmedian(selected_err)
                 stats_text = f"--- Stats for Range [{x_min:.1f} : {x_max:.1f}] ---\n"
                 for k, v in stats.items():
                     stats_text += f"{k}: {v:.3e}\n"
@@ -411,6 +414,14 @@ class MainWindow(QtWidgets.QMainWindow):
         for spectrum in target.spectra:
             spectrum.update_plot_data()
 
+    def add_model(self):
+        model = ModelTarget(model=ModelSpectrum('0 * x'))
+        self.add_target(model)
+        self.add_active_target(None, target_override=model)
+        dialog = model.show_details(self)
+        dialog.show()
+        dialog.raise_()
+
     def load_spectral_template(self):
         current_dir = TEMPLATE_DIR
         filters = "Spectral files (*.fits | *.fit | *.csv | *.txt | *.dat | *.spec)"
@@ -457,7 +468,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.add_target(target)
 
     def add_target(self, target):
-        if isinstance(target, TemplateTarget):
+        if isinstance(target, (TemplateTarget, ModelTarget)):
             pass
         else:
             self.all_targets._data.append(target)
@@ -789,6 +800,8 @@ class MainWindow(QtWidgets.QMainWindow):
     def get_active_spectra(self):
         active_spectra = []
         for target in self.active_targets._data:
+            if isinstance(target, (TemplateTarget, ModelTarget)):
+                continue
             active_spectra += target.spectra
         return active_spectra
 
@@ -905,6 +918,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def create_menubar(self):
         self.main_menu = self.menuBar()
+
+        # -- File Menu
         self.file_menu = self.main_menu.addMenu("File")
         # load_action = QtWidgets.QAction("Load Spectrum")
         # load_container_action = QtWidgets.QAction("Load Multiple Spectra")
@@ -919,3 +934,11 @@ class MainWindow(QtWidgets.QMainWindow):
         
         self.file_menu.addAction(save_action)
         self.file_menu.addAction(exit_action)
+
+        # -- Models Menu
+        self.model_menu = self.main_menu.addMenu("Models")
+        add_model_action = QtWidgets.QAction("Add Model", self)
+        add_model_action.triggered.connect(self.add_model)
+        add_model_action.setShortcut("Ctrl+M")
+
+        self.model_menu.addAction(add_model_action)
