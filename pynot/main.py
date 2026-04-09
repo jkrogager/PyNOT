@@ -372,6 +372,10 @@ def main(inspect=False):
                               help="Set this option for 2D spectra of extended sources to turn off automatic localization")
     parser_scomb.add_argument("--mef", action="store_false",
                               help="Set this option to save output as a multiextension FITS file instead of a FITS table.")
+    parser_scomb.add_argument("--imin", type=int, default=0,
+                              help="Slice each input spectrum along dispersion axis [imin:imax], only for 1D spectra")
+    parser_scomb.add_argument("--imax", type=int, default=None,
+                              help="Slice each input spectrum along dispersion axis [imin:imax], only for 1D spectra")
 
 
     # -- extract :: Extraction of 1D spectrum from 2D
@@ -388,6 +392,31 @@ def main(inspect=False):
     # Define parameters based on default values:
     set_default_pars(parser_ext, section='extract', default_type=int,
                      ignore_pars=['interactive'])
+
+    # -- view :: View 1D spectra in an interactive window
+    parser_view = tasks.add_parser('view', formatter_class=set_help_width(31),
+                                   help="Display and interact with 1D spectra")
+    parser_view.add_argument("files", type=str, nargs='*',
+                             help="Filenames of spectral data to load. Each file is loaded as one target")
+    parser_view.add_argument("-t", "--table", type=str,
+                             help="Filename of association table. Each line in the file gives a comma-separated list of filenames. "
+                                  "All files in one line are loaded as a single target.")
+    parser_view.add_argument("-c", "--container", action="store_true",
+                             help="Load the file(s) as a FITS container "
+                                  "(such as 4MOST MEC, SDSS bricks, or a large collection of files)")
+    parser_view.add_argument("-l", "--list", type=str, default='',
+                             help="File list. Name of a text file where each line is the path of one spectrum."
+                                  "(Useful for loading many files in `container` mode with `-c`)")
+    # redshift_table=None, z_col=None, name_col=None, cls_col=None
+    parser_view.add_argument("-z", type=str, default='',
+                             help="Filename of redshift catalog with a name, redshift and spectral type column. "
+                                  "Set column names using `--ncol`, `--zcol`, `--tcol`")
+    parser_view.add_argument("--ncol", type=str, default='',
+                             help="Name of the target name column in `-z REDSHIFT_TABLE`")
+    parser_view.add_argument("--zcol", type=str, default='',
+                             help="Name of the redshift column in `-z REDSHIFT_TABLE`")
+    parser_view.add_argument("--tcol", type=str, default='',
+                             help="Name of the spectral type column in `-z REDSHIFT_TABLE`")
 
 
     # Spectral Redux:
@@ -770,7 +799,7 @@ def main(inspect=False):
 
         if data_is_1d:
             out_args = combine_1d(filelist, output=args.output, method=args.method,
-                                  scale=args.scale, table_output=args.mef)
+                                  scale=args.scale, table_output=args.mef, imin=args.imin, imax=args.imax)
         else:
             out_args = combine_2d(filelist, output=args.output, method=args.method, trim=args.trim,
                                   scale=args.scale, extended=args.extended, dispaxis=args.axis)
@@ -796,6 +825,28 @@ def main(inspect=False):
             gui.show()
             app.exit(app.exec_())
 
+    elif task == 'view':
+        from PyQt5 import QtWidgets
+        from pynot.viewer.viewer import MainWindow
+
+        app = QtWidgets.QApplication(sys.argv)
+        screenSize = app.primaryScreen().size()
+        ratio = 0.85
+        if args.list:
+            with open(args.list) as l:
+                input_files = [line.strip() for line in l.readlines()]
+        else:
+            input_files = args.files
+        main = MainWindow(input_files,
+                          assn_table=args.table,
+                          container_mode=args.container,
+                          width=ratio*screenSize.width(),
+                          height=ratio*screenSize.height(),
+                          redshift_table=args.z,
+                          z_col=args.zcol, name_col=args.ncol, cls_col=args.tcol,
+                          )
+        main.show()
+        app.exit(app.exec_())
 
     # -- Imaging tasks:
     elif task == 'phot':
