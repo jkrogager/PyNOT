@@ -46,11 +46,11 @@ from pynot.viewer.linelists import LineManagerDialog
 
 
 color_list = cycle([
-    "#3949AB",
-    "#D81B60",
-    "#009688",
-    "#8E24AA",
-    "#CCA000",
+    # "#3949AB",
+    # "#D81B60",
+    # "#009688",
+    # "#8E24AA",
+    # "#CCA000",
     "#202020",
 ])
 

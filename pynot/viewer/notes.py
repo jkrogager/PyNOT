@@ -62,7 +62,7 @@ class TargetNote:
 
 
 REDSHIFT_NAMES = ['REDSHIFT', 'Z_SPEC', 'ZBEST', 'Z_PIPE', 'ZSPEC', 'Z', 'ZFIT', 'Z_VI']
-ID_NAMES = ['OBJ_NME', 'OBJ_UID', 'SPECUID', 'NAME', 'OBJECT', 'TARGET', 'TARGETID', 'ID', 'UID', 'FILENAME']
+ID_NAMES = ['SPECUID', 'FILENAME', 'PROV', 'OBJ_NME', 'OBJ_UID', 'NAME', 'OBJECT', 'TARGET', 'TARGETID', 'ID', 'UID']
 CLASS_NAMES = ['TYPE', 'ZBESTTYPE', 'SPECTYPE', 'CLASS', 'CLASSIFICATION', 'OBJ_CLS']
 
 
@@ -162,7 +162,7 @@ def redshift_table_lookup(redshift_table, spectrum):
     """
     name_column = redshift_table.meta['NAME_COLUMN']
 
-    if name_column.upper() == 'FILENAME':
+    if name_column.upper() == 'FILENAME' or name_column.upper() == 'PROV':
         name = spectrum.filename
 
     else:
