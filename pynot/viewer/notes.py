@@ -16,8 +16,10 @@ class DataFlag(IntFlag):
     BAD_SKYSUB        = 2**2    # Problem with sky subtraction
     WRONG_Z           = 2**3    # Incorrect redshift
     Z_VI_CONFIRM      = 2**4    # Assigned if the redshift has been updated
-    WRONG_CLASS       = 2**5    # Incorrect classification
-    CLASS_VI_CONFIRM  = 2**6    # Assigned if the classification has been updated
+    BROAD_LINE        = 2**5    # Spectrum has broad lines
+    NARROW_LINE       = 2**6    # Spectrum has narrow lines
+    PASSIVE_GALAXY    = 2**7    # Spectrum is a passive galaxy without emission lines
+    NO_SIGNAL         = 2**8    # No identifiable features in the spectrum
 
 
     def get_flags(self):
@@ -57,7 +59,7 @@ class TargetNote:
 
 
 REDSHIFT_NAMES = ['REDSHIFT', 'Z_SPEC', 'ZBEST', 'Z_PIPE', 'ZSPEC', 'Z', 'ZFIT', 'Z_VI']
-ID_NAMES = ['OBJ_NME', 'OBJ_UID', 'SPECUID', 'NAME', 'OBJECT', 'TARGET', 'TARGETID', 'ID', 'UID']
+ID_NAMES = ['OBJ_NME', 'OBJ_UID', 'SPECUID', 'NAME', 'OBJECT', 'TARGET', 'TARGETID', 'ID', 'UID', 'FILENAME']
 CLASS_NAMES = ['TYPE', 'ZBESTTYPE', 'SPECTYPE', 'CLASS', 'CLASSIFICATION', 'OBJ_CLS']
 
 
@@ -156,15 +158,20 @@ def redshift_table_lookup(redshift_table, spectrum):
     the function returns (np.nan, "").
     """
     name_column = redshift_table.meta['NAME_COLUMN']
-    if not spectrum.meta:
-        logging.error("Could not find a redshift. Spectrum has no metadata")
-        return np.nan, ""
 
-    try:
-        name = spectrum.meta[name_column]
-    except KeyError:
-        logging.error(f"Could not find a redshift. Spectrum has no {name_column} meta data")
-        return np.nan, ""
+    if name_column.upper() == 'FILENAME':
+        name = spectrum.filename
+
+    else:
+        if not spectrum.meta:
+            logging.error("Could not find a redshift. Spectrum has no metadata")
+            return np.nan, ""
+
+        try:
+            name = spectrum.meta[name_column]
+        except KeyError:
+            logging.error(f"Could not find a redshift. Spectrum has no {name_column} meta data")
+            return np.nan, ""
 
     try:
         row = redshift_table.loc[name]
