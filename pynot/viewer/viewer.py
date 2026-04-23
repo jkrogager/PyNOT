@@ -616,9 +616,9 @@ class MainWindow(QtWidgets.QMainWindow):
             this_redshift = float(self.z_input.text())
             target_note.redshift = this_redshift
 
-        if DataFlag.CLASS_VI_CONFIRM in target_flag:
-            logging.warning("Object classification not yet implemented")
-            # target_note.spectype = ""
+        # if DataFlag.CLASS_VI_CONFIRM in target_flag:
+        #     logging.warning("Object classification not yet implemented")
+        #     # target_note.spectype = ""
 
         self.target_notes[target.name] = target_note
         self.write_notes(self.notes_backup_filename, backup=True)

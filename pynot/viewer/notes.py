@@ -20,6 +20,9 @@ class DataFlag(IntFlag):
     NARROW_LINE       = 2**6    # Spectrum has narrow lines
     PASSIVE_GALAXY    = 2**7    # Spectrum is a passive galaxy without emission lines
     NO_SIGNAL         = 2**8    # No identifiable features in the spectrum
+    BAL_QSO           = 2**9    # Broad absorption line quasar
+    ABS_QSO           = 2**10   # Absorption associated with quasar
+    DLA_INTERVENING   = 2**11   # Damped Lyman Alpha absorption
 
 
     def get_flags(self):
