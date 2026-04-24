@@ -14,7 +14,7 @@ import glob
 import yaml
 
 code_dir = os.path.dirname(os.path.abspath(__file__))
-cfg_fname = os.path.join(os.getcwd(), '.instrument.cfg')
+cfg_fname = os.path.join(code_dir, '.instrument.cfg')
 
 mandatory_attributes = [
     'create_pixel_array',
