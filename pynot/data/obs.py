@@ -2,6 +2,7 @@
 from collections import defaultdict
 import numpy as np
 import os
+import warnings
 
 from pynot.data import io
 from pynot.data import organizer as do
@@ -12,7 +13,10 @@ output_base_spec = 'spectra'
 class OBDatabase:
     def __init__(self, fname):
         if os.path.exists(fname):
-            data = np.loadtxt(fname, dtype=str, delimiter=':')
+            with warnings.catch_warnings():
+                # Suppress empty line warning from numpy 1.23+
+                warnings.simplefilter('ignore', UserWarning)
+                data = np.loadtxt(fname, dtype=str, delimiter=':')
             if len(data.shape) == 1:
                 data = np.array([data])
             self.data = {obid.strip(): status.strip() for obid, status in data}

@@ -81,7 +81,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.linelists["All"] = superset
         self.line_objects = []
         self.active_lines = []
-        self.linePen = pg.mkPen(color=(100, 100, 100, 150))
+        self.linePen = pg.mkPen(color='RoyalBlue')
 
         self.all_targets = TableModel([])
         self.active_targets = ActiveTableModel([])
@@ -706,6 +706,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.slider_scale = 100_000
         self.slider.setRange(int(-0.1*self.slider_scale), int(7*self.slider_scale))
 
+        self.z_plus_btn = QtWidgets.QPushButton("+")
+        self.z_minus_btn = QtWidgets.QPushButton("-")
+        self.z_plus_btn.clicked.connect(self.z_increment)
+        self.z_minus_btn.clicked.connect(self.z_decrement)
+        self.z_reset_btn = QtWidgets.QPushButton("Reset z")
+        self.z_reset_btn.clicked.connect(self.reset_table_redshift)
+
         self.z_input = QtWidgets.QLineEdit("0.0")
         self.z_input.setFixedWidth(60)
 
@@ -713,7 +720,10 @@ class MainWindow(QtWidgets.QMainWindow):
         lines_toolbar.addWidget(self.linelist_edit_btn)
         lines_toolbar.addWidget(QtWidgets.QLabel("Redshift: "))
         lines_toolbar.addWidget(self.slider)
+        lines_toolbar.addWidget(self.z_plus_btn)
+        lines_toolbar.addWidget(self.z_minus_btn)
         lines_toolbar.addWidget(self.z_input)
+        lines_toolbar.addWidget(self.z_reset_btn)
         self.slider.valueChanged.connect(self.update_from_slider)
         self.z_input.editingFinished.connect(self.update_from_text)
         self.addToolBar(lines_toolbar)
@@ -786,6 +796,24 @@ class MainWindow(QtWidgets.QMainWindow):
             self.refresh_plot_lines()
         except (ValueError, TypeError):
             logging.error("Invalid redshift input: {z}. Must be a numeral")
+
+    def z_increment(self):
+        z = float(self.z_input.text())
+        self.update_redshift(z + 0.0001)
+
+    def z_decrement(self):
+        z = float(self.z_input.text())
+        self.update_redshift(z - 0.0001)
+
+    def reset_table_redshift(self):
+        targets = self.get_real_active_targets()
+        if len(targets) != 1:
+            return
+
+        target = targets[0]
+        if self.redshift_table and len(target.spectra) > 0:
+            z, spectype = redshift_table_lookup(self.redshift_table, target.spectra[0])
+            self.update_redshift(z)
 
     def toggle_gridlines(self):
         show_grid = self.grid_radio_button.isChecked()
@@ -899,6 +927,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def resample_target(self):
         current = self.active_table.selectedIndexes()
         logging.info(f"Currently selected target(s): {current}")
+        logging.info("Resampling is not implemented yet")
 
     def show_log_window(self, event):
         self.log_dialog.show()

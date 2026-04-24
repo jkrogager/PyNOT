@@ -83,9 +83,9 @@ class Spectrum:
         plot_graph.setLabel("bottom", f"Spectral Axis  [{self.wavelength.unit}]")
         self.plot_line = line
         if yerr is not None:
-            err_color = QtGui.QColor(color)
+            err_color = QtGui.QColor('red')
             h, s, l, a = err_color.getHsl()
-            err_color.setHsl(h, int(s*0.5), 192, 128)
+            err_color.setHsl(h, int(s*0.8), l, 200)
             err_pen = pg.mkPen(color=err_color, style=ls)
             error_line = plot_graph.plot(self.wavelength, yerr, pen=err_pen,
                                          name=f"{self.parent.name} {self.name} 1σ")

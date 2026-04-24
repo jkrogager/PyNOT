@@ -6,6 +6,7 @@ Input / Output functions for the DataSet class.
 
 from astropy.io import fits
 import numpy as np
+import warnings
 
 from pynot.data.organizer import TagDatabase
 from pynot import instrument
@@ -77,7 +78,10 @@ def save_database(database, output_fname):
 
 def load_database(input_fname):
     """Load file database from file."""
-    all_lines = np.loadtxt(input_fname, dtype=str, usecols=(0, 1), comments='##')
+    with warnings.catch_warnings():
+        # Suppress empty line warning from numpy 1.23+
+        warnings.simplefilter('ignore', UserWarning)
+        all_lines = np.loadtxt(input_fname, dtype=str, usecols=(0, 1), comments='##')
     # file_database = {key: val for key, val in all_lines}
     # inactive_files = {key: val for key, val in all_lines}
     file_database = {}
