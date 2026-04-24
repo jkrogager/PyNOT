@@ -15,7 +15,6 @@ import os
 import sys
 import numpy as np
 import warnings
-import distutils
 
 from pynot.functions import get_options, get_option_descr, get_version_number
 
@@ -38,6 +37,13 @@ def print_credits():
     print("  version %s\n" % __version__)
     print("")
 
+def _strtobool(val: str) -> bool:
+    val = val.lower()
+    if val in ('y', 'yes', 't', 'true', 'on', '1'):
+        return True
+    if val in ('n', 'no', 'f', 'false', 'off', '0'):
+        return False
+    raise ValueError(f"Invalid truth value {val!r}")
 
 def set_default_pars(parser, *, section, default_type, ignore_pars=[], mode='spec'):
     if mode == 'spec':
@@ -56,7 +62,7 @@ def set_default_pars(parser, *, section, default_type, ignore_pars=[], mode='spe
         if val is None:
             value_type = default_type
         if isinstance(val, bool):
-            value_type = lambda x: bool(distutils.util.strtobool(x))
+            value_type = lambda x: bool(_strtobool(x))
         else:
             value_type = type(val)
 

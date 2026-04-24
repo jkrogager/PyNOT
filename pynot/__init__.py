@@ -2,7 +2,7 @@ import os
 import yaml
 
 code_dir = os.path.dirname(os.path.abspath(__file__))
-cfg_fname = os.path.join(code_dir, '.instrument.cfg')
+cfg_fname = os.path.join(os.getcwd(), '.instrument.cfg')
 
 if os.path.exists(cfg_fname):
     with open(cfg_fname, 'r') as setup:

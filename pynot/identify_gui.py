@@ -188,20 +188,20 @@ class ResidualView(object):
             line.set_visible(visible)
 
     def set_scatter(self, sig):
-        self.u68_line.set_ydata(self.mean + sig)
-        self.l68_line.set_ydata(self.mean - sig)
+        self.u68_line.set_ydata([self.mean + sig])
+        self.l68_line.set_ydata([self.mean - sig])
         self.scatter = sig
 
     def set_mean(self, mean):
-        self.u68_line.set_ydata(mean + self.scatter)
-        self.l68_line.set_ydata(mean - self.scatter)
+        self.u68_line.set_ydata([mean + self.scatter])
+        self.l68_line.set_ydata([mean - self.scatter])
         self.mean = mean
 
     def set_values(self, mean, scatter):
         self.mean = mean
         self.scatter = scatter
-        self.u68_line.set_ydata(mean + scatter)
-        self.l68_line.set_ydata(mean - scatter)
+        self.u68_line.set_ydata([mean + scatter])
+        self.l68_line.set_ydata([mean - scatter])
 
 
 def load_linelist(fname):
@@ -912,7 +912,7 @@ class GraphicInterface(QtWidgets.QMainWindow):
         item.setBackground(QtGui.QColor('lightgray'))
         self.linetable.setItem(idx, 0, item)
         self.pixel_list[idx] = x_cen
-        self.vlines[idx].set_xdata(x_cen)
+        self.vlines[idx].set_xdata([x_cen])
         self.update_plot()
 
     def refit_all(self):
@@ -1304,7 +1304,7 @@ class Image2DWindow(QtWidgets.QDialog):
     def update_loc(self):
         new_loc = int(self.loc_editor.text())
         self.loc = new_loc
-        self.loc_line.set_xdata(new_loc)
+        self.loc_line.set_xdata([new_loc])
         self.canvas.draw()
 
     def update_info(self):
