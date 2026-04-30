@@ -627,6 +627,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if len(self.active_targets._data) != 1:
             logging.error("Cannot add flags to more than one target at a time. Remove other targets.")
             return
+
         target_flag = DataFlag(0)
         for checkbox, val in zip(self.flag_inputs, DataFlag):
             if checkbox.isChecked():
@@ -634,16 +635,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
         target: Target = self.active_targets._data[0]
         self.target_flags[target.name] = target_flag
-        target_note = self.target_notes.get(target.name, None)
-
-        if DataFlag.Z_VI_CONFIRM in target_flag:
-            if target.name not in self.target_notes:
-                target_note = TargetNote.from_target(target, "Visually updated redshift")
+        if target.name not in self.target_notes:
+            target_note = TargetNote.from_target(target, "")
+            if DataFlag.Z_VI_CONFIRM in target_flag:
                 target_note.redshift = float(self.z_input.text())
-                self.target_notes[target.name] = target_note
-        elif target_note and target_note.note == "Visually updated redshift":
-            target_note.note = ""
-            self.note_input.setText("")
+                target_note.note = "Visually updated redshift"
+            self.target_notes[target.name] = target_note
 
     def create_notes_toolbar(self):
         notes_toolbar = QtWidgets.QToolBar()
