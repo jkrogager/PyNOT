@@ -62,6 +62,9 @@ def combine_bias_frames(bias_frames, output='', kappa=15, method='mean', overwri
     """
     msg = list()
 
+    if len(bias_frames) == 1:
+        msg.append("[WARNING] - Only 1 frame provided! More than 1 frame is expected!!\n")
+
     bias = list()
     for frame in bias_frames:
         msg.append("          - Loaded bias frame: %s" % frame)
@@ -172,6 +175,10 @@ def combine_flat_frames(raw_frames, output, mbias='', mode='spec', dispaxis=None
         The log of the function steps and errors
     """
     msg = list()
+
+    if len(raw_frames) == 1:
+        msg.append("[WARNING] - Only 1 frame provided! More than 1 frame is expected!!\n")
+
     if mbias and exists(mbias):
         bias = fits.getdata(mbias)
         # bias_hdr = instrument.get_header(mbias)
@@ -380,7 +387,7 @@ def normalize_spectral_flat(fname, output='', fig_dir='', dispaxis=None, order=2
         if len(edges) != 2:
             msg.append("[WARNING] - Automatic edge detection failed. Using full frame!")
             edges = [0, len(x)]
-    except:
+    except Exception:
         msg.append("[WARNING] - Automatic edge detection failed. Using full frame!")
         edges = [0, len(x)]
 

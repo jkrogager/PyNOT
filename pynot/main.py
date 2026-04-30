@@ -653,13 +653,13 @@ def main(inspect=False):
     elif task == 'bias':
         from pynot.calibs import combine_bias_frames
         print("Running task: Bias combination")
-        input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
+        input_list = np.loadtxt(args.input, dtype=str, usecols=(0,), ndmin=1)
         _, log = combine_bias_frames(input_list, args.output, kappa=args.kappa, method=args.method)
 
     elif task == 'sflat':
         from pynot.calibs import combine_flat_frames, normalize_spectral_flat
         print("Running task: Spectral flat field combination and normalization")
-        input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
+        input_list = np.loadtxt(args.input, dtype=str, usecols=(0,), ndmin=1)
         flatcombine, log = combine_flat_frames(input_list, output='', mbias=args.bias, mode='spec',
                                                dispaxis=args.axis, kappa=args.kappa, method=args.method)
 
@@ -783,9 +783,13 @@ def main(inspect=False):
             if '*' in input_arg or '?' in input_arg:
                 filelist = glob(input_arg)
             else:
-                filelist = np.loadtxt(input_arg, usecols=(0,), dtype=str)
+                filelist = np.loadtxt(input_arg, usecols=(0,), dtype=str, ndmin=1)
         else:
             filelist = args.input
+
+        if len(filelist) == 1:
+            print("Must provide more than one frame to combine!\n")
+            sys.exit()
 
         # Check if data are 1D or 2D:
         try:
@@ -864,7 +868,7 @@ def main(inspect=False):
     elif task == 'imflat':
         print("Running task: Combination of Imaging Flat Fields")
         from pynot.calibs import combine_flat_frames
-        input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
+        input_list = np.loadtxt(args.input, dtype=str, usecols=(0,), ndmin=1)
         _, log = combine_flat_frames(input_list, output=args.output, mbias=args.bias, mode='img',
                                      kappa=args.kappa, method=args.method)
 
@@ -884,7 +888,7 @@ def main(inspect=False):
         if args.input.endswith('.fits'):
             input_list = [args.input]
         else:
-            input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
+            input_list = np.loadtxt(args.input, dtype=str, usecols=(0,), ndmin=1)
 
         for fname in input_list:
             print("  Trimming image: %s" % fname)
@@ -893,7 +897,10 @@ def main(inspect=False):
     elif task == 'imcombine':
         print("Running task: Image Combination")
         from pynot.phot import image_combine
-        input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
+        input_list = np.loadtxt(args.input, dtype=str, usecols=(0,), ndmin=1)
+        if len(input_list) == 1:
+            print("Must provide more than one frame to combine!\n")
+            sys.exit()
         options = copy(vars(args))
         vars_to_remove = ['task', 'input', 'output', 'log', 'fringe']
         for varname in vars_to_remove:
@@ -903,7 +910,7 @@ def main(inspect=False):
     elif task == 'fringe':
         print("Running task: Creating Average Fringe Image")
         from pynot.phot import create_fringe_image
-        input_list = np.loadtxt(args.input, dtype=str, usecols=(0,))
+        input_list = np.loadtxt(args.input, dtype=str, usecols=(0,), ndmin=1)
         log = create_fringe_image(input_list, output=args.output, fig_fname=args.fig, threshold=args.sigma)
 
     elif task == 'sep':
