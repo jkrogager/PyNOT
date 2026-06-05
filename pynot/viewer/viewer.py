@@ -610,6 +610,8 @@ class MainWindow(QtWidgets.QMainWindow):
         note_text = self.note_input.text()
         target: Target = self.active_targets._data[0]
         target_note = TargetNote.from_target(target, note=note_text)
+        if self.redshift_table is not None:
+            target_note.redshift = float(self.z_input.text())
 
         target_flag = self.target_flags.get(target.name, DataFlag(0))
         if DataFlag.Z_VI_CONFIRM in target_flag:
@@ -637,10 +639,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self.target_flags[target.name] = target_flag
         if target.name not in self.target_notes:
             target_note = TargetNote.from_target(target, "")
+            if self.redshift_table is not None:
+                target_note.redshift = float(self.z_input.text())
+
             if DataFlag.Z_VI_CONFIRM in target_flag:
                 target_note.redshift = float(self.z_input.text())
-                target_note.note = "Visually updated redshift"
             self.target_notes[target.name] = target_note
+        else:
+            target_note = self.target_notes.get(target.name)
+            if DataFlag.Z_VI_CONFIRM in target_flag:
+                target_note.redshift = float(self.z_input.text())
 
     def create_notes_toolbar(self):
         notes_toolbar = QtWidgets.QToolBar()
