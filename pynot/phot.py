@@ -8,7 +8,6 @@ from matplotlib.patches import Ellipse
 from astropy.io import fits
 from astropy.modeling import models, fitting
 from astropy.table import Table
-from scipy.optimize import curve_fit
 import os
 
 from astropy.coordinates import SkyCoord
@@ -648,9 +647,6 @@ def flux_calibration_sdss(img_fname, sep_fname, fig_fname='', q_lim=0.8, kappa=3
         msg.append("")
         return "\n".join(msg)
 
-    def line(x, zp):
-        return zp + x
-
     if sdss_cat is None:
         msg.append(" [ERROR]  - No data found in SDSS. No zero point calculated")
         msg.append("")
@@ -710,8 +706,14 @@ def flux_calibration_sdss(img_fname, sep_fname, fig_fname='', q_lim=0.8, kappa=3
     m_inst = match_sep['mag_auto']
     k = ext_coeffs[band]
 
+    # Reject non-finite measurements (e.g. negative fluxes giving NaN magnitudes):
+    finite = np.isfinite(mag) & np.isfinite(mag_err) & np.isfinite(m_inst) & (mag_err > 0)
+    mag = mag[finite]
+    mag_err = mag_err[finite]
+    m_inst = m_inst[finite]
+
     # Get first estimate using the median:
-    zp0, _ = curve_fit(line, m_inst+k*airmass, mag, p0=[27], sigma=mag_err)
+    zp0 = np.median(mag - m_inst - k*airmass)
 
     # Filter outliers:
     cut = np.abs(zp0 + m_inst + k*airmass - mag) < kappa*mad(zp0 + m_inst + k*airmass - mag)
