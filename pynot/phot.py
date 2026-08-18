@@ -92,11 +92,11 @@ def source_detection(fname, zeropoint=0., threshold=5.0, aperture=10.0, kwargs_b
     data_sub = data - bkg
     msg.append("          - Subtracted sky background")
     msg.append("          - Background RMS: %.2e" % bkg.globalrms)
-    data_sub = data_sub.byteswap().newbyteorder()
-    error_image = error_image.byteswap().newbyteorder()
+    data_sub = data_sub.byteswap().view(data_sub.dtype.newbyteorder())
+    error_image = error_image.byteswap().view(error_image.dtype.newbyteorder())
     if data_sub.dtype.byteorder != '<':
-        data_sub = data_sub.byteswap().newbyteorder()
-        error_image = error_image.byteswap().newbyteorder()
+        data_sub = data_sub.byteswap().view(data_sub.dtype.newbyteorder())
+        error_image = error_image.byteswap().view(error_image.dtype.newbyteorder())
     extract_output = sep.extract(data_sub, threshold, err=bkg.globalrms, **kwargs_ext)
     if len(extract_output) == 2:
         objects, segmap = extract_output
@@ -366,9 +366,9 @@ def image_combine(corrected_images, output='', log_name='', fringe_image='', met
     msg.append("          - Registering input images:")
     shifted_images = [target]
     shifted_vars = [target_err**2]
-    target = target.byteswap().newbyteorder()
+    target = target.byteswap().view(target.dtype.newbyteorder())
     if target.dtype.byteorder != '<':
-        target = target.byteswap().newbyteorder()
+        target = target.byteswap().view(target.dtype.newbyteorder())
     final_exptime = exptime
     image_log = list()
     if len(corrected_images) > 1:
@@ -390,15 +390,15 @@ def image_combine(corrected_images, output='', log_name='', fringe_image='', met
                 msg.append("          - Skipping image")
                 continue
 
-            source = source.byteswap().newbyteorder()
-            source_err = source_err.byteswap().newbyteorder()
-            source_mask = source_mask.byteswap().newbyteorder()
+            source = source.byteswap().view(source.dtype.newbyteorder())
+            source_err = source_err.byteswap().view(source_err.dtype.newbyteorder())
+            source_mask = source_mask.byteswap().view(source_mask.dtype.newbyteorder())
             if source.dtype.byteorder != '<':
-                source = source.byteswap().newbyteorder()
+                source = source.byteswap().view(source.dtype.newbyteorder())
             if source_err.dtype.byteorder != '<':
-                source_err = source_err.byteswap().newbyteorder()
+                source_err = source_err.byteswap().view(source_err.dtype.newbyteorder())
             if source_mask.dtype.byteorder != '<':
-                source_mask = source_mask.byteswap().newbyteorder()
+                source_mask = source_mask.byteswap().view(source_mask.dtype.newbyteorder())
 
             registered_image, _ = aa.apply_transform(transf, source, target, fill_value=0)
             registered_error, _ = aa.apply_transform(transf, source_err, target, fill_value=0)
@@ -584,11 +584,13 @@ def match_phot_catalogs(sep, phot, match_radius=1.):
 
 def get_sdss_catalog(ra, dec, radius=4.):
     """Download the SDSS photometry using astroquery for a circular region of radius in deg."""
+    # astroquery enforces radius < 3 arcmin when photoobj_fields are requested
+    radius = min(radius, 2.9)
     catalog_fname = 'sdss_phot_%.2f%+.2f.csv' % (ra, dec)
     fields = ['ra', 'dec', 'psfMag_u', 'psfMag_g', 'psfMag_r', 'psfMag_i', 'psfMag_z',
               'psfMagErr_u', 'psfMagErr_g', 'psfMagErr_r', 'psfMagErr_i', 'psfMagErr_z']
     field_center = SkyCoord(ra, dec, frame='icrs', unit='deg')
-    sdss_result = SDSS.query_region(field_center, radius*u.arcmin, photoobj_fields=fields)
+    sdss_result = SDSS.query_region(field_center, radius=radius*u.arcmin, photoobj_fields=fields)
     if sdss_result is not None:
         sdss_result.write(os.path.join(obs.output_base_phot, catalog_fname), format='ascii.csv', overwrite=True)
     return sdss_result
