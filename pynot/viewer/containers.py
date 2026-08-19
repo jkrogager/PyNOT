@@ -1,6 +1,7 @@
 import os
 import numpy as np
 from astropy.io import fits
+from astropy.table import Table
 import astropy.units as u
 
 from pynot.viewer.spectrum import Spectrum
@@ -47,6 +48,8 @@ class QMEC:
         with fits.open(self.filename) as hdu:
             data = hdu['SPECTAB'].data[index]
             hdr = hdu['SPECTAB'].header
+            fibinfo = dict(Table.read(hdu['FIBMETATAB'])[index])
+            prov = hdu['PROVTAB'].data[::3][index]['ESOFILENAME']
 
             flux = data['FLUX'].flatten()
             try:
@@ -62,9 +65,9 @@ class QMEC:
             spectrum = Spectrum(wavelength=wavelength,
                                 flux=flux*flux_unit,
                                 error=error*flux_unit,
-                                name=f"[{index}]",
-                                filename=self.filename+f"[{index}]",
-                                meta=dict(hdr))
+                                name=fibinfo['OBJ_NME'],
+                                filename=prov,
+                                meta=fibinfo)
             target.add_spectrum(spectrum)
             return target
 

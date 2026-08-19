@@ -63,7 +63,7 @@ class TargetNote:
 
 
 REDSHIFT_NAMES = ['REDSHIFT', 'Z_SPEC', 'ZBEST', 'Z_PIPE', 'ZSPEC', 'Z', 'ZFIT', 'Z_VI']
-ID_NAMES = ['SPECUID', 'FILENAME', 'PROV', 'OBJ_NME', 'OBJ_UID', 'NAME', 'OBJECT', 'TARGET', 'TARGETID', 'ID', 'UID']
+ID_NAMES = ['PROV', 'FILENAME', 'PROV', 'OBJ_NME', 'OBJ_UID', 'NAME', 'OBJECT', 'TARGET', 'TARGETID', 'ID', 'UID']
 CLASS_NAMES = ['TYPE', 'ZBESTTYPE', 'SPECTYPE', 'CLASS', 'CLASSIFICATION', 'OBJ_CLS']
 
 
@@ -152,6 +152,10 @@ def load_redshift_table(filename, z_col=None, name_col=None, cls_col=None):
     redshift_table['TYPE'] = spectype
     redshift_table.meta['NAME_COLUMN'] = name_column
     redshift_table.add_index('NAME')
+    if 'ZBESTPROB' in tab.colnames:
+        redshift_table['ZPROB'] = tab['ZBESTPROB']
+    else:
+        redshift_table['ZPROB'] = np.nan
     return redshift_table
 
 
@@ -169,29 +173,31 @@ def redshift_table_lookup(redshift_table, spectrum):
     else:
         if not spectrum.meta:
             logging.error("Could not find a redshift. Spectrum has no metadata")
-            return np.nan, ""
+            return np.nan, "", np.nan
 
         try:
             name = spectrum.meta[name_column]
         except KeyError:
             logging.error(f"Could not find a redshift. Spectrum has no {name_column} meta data")
-            return np.nan, ""
+            return np.nan, "", np.nan
 
     try:
         row = redshift_table.loc[name]
         if isinstance(row, Table):
             z = row['REDSHIFT'][0]
             spectype = row['TYPE'][0]
+            zprob = row['ZPROB'][0]
             logging.warning(f"Multiple matches for name: {name}. Redshifts: {row['REDSHIFT']}")
             logging.warning(f"Multiple redshifts: Choosing the first: z = {z}, spectral type: {spectype}")
         else:
             z = row['REDSHIFT']
             spectype = row['TYPE']
-        return z, spectype
+            zprob = row['ZPROB']
+        return z, spectype, zprob
 
     except KeyError:
         logging.error(f"No matching redshift for name: {name}")
-        return np.nan, ""
+        return np.nan, "", np.nan
 
 
 def to_json(target: TargetNote):

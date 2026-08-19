@@ -511,8 +511,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.plot_spectrum(target)
 
         if self.redshift_table and len(target.spectra) > 0:
-            z, spectype = redshift_table_lookup(self.redshift_table, target.spectra[0])
+            z, spectype, zprob = redshift_table_lookup(self.redshift_table, target.spectra[0])
             self.update_redshift(z)
+            self.update_zprob(zprob)
         self.sync_target_notes()
         self.sync_target_flags()
         target_flag: DataFlag = self.target_flags.get(target.name, DataFlag(0))
@@ -711,24 +712,36 @@ class MainWindow(QtWidgets.QMainWindow):
         self.slider_scale = 100_000
         self.slider.setRange(int(-0.1*self.slider_scale), int(7*self.slider_scale))
 
+        self.z_plusplus_btn = QtWidgets.QPushButton("++")
+        self.z_minusminus_btn = QtWidgets.QPushButton("--")
+        self.z_plusplus_btn.clicked.connect(lambda x: self.z_increment(0.001))
+        self.z_minusminus_btn.clicked.connect(lambda x: self.z_increment(-0.001))
         self.z_plus_btn = QtWidgets.QPushButton("+")
         self.z_minus_btn = QtWidgets.QPushButton("-")
-        self.z_plus_btn.clicked.connect(self.z_increment)
-        self.z_minus_btn.clicked.connect(self.z_decrement)
+        self.z_plus_btn.clicked.connect(lambda x: self.z_increment(0.0005))
+        self.z_minus_btn.clicked.connect(lambda x: self.z_increment(-0.0005))
         self.z_reset_btn = QtWidgets.QPushButton("Reset z")
         self.z_reset_btn.clicked.connect(self.reset_table_redshift)
 
         self.z_input = QtWidgets.QLineEdit("0.0")
         self.z_input.setFixedWidth(60)
 
+        self.zprob_text = QtWidgets.QLineEdit("0.0")
+        self.zprob_text.setFixedWidth(45)
+        self.zprob_text.setReadOnly(True)
+
         lines_toolbar.addWidget(self.linelist_combo)
         lines_toolbar.addWidget(self.linelist_edit_btn)
         lines_toolbar.addWidget(QtWidgets.QLabel("Redshift: "))
         lines_toolbar.addWidget(self.slider)
-        lines_toolbar.addWidget(self.z_plus_btn)
+        # lines_toolbar.addWidget(self.z_minusminus_btn)
         lines_toolbar.addWidget(self.z_minus_btn)
+        lines_toolbar.addWidget(self.z_plus_btn)
+        # lines_toolbar.addWidget(self.z_plusplus_btn)
         lines_toolbar.addWidget(self.z_input)
         lines_toolbar.addWidget(self.z_reset_btn)
+        lines_toolbar.addWidget(QtWidgets.QLabel("P(z):"))
+        lines_toolbar.addWidget(self.zprob_text)
         self.slider.valueChanged.connect(self.update_from_slider)
         self.z_input.editingFinished.connect(self.update_from_text)
         self.addToolBar(lines_toolbar)
@@ -802,13 +815,13 @@ class MainWindow(QtWidgets.QMainWindow):
         except (ValueError, TypeError):
             logging.error("Invalid redshift input: {z}. Must be a numeral")
 
-    def z_increment(self):
+    def z_increment(self, dz):
         z = float(self.z_input.text())
-        self.update_redshift(z + 0.0001)
+        self.update_redshift(z + dz)
 
     def z_decrement(self):
         z = float(self.z_input.text())
-        self.update_redshift(z - 0.0001)
+        self.update_redshift(z - 0.0005)
 
     def reset_table_redshift(self):
         targets = self.get_real_active_targets()
@@ -817,8 +830,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
         target = targets[0]
         if self.redshift_table and len(target.spectra) > 0:
-            z, spectype = redshift_table_lookup(self.redshift_table, target.spectra[0])
+            z, spectype, zprob = redshift_table_lookup(self.redshift_table, target.spectra[0])
             self.update_redshift(z)
+            self.update_zprob(zprob)
+
+    def update_zprob(self, zprob):
+        self.zprob_text.setText(f"{zprob:.3f}")
 
     def toggle_gridlines(self):
         show_grid = self.grid_radio_button.isChecked()
