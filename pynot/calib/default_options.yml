@@ -92,3 +92,5 @@ response:
   kappa:        2            # Threshold for the median filtering to remove outlying response points
   interactive:  False        # Interactively filter and fit the response function
   force:        False        # Overwrite existing response function?
+  match_date:   False        # Use only response functions taken on the same day as the science exposure?
+  match_slit:   False        # Match both GRISM and SLIT of the science observations?
