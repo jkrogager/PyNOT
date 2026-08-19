@@ -295,7 +295,7 @@ def run_pipeline(options_fname, verbose=False, force_restart=False):
                 log.fatal_error()
                 return
             except:
-                log.datal_error()
+                log.fatal_error()
                 print("Unexpected error:", sys.exc_info()[0])
                 raise
 
