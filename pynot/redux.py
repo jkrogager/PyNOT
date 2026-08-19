@@ -463,7 +463,10 @@ def run_pipeline(options_fname, object_id=None, verbose=True, interactive=False,
 
                     # Flux Calibration:
                     if database.has_tag('RESPONSE'):
-                        response_fname = do.match_response(sci_img, database['RESPONSE'], exact_date=False)
+                        response_fname = do.match_response(sci_img, database['RESPONSE'],
+                                                           exact_date=task_options['response']['match_date'],
+                                                           match_slit=task_options['response']['match_slit'],
+                                                           )
                     else:
                         response_fname = ''
 
@@ -483,6 +486,8 @@ def run_pipeline(options_fname, object_id=None, verbose=True, interactive=False,
                     else:
                         log.warn("Could not find a response function that matches the observations!")
                         log.warn("The spectra will not be flux clibrated!")
+                        log.warn("Response functions in the database:")
+                        log.warn(", ".join(database['RESPONSE']))
                         status['FLUX2D'] = crr_fname
 
 

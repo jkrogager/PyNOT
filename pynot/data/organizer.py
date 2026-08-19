@@ -81,7 +81,7 @@ def match_date(files, date_mjd):
 
     return matches
 
-def match_response(sci_img, file_list, exact_date=False):
+def match_response(sci_img, file_list, exact_date=False, match_slit=False):
     """
     Find response function that matches the grism of the input `sci_img`
     If `exact_date` is True, only return a match if the date matches exactly that of `sci_img`
@@ -89,16 +89,28 @@ def match_response(sci_img, file_list, exact_date=False):
     """
     target_grism = sci_img.grism
     target_mjd = sci_img.mjd
+    target_slit = sci_img.slit
     matches = list()
     date_diff = list()
     for fname in file_list:
         # These are PyNOT FITS files, so follows a slightly different Header Format
         hdr = fits.getheader(fname)
         this_grism = hdr['GRISM']
+        this_slit = hdr['SLIT']
         this_date = Time(hdr['DATE-OBS'])
-        if this_grism == target_grism:
+        if not match_slit:
+            slit_filter = True
+        elif match_slit and this_slit == target_slit:
+            slit_filter = True
+        else:
+            slit_filter = False
+
+        if this_grism == target_grism and slit_filter:
             matches.append(fname)
             date_diff.append(this_date.mjd - target_mjd)
+
+    if len(matches) == 0:
+        return ""
 
     # Find target with smallest time difference
     idx = np.argmin(np.abs(date_diff))
@@ -540,7 +552,7 @@ class UnknownObservingMode(Exception):
     pass
 
 
-class RawImage(object):
+class RawImage:
     """
     Create a raw image instance from a FITS image.
 
