@@ -136,3 +136,4 @@ pynot/.instrument.cfg
 .DS_Store
 .DS_Store
 .DS_Store
+*.vscode
