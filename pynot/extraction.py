@@ -8,7 +8,7 @@ from scipy.signal import find_peaks
 from numpy.polynomial import Chebyshev
 import warnings
 
-from lmfit import Parameters, minimize
+from lmfit import Parameters, minimize, MinimizerException
 
 from pynot.functions import mad, NN_moffat, NN_gaussian, fix_nans, get_version_number
 from pynot import instrument
@@ -173,6 +173,10 @@ def fit_trace(img2D, x, y, model_name='moffat', dx=50, kappa=10., ymin=5, ymax=-
                 if par_val.stderr is None:
                     par_val.stderr = 100.
             trace_parameters.append(popt.params)
+        except (OverflowError, RuntimeError, MinimizerException):
+            msg.append("[WARNING] - Fitting of the trace model using a {model_name} model failed!")
+            msg.append("            Consider using a 'tophat' model, increase `dx` and decrese `order_center`")
+            msg.append("[WARNING] - Skipping this location %i:%i" % (num, num+dx))
         except ValueError:
             for par_val in pars.values():
                 par_val.stderr = 100.
