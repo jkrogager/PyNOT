@@ -384,7 +384,7 @@ def image_combine(corrected_images, output='', log_name='', fringe_image='', met
                                                      max_control_points=max_control_points,
                                                      detection_sigma=detection_sigma,
                                                      min_area=min_area)
-            except:
+            except (TypeError, ValueError, aa.MaxIterError):
                 msg.append(" [ERROR]  - Failed to find image transformation!")
                 msg.append("          - Skipping image")
                 continue
@@ -642,9 +642,10 @@ def flux_calibration_sdss(img_fname, sep_fname, fig_fname='', q_lim=0.8, kappa=3
     msg.append("          - Downloading SDSS photometric catalog...")
     try:
         sdss_cat = get_sdss_catalog(hdr['CRVAL1'], hdr['CRVAL2'], radius)
-    except:
+    except Exception as e:
         msg.append(" [ERROR]  - Could not connect to SDSS server. Check your internet connection.")
         msg.append("")
+        msg.append(str(e))
         return "\n".join(msg)
 
     if sdss_cat is None:

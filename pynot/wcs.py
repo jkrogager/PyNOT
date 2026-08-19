@@ -87,10 +87,15 @@ def get_gaia_catalog(ra, dec, radius=4., limit=2000, catalog_fname='', database=
     limit: max number of targets to retrieve
     """
     from astroquery.gaia import Gaia
-    query_args = {'limit': limit, 'ra': ra, 'dec': dec, 'radius': radius/60., 'dr': database}
-    query = """SELECT TOP {limit} ra, dec, phot_g_mean_mag, bp_rp FROM gaia{dr}.gaia_source
-    WHERE CONTAINS(POINT('ICRS', gaia{dr}.gaia_source.ra, gaia{dr}.gaia_source.dec),
-                   CIRCLE('ICRS', {ra}, {dec}, {radius}))=1;""".format(**query_args)
+    size = radius / 60.
+    query_args = {'limit': limit, 'ra_lower': ra-size, 'ra_upper': ra+size,
+                  'dec_lower': dec-size, 'dec_upper': dec+size, 'dr': database}
+    query = """
+    SELECT TOP {limit} ra, dec, phot_g_mean_mag, bp_rp
+    FROM gaia{dr}.gaia_source
+    WHERE ra BETWEEN {ra_lower} AND {ra_upper}
+      AND dec BETWEEN {dec_lower} AND {dec_upper}
+    """.format(**query_args)
     job = Gaia.launch_job_async(query, dump_to_file=True,
                                 output_format='csv', verbose=False,
                                 output_file=catalog_fname)
@@ -187,9 +192,10 @@ def correct_wcs(img_fname, sep_fname, output='', fig_fname='', min_num=6, G_lim=
             ref_cat = get_gaia_catalog(hdr['CRVAL1'], hdr['CRVAL2'],
                                        radius=radius, catalog_fname=gaia_cat_name, database=gaia_dr)
             msg.append("          - Saving Gaia source catalog: %s" % gaia_cat_name)
-        except:
+        except Exception as e:
             msg.append(" [ERROR]  - Could not reach Gaia server! Check your internet connection.")
             msg.append("")
+            msg.append(str(e))
             return "\n".join(msg)
 
     # reject brightest sources:
@@ -234,7 +240,7 @@ def correct_wcs(img_fname, sep_fname, output='', fig_fname='', min_num=6, G_lim=
     # Reject outliers:
     msg.append("          - Performing initial cross identification")
     msg.append("          - Found %s source%s" % (len(matched_ref),
-                                                  '' if len(matched_ref)==1 else 's'))
+                                                  '' if len(matched_ref) == 1 else 's'))
     dist = np.sqrt(np.sum((matched_ref - matched_sep)**2, axis=1))*3600
     dxdy = np.abs(matched_sep - matched_ref)
     theta = np.arctan2(dxdy[:, 1], dxdy[:, 0])
@@ -280,7 +286,7 @@ def correct_wcs(img_fname, sep_fname, output='', fig_fname='', min_num=6, G_lim=
         msg.append("")
         return "\n".join(msg)
 
-    # Fit the WCS transformation:    
+    # Fit the WCS transformation:
     _, crval, CD, _ = get_WCS(hdr)
     msg.append("          - Fitting WCS transformation using %i sources" % len(matched_ref))
     wcs_keys = update_WCS(matched_sep, matched_ref, crval, CD)
@@ -299,12 +305,12 @@ def correct_wcs(img_fname, sep_fname, output='', fig_fname='', min_num=6, G_lim=
         ax = fig.add_subplot(111, projection=wcs_new)
         med_val = np.median(img)
         ax.imshow(img, vmin=med_val-1*mad(img), vmax=med_val+10*mad(img),
-                origin='lower', cmap=plt.cm.gray_r)
+                  origin='lower', cmap=plt.cm.gray_r)
         ax.scatter(matched_ref[:, 0], matched_ref[:, 1],
-                transform=ax.get_transform('fk5'), edgecolor='r', facecolor='none', s=50)
+                   transform=ax.get_transform('fk5'), edgecolor='r', facecolor='none', s=50)
         if debug:
             ax.scatter(matched_sep[:, 0], matched_sep[:, 1],
-                    transform=ax.get_transform('fk5'), edgecolor='green', facecolor='none', s=10, alpha=0.7)
+                       transform=ax.get_transform('fk5'), edgecolor='green', facecolor='none', s=10, alpha=0.7)
             for i, r in zip(matched_sep, matched_ref):
                 ax.plot([i[0], r[0]], [i[1], r[1]], 'k', alpha=0.5, transform=ax.get_transform('fk5'))
         ax.set_xlabel("Right Ascension")
