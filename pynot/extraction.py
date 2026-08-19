@@ -158,8 +158,8 @@ def fit_trace(img2D, x, y, model_name='moffat', dx=50, kappa=10., ymin=5, ymax=-
 
     # Fit trace with N objects:
     msg.append("          - Fitting the spectral trace with a %s profile" % model_name.title())
-    trace_parameters = list()
-    x_binned = np.arange(0., img2D.shape[1], dx, dtype=np.float64)
+    trace_parameters = []
+    x_binned = []
     for num in range(0, img2D.shape[1], dx):
         pars = prep_parameters(peaks, prominences, size=img2D.shape[0], model_name=model_name)
         col = np.nanmean(img2D[:, num:num+dx], axis=1)
@@ -173,14 +173,16 @@ def fit_trace(img2D, x, y, model_name='moffat', dx=50, kappa=10., ymin=5, ymax=-
                 if par_val.stderr is None:
                     par_val.stderr = 100.
             trace_parameters.append(popt.params)
+            x_binned.append(num + dx/2)
         except (OverflowError, RuntimeError, MinimizerException):
-            msg.append("[WARNING] - Fitting of the trace model using a {model_name} model failed!")
-            msg.append("            Consider using a 'tophat' model, increase `dx` and decrese `order_center`")
+            msg.append(f"[WARNING] - Fitting of the trace model using a {model_name} model failed!")
+            msg.append("            Consider using a 'tophat' model, increase `dx` and decrease `order_center`")
             msg.append("[WARNING] - Skipping this location %i:%i" % (num, num+dx))
         except ValueError:
             for par_val in pars.values():
                 par_val.stderr = 100.
             trace_parameters.append(pars)
+            x_binned.append(num + dx/2)
     msg.append("          - Fitted %i points along the spectral trace" % len(trace_parameters))
     output_msg = "\n".join(msg)
     return (x_binned, N_obj, trace_parameters, fwhm, output_msg)
