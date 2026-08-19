@@ -123,7 +123,7 @@ def run_pipeline(options_fname, verbose=False, force_restart=False):
                                               overwrite=True)
             log.commit(bias_msg)
             log.add_linebreak()
-        except:
+        except Exception:
             log.error("Median combination of bias frames failed!")
             log.fatal_error()
             print("Unexpected error:", sys.exc_info()[0])
@@ -143,7 +143,7 @@ def run_pipeline(options_fname, verbose=False, force_restart=False):
                                               overwrite=True, mode='img')
             log.commit(flat_msg)
             master_flat[filter_name] = comb_flat_fname
-        except:
+        except Exception:
             log.error("Flat field combination failed for filter: %s" % filter_name)
             log.fatal_error()
             print("Unexpected error:", sys.exc_info()[0])
@@ -156,7 +156,7 @@ def run_pipeline(options_fname, verbose=False, force_restart=False):
             log.write("Detected edges on Y-axis: %i  ;  %i" % (y1, y2))
             log.add_linebreak()
             filter_edges[filter_name] = (x1, x2, y1, y2)
-        except:
+        except Exception:
             log.error("Automatic edge detection failed!")
             log.fatal_error()
             print("Unexpected error:", sys.exc_info()[0])
@@ -217,7 +217,7 @@ def run_pipeline(options_fname, verbose=False, force_restart=False):
                                        output=corrected_fname, overwrite=True, mode='img')
                     log.commit("          - bias+flat ")
                     temp_images.append(corrected_fname)
-                except:
+                except Exception:
                     log.error("Bias and flat field correction failed!")
                     log.fatal_error()
                     print("Unexpected error:", sys.exc_info()[0])
@@ -228,7 +228,7 @@ def run_pipeline(options_fname, verbose=False, force_restart=False):
                 try:
                     _ = trim_filter_edge(corrected_fname, *image_region, output=trim_fname)
                     log.commit(" trim ")
-                except:
+                except Exception:
                     log.error("Image trim failed!")
                     log.fatal_error()
                     print("Unexpected error:", sys.exc_info()[0])
@@ -242,7 +242,7 @@ def run_pipeline(options_fname, verbose=False, force_restart=False):
                         log.commit("  [done]")
                         corrected_images.append(crr_fname)
                         temp_images.append(trim_fname)
-                    except:
+                    except Exception:
                         log.error("Cosmic ray correction failed!")
                         log.fatal_error()
                         print("Unexpected error:", sys.exc_info()[0])
@@ -265,7 +265,7 @@ def run_pipeline(options_fname, verbose=False, force_restart=False):
                                               threshold=3)
                     log.commit(msg)
                     log.add_linebreak()
-                except:
+                except Exception:
                     log.error("Image combination failed!")
                     log.fatal_error()
                     print("Unexpected error:", sys.exc_info()[0])
@@ -294,7 +294,7 @@ def run_pipeline(options_fname, verbose=False, force_restart=False):
                 log.error(str(e))
                 log.fatal_error()
                 return
-            except:
+            except Exception:
                 log.fatal_error()
                 print("Unexpected error:", sys.exc_info()[0])
                 raise
@@ -308,7 +308,7 @@ def run_pipeline(options_fname, verbose=False, force_restart=False):
                                                             kwargs_ext=options['sep-extract'])
                 log.commit(output_msg)
                 log.add_linebreak()
-            except:
+            except Exception:
                 log.error("Source extraction failed!")
                 log.fatal_error()
                 print("Unexpected error:", sys.exc_info()[0])
@@ -321,7 +321,7 @@ def run_pipeline(options_fname, verbose=False, force_restart=False):
                 output_msg = correct_wcs(combined_fname, sep_fname, **options['wcs'])
                 log.commit(output_msg)
                 log.add_linebreak()
-            except:
+            except Exception:
                 log.error("WCS calibration failed!")
                 log.fatal_error()
                 print("Unexpected error:", sys.exc_info()[0])
@@ -335,7 +335,7 @@ def run_pipeline(options_fname, verbose=False, force_restart=False):
                     output_msg = flux_calibration_sdss(combined_fname, sep_fname, **options['sdss_flux'])
                     log.commit(output_msg)
                     log.add_linebreak()
-                except:
+                except Exception:
                     log.error("Zero point calibration failed!")
                     log.fatal_error()
                     print("Unexpected error:", sys.exc_info()[0])
