@@ -185,6 +185,7 @@ def fit_trace(img2D, x, y, model_name='moffat', dx=50, kappa=10., ymin=5, ymax=-
             x_binned.append(num + dx/2)
     msg.append("          - Fitted %i points along the spectral trace" % len(trace_parameters))
     output_msg = "\n".join(msg)
+    x_binned = np.array(x_binned)
     return (x_binned, N_obj, trace_parameters, fwhm, output_msg)
 
 
@@ -268,6 +269,9 @@ def create_2d_profile(img2D, model_name='moffat', dx=25, width_scale=2, kappa_de
         fit_values = fit_trace(img2D, x, y, model_name=model_name, dx=dx, ymin=ymin, ymax=ymax, xmin=xmin, xmax=xmax, kappa=kappa_det)
     x_binned, N_obj, trace_parameters, fwhm, fit_msg = fit_values
     msg.append(fit_msg)
+    if len(trace_parameters) == 0:
+        msg.append(" [ERROR]  - Automated fitting of the trace failed!")
+        raise ValueError("Could not determine the trace position!")
 
     msg.append("          - Creating 2D spectral profile from fitted parameters")
     msg.append("          - Profile type: %s" % model_name)
