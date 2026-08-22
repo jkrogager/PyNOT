@@ -44,7 +44,7 @@ def save_database(database, output_fname):
         for filetype, files in sorted(database.items()):
             output.write("## %s:\n" % filetype)
             file_list = list()
-            files += database.inactive.get(filetype, [])
+            files = files + database.inactive.get(filetype, [])
             sorted_files = sorted(files, key=lambda x: x[1:] if len(x) > 1 else x)
             for fname in sorted_files:
                 try:
