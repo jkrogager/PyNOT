@@ -23,7 +23,9 @@ class DataFlag(IntFlag):
     BAL_QSO           = 2**9    # Broad absorption line quasar
     ABS_QSO           = 2**10   # Absorption associated with quasar
     DLA_INTERVENING   = 2**11   # Damped Lyman Alpha absorption
-    STAR              = 2**12   # Stellar classification
+    ABS_INTERVENING   = 2**12   # Damped Lyman Alpha absorption
+    STAR              = 2**13   # Stellar classification
+    BAD_JOIN          = 2**14   # Badly joined arms of 4MOST
 
 
     def get_flags(self):
