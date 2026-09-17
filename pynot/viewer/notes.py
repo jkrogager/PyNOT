@@ -3,8 +3,9 @@ import logging
 import json
 import numpy as np
 from enum import IntFlag
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 import datetime
+import os
 
 from PyQt5.QtWidgets import QFileDialog
 
@@ -62,6 +63,10 @@ class TargetNote:
         if self.spectype:
             row['spectype'] = self.spectype.replace(',', ';')
         return row
+
+
+target_note_fields = [f.name for f in fields(TargetNote)]
+target_note_defaults = {f.name: f.type for f in fields(TargetNote)}
 
 
 REDSHIFT_NAMES = ['REDSHIFT', 'Z_SPEC', 'ZBEST', 'Z_PIPE', 'ZSPEC', 'Z', 'ZFIT', 'Z_VI']
@@ -170,7 +175,7 @@ def redshift_table_lookup(redshift_table, spectrum):
     name_column = redshift_table.meta['NAME_COLUMN']
 
     if name_column.upper() == 'FILENAME' or name_column.upper() == 'PROV':
-        name = spectrum.filename
+        name = os.path.basename(spectrum.filename)
 
     else:
         if not spectrum.meta:
@@ -272,3 +277,64 @@ def write_notes_to_file(notes: dict[str, TargetNote], flags: dict[str, DataFlag]
 
     file_saved = writer(rows, filename)
     return file_saved
+
+
+def load_json(filename):
+    with open(filename) as f:
+        rows = json.load(f)
+    return Table(rows)
+
+
+def load_table(filename):
+    return Table.read(filename)
+
+
+def parse_masked_values(key, val):
+    if hasattr(val, 'mask') and val.mask:
+        return target_note_defaults[key]()
+    else:
+        return val
+
+
+def target_note_from_row(**kwargs):
+    pars = {}
+    for key, val in kwargs.items():
+        if key in target_note_fields and key == 'filenames':
+            pars[key] = val.split(';')
+        elif key in target_note_fields and key != 'filenames':
+            pars[key] = parse_masked_values(key, val)
+        else:
+            continue
+    return TargetNote(**pars)
+
+
+def data_flag_from_row(row):
+    try:
+        flag = DataFlag(row['flag'])
+    except ValueError:
+        flag = DataFlag(0)
+        logging.error(f"Could not parse flag value: {row['flag']}. The flags must have changed")
+    return flag
+
+
+def validate_table(tab: Table):
+    mandatory_columns = [f.name for f in fields(TargetNote)]
+    mandatory_columns.append('flag')
+    valid = all([key in tab.colnames for key in mandatory_columns])
+    return valid
+
+
+def load_notes_from_file(filename):
+    if '.json' in filename:
+        loader = load_json
+    else:
+        loader = load_table
+
+    tab = loader(filename)
+    valid = validate_table(tab)
+    if not valid:
+        logging.error(f"Error loading notes from file: {filename}. Unexpected format!")
+
+    target_notes = {row['name']: target_note_from_row(**row) for row in tab}
+    target_flags = {row['name']: data_flag_from_row(row) for row in tab}
+    return target_notes, target_flags
