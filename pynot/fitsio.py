@@ -4,7 +4,7 @@ __author__ = "Jens-Kristian Krogager"
 import warnings
 from astropy.io import fits
 from astropy import units as u
-from astropy.table import QTable
+from astropy.table import Table
 import numpy as np
 import os
 
@@ -165,7 +165,7 @@ def get_spectrum_fits_table(table_hdu):
         Numpy boolean array of pixel mask. `True` if the pixel is 'good',
         `False` if the pixel is bad and should not be used.
     """
-    tbdata = QTable.read(table_hdu)
+    tbdata = Table.read(table_hdu)
     # table_names = [name.lower() for name in tbdata.names]
     for colname in tbdata.colnames:
         tbdata.rename_column(colname, colname.lower())
