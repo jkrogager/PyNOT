@@ -17,7 +17,11 @@ import os
 import warnings
 
 from pynot.fitsio import load_fits_spectrum, save_fits_spectrum
-from pynot.viewer.notes import load_redshift_table, redshift_table_lookup, TargetNote, DataFlag, write_notes_to_file
+from pynot.viewer.notes import (load_redshift_table,
+                                redshift_table_lookup,
+                                TargetNote, DataFlag,
+                                write_notes_to_file,
+                                load_notes_from_file)
 from pynot.viewer.tablemodels import TableModel, ActiveTableModel, AbstractIndex
 from pynot.viewer.spectrum import Spectrum, join_spectra, Template, ModelSpectrum
 from pynot.viewer.messages import QtLogHandler, LogViewerDialog
@@ -967,6 +971,21 @@ class MainWindow(QtWidgets.QMainWindow):
             self.notes_filename = str(notes_filename)
             logging.info(f"Saved target notes to file: {notes_filename}")
 
+    def load_notes(self, filename=None):
+        current_dir = "./"
+        filters = "CSV Files (*.csv);; JSON Files (*.json);; FITS Files (*.fits)"
+        fname, selected_filter = QtWidgets.QFileDialog.getOpenFileName(
+                                                self,
+                                                'Load Target Notes',
+                                                current_dir,
+                                                filters)
+        if not fname:
+            return
+        loaded_notes, loaded_flags = load_notes_from_file(fname)
+        self.target_notes = loaded_notes
+        self.target_flags = loaded_flags
+        logging.info(f"Loaded target notes from file: {fname}")
+
     def create_menubar(self):
         self.main_menu = self.menuBar()
 
@@ -979,11 +998,16 @@ class MainWindow(QtWidgets.QMainWindow):
         save_action.triggered.connect(lambda x: self.write_notes())
         save_action.setShortcut("Ctrl+S")
 
+        load_action = QtWidgets.QAction("Load Notes", self)
+        load_action.triggered.connect(lambda x: self.load_notes())
+        load_action.setShortcut("Ctrl+L")
+
         # Exit QAction
         exit_action = QtWidgets.QAction("Exit", self)
         exit_action.triggered.connect(self.close)
         
         self.file_menu.addAction(save_action)
+        self.file_menu.addAction(load_action)
         self.file_menu.addAction(exit_action)
 
         # -- Models Menu
