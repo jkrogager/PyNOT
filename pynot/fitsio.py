@@ -3,7 +3,6 @@ __author__ = "Jens-Kristian Krogager"
 
 import warnings
 from astropy.io import fits
-from astropy import units as u
 from astropy.table import Table
 import numpy as np
 import os
@@ -384,8 +383,6 @@ def load_fits_spectrum(fname, ext=None, iraf_obj=None):
                 if has_multi_extensions and (ext is None):
                     msg = "[WARNING] - More than one data extension detected in the file"
                 wavelength, data, error, mask = get_spectrum_fits_table(table_hdu)
-                if 'CUNIT1' in data_hdr:
-                    wavelength *= u.Unit(data_hdr['CUNIT1'])
                 return wavelength, data, error, mask, data_hdr, msg
 
             elif len(HDUlist) == 2:

@@ -1051,6 +1051,7 @@ def main(inspect=False):
     
     else:
         import pynot
+        print_credits()
         print("Running PyNOT for instrument: %s\n" % pynot.instrument.name)
 
     if log:
