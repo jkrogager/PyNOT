@@ -764,8 +764,15 @@ def task_response(options, database, status, log=None, verbose=True, app=None, o
             med_flux_tab = gaussian_filter1d(med_flux_tab, 1)
             noise = mad(flux0 - med_flux_tab)*1.5
             good = np.abs(flux0 - med_flux_tab) < options['response']['kappa']*noise
-            # good[:3] = True
-            # good[-3:] = True
+            # Keep the first and last reference points, as `calculate_response()` does.
+            # The criterion above is absolute, while the standard star's count rate varies
+            # by a large factor across the spectrum, and `median_filter` runs along the
+            # *index* axis of the reference table, whose wavelength sampling becomes very
+            # coarse in the far red (the tabulated rows beyond the extracted range are
+            # dropped). Without this, the last points are flagged as outliers and the
+            # response spline extrapolates past them.
+            good[:3] = True
+            good[-3:] = True
 
             # Load Extinction Table:
             wl_ext, A0 = np.loadtxt(instrument.extinction_fname, unpack=True)
