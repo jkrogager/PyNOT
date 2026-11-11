@@ -129,10 +129,12 @@ def get_wavelength_from_header(hdr):
 
 
 # -- These names are used to define proper column names for Wavelength, Flux and Error:
-wavelength_column_names = ['wl', 'lam', 'lambda', 'loglam', 'wave', 'wavelength', 'awav']
-flux_column_names = ['data', 'spec', 'flux', 'flam', 'fnu', 'flux_density', 'reduced_flux']
-error_column_names = ['err', 'sig', 'error', 'ivar', 'sigma', 'var', 'err_flux', 'flux_ivar', 'flux_var', 'flux_err']
-mask_column_names = ['mask', 'qual', 'dq', 'qc']
+wavelength_column_names = ['wl', 'lam', 'lambda', 'loglam', 'wave', 'wavelength', 'awav', 'log_wave', 'log_wavelength']
+flux_column_names = ['data', 'spec', 'flux', 'flam', 'fnu', 'flux_density', 'reduced_flux', 'calibrated_flux', 'counts']
+error_column_names = ['err', 'sig', 'error', 'err_ivar', 'ivar', 'sigma', 'var', 'err_flux',
+                      'flux_ivar', 'flux_var', 'flux_err', 'uncertainty', 'var_flux', 'flux_sig',
+                      'err_counts', 'counts_err']
+mask_column_names = ['mask', 'qual', 'dq', 'qc', 'qa', 'quality']
 
 # -- These names are used to define proper ImageHDU names for Flux and Error:
 flux_HDU_names = ['FLUX', 'SCI', 'FLAM', 'FNU']
