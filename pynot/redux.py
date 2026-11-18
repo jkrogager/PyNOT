@@ -486,8 +486,9 @@ def run_pipeline(options_fname, object_id=None, verbose=True, interactive=False,
                     else:
                         log.warn("Could not find a response function that matches the observations!")
                         log.warn("The spectra will not be flux clibrated!")
-                        log.warn("Response functions in the database:")
-                        log.warn(", ".join(database['RESPONSE']))
+                        if 'RESPONSE' in database:
+                            log.warn("Response functions in the database:")
+                            log.warn(", ".join(database['RESPONSE']))
                         status['FLUX2D'] = crr_fname
 
 
@@ -517,8 +518,8 @@ def run_pipeline(options_fname, object_id=None, verbose=True, interactive=False,
                         except Exception:
                             log.error("Spectral 1D extraction failed!")
                             log.fatal_error()
-                            print("Unexpected error:", sys.exc_info()[0])
-                            raise
+                            # print("Unexpected error:", sys.exc_info()[0])
+                            # raise
 
                     obdb.update(output_dir, 'DONE')
                     log.exit()
