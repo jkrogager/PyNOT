@@ -1,0 +1,15 @@
+# Pixel Table for ALFOSC grism: al-gr17
+# order = 3
+# ref = vacuum
+# loc = 1026
+# fname = spectra/arcs/CORR_ALJk150177.fits
+#
+# Pixel    Wavelength [Å]
+   117.04    6306.54
+   228.03    6336.19
+   407.48    6384.76
+   477.85    6404.02
+   850.66    6508.33
+   942.83    6534.69
+  1170.22    6600.78
+  1564.61    6718.90
